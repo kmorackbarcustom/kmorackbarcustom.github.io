@@ -1034,29 +1034,40 @@
     const todayStr = new Date().toISOString().split('T')[0];
     const firstOpen = getNextOpenDate(todayStr);
 
-    document.getElementById('appoint-date').min = firstOpen;
-    document.getElementById('pickup-date').min = firstOpen;
+    const appointEl = document.getElementById('appoint-date');
+    const pickupEl = document.getElementById('pickup-date');
 
-    document.getElementById('appoint-date').addEventListener('change', function() {
+    // Set min และ default value เป็นวันที่เปิดรับคิววันแรก
+    appointEl.min = firstOpen;
+    appointEl.value = firstOpen;
+    pickupEl.min = firstOpen;
+
+    // Validate และ update summary
+    validateField('appoint-date', firstOpen);
+
+    appointEl.addEventListener('change', function() {
       const val = this.value;
       if (isClosedDate(val)) {
         showClosedModal();
-        this.value = '';
+        this.value = firstOpen; // กลับไปวันที่เปิดรับคิววันแรก
+        validateField('appoint-date', firstOpen);
         return;
       }
       validateField('appoint-date', val);
       const minPickup = val || firstOpen;
-      document.getElementById('pickup-date').min = minPickup;
-      if (document.getElementById('pickup-date').value < minPickup) {
-        document.getElementById('pickup-date').value = '';
+      pickupEl.min = minPickup;
+      if (pickupEl.value && pickupEl.value < minPickup) {
+        pickupEl.value = '';
+        validateField('pickup-date', '');
       }
     });
 
-    document.getElementById('pickup-date').addEventListener('change', function() {
+    pickupEl.addEventListener('change', function() {
       const val = this.value;
       if (isClosedDate(val)) {
         showClosedModal();
         this.value = '';
+        validateField('pickup-date', '');
         return;
       }
       validateField('pickup-date', val);
@@ -1204,7 +1215,7 @@
     
     const params = new URLSearchParams(window.location.search);
     const preDate = params.get('date');
-    if (preDate) {
+    if (preDate && !isClosedDate(preDate)) {
       document.getElementById('appoint-date').value = preDate;
       document.getElementById('pickup-date').min = preDate;
       validateField('appoint-date', preDate);
