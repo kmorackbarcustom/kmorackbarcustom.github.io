@@ -1,48 +1,92 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KMO Order</title>
+<style>
+body{
+  margin:0;
+  font-family:system-ui;
+  background:#0f172a;
+  color:white;
+}
+button{
+  padding:10px 16px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+}
+.primary{
+  background:#22c55e;
+  color:white;
+}
+.box{
+  background:#1e293b;
+  padding:20px;
+  border-radius:14px;
+  margin-top:20px;
+}
+textarea{
+  width:100%;
+  height:220px;
+  background:#0f172a;
+  color:#e2e8f0;
+  border-radius:10px;
+  padding:12px;
+  border:1px solid #334155;
+}
+</style>
+</head>
+
+<body>
+
+<div id="app"></div>
+
 <script>
 const SUPA_URL = "https://zzsgnqlhrksvqkidienm.supabase.co";
-const SUPA_KEY = "YOUR_SUPABASE_KEY";
+const SUPA_KEY = "sb_publishable_KRXKFWO5EHt1zpQ0wJWmTw_G2uShXEx"; // 🔥 เปลี่ยนตรงนี้
 
 function fmtDate(d){
   if(!d) return "-";
   const dt = new Date(d);
-  return dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  return dt.toLocaleDateString('th-TH',{
+    day:'numeric',
+    month:'short',
+    year:'2-digit'
+  });
 }
 
 let S = {
-  step:1,
+  name:"เทส ลูกค้า",
+  contact:"0800000000",
+  brand:"Honda",
+  model:"ADV350",
+  selected:{ rack:true },
+  paymentType:"deposit1000",
+  submitted:false,
   orderId:null,
   startDate:null,
   dueDate:null,
-  copied:false,
   loading:false,
-  error:null,
-  submitted:false,
-  name:"",
-  contact:"",
-  channel:"",
-  brand:"",
-  model:"",
-  selected:{},
-  otherText:"",
-  colorText:"",
-  paymentType:""
+  error:null
 };
-
-function selLabels(){
-  return Object.keys(S.selected)
-    .filter(k=>S.selected[k])
-    .map(k=>k==="other"?`อื่นๆ (${S.otherText})`:k);
-}
 
 function totalUnits(){
   return Object.values(S.selected).filter(Boolean).length;
 }
 
+function selLabels(){
+  return Object.keys(S.selected)
+    .filter(k=>S.selected[k]);
+}
+
 async function submitOrder(){
   S.loading=true;
   render();
+
   try{
-    const res=await fetch(`${SUPA_URL}/rest/v1/orders`,{
+    const res = await fetch(`${SUPA_URL}/rest/v1/orders`,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -53,11 +97,9 @@ async function submitOrder(){
       body:JSON.stringify({
         customer_name:S.name,
         contact:S.contact,
-        channel:S.channel,
         brand:S.brand,
         model:S.model,
         items:selLabels(),
-        color:S.colorText,
         unit:totalUnits(),
         payment_type:S.paymentType,
         status:'pending',
@@ -66,16 +108,16 @@ async function submitOrder(){
     });
 
     if(!res.ok){
-      const err=await res.json();
-      throw new Error(err.message||'Insert failed');
+      const err=await res.text();
+      throw new Error(err);
     }
 
     const data=await res.json();
     const row = Array.isArray(data)?data[0]:data;
 
-    S.orderId=row?.order_id||'—';
-    S.startDate=row?.start_date||null;
-    S.dueDate=row?.due_date||null;
+    S.orderId=row.order_id;
+    S.startDate=row.start_date;
+    S.dueDate=row.due_date;
     S.submitted=true;
     S.loading=false;
     render();
@@ -90,7 +132,8 @@ async function submitOrder(){
 function renderSuccess(){
   const labels=selLabels();
 
-  const msg=`📋 ยืนยันออเดอร์ KMO Rackbar Custom
+  const msg =
+`📋 ยืนยันออเดอร์ KMO Rackbar Custom
 
 Order ID: ${S.orderId}
 ชื่อ: ${S.name}
@@ -111,30 +154,57 @@ Order ID: ${S.orderId}
 📎 (แนบสลิปในข้อความนี้ด้วยนะครับ)`;
 
   return `
-  <div style="padding:32px 24px">
-    <h2 style="color:#fff">สั่งออเดอร์สำเร็จ!</h2>
+  <div style="padding:30px">
+    <h2>สั่งออเดอร์สำเร็จ!</h2>
 
-    <div style="background:#0f172a;border-radius:12px;padding:16px;margin-top:16px">
-      <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">ข้อความสำหรับส่ง LINE</div>
-      <pre style="white-space:pre-wrap;color:#e2e8f0">${msg}</pre>
-      <button onclick="navigator.clipboard.writeText(\`${msg}\`)">คัดลอก</button>
+    <div class="box">
+      <div style="margin-bottom:10px;color:#94a3b8">
+        ข้อความสำหรับส่ง LINE
+      </div>
+
+      <textarea readonly>${msg}</textarea>
+
+      <br><br>
+      <button onclick="navigator.clipboard.writeText(\`${msg}\`)">
+        คัดลอกข้อความ
+      </button>
+
+      <br><br>
+      <a href="https://line.me/R/msg/text/?${encodeURIComponent(msg)}" target="_blank">
+        <button class="primary">ส่งสลิปผ่าน LINE</button>
+      </a>
     </div>
-  </div>`;
+  </div>
+  `;
+}
+
+function renderForm(){
+  return `
+  <div style="padding:30px">
+    <h2>Demo Submit Order</h2>
+
+    <button class="primary" onclick="submitOrder()">
+      ${S.loading?"กำลังบันทึก...":"ยืนยันออเดอร์"}
+    </button>
+
+    ${S.error?`<div style="color:red;margin-top:10px">${S.error}</div>`:""}
+  </div>
+  `;
 }
 
 function render(){
-  const app=document.getElementById('app');
+  const app=document.getElementById("app");
+  if(!app) return;
+
   if(S.submitted){
     app.innerHTML=renderSuccess();
-    return;
+  }else{
+    app.innerHTML=renderForm();
   }
-
-  app.innerHTML=`
-  <div style="padding:24px">
-    <h2>Demo Submit</h2>
-    <button onclick="submitOrder()">ยืนยันออเดอร์</button>
-  </div>`;
 }
 
 render();
 </script>
+
+</body>
+</html>
