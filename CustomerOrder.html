@@ -1,55 +1,96 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>KMO Rackbar Custom</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>สั่งผลิตอุปกรณ์รถ — KMO Rackbar Custom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: radial-gradient(ellipse at 20% 40%, #1a0800 0%, #0a0f1a 55%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; color: #e2e8f0; }
+    input::placeholder { color: #2d3748; }
+    button { cursor: pointer; font-family: inherit; }
+    button:hover:not(:disabled) { opacity: .85; }
+    button:disabled { cursor: not-allowed; }
+    a { text-decoration: none; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    @keyframes popIn  { 0% { transform:scale(.8); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    .card { width: 100%; max-width: 420px; background: #1a2236; border-radius: 24px; border: 1px solid #2d3748; box-shadow: 0 40px 80px #00000090; }
+    .card-header { padding: 28px 28px 0; }
+    .card-body { padding: 0 28px 28px; }
+    .label { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; letter-spacing: .5px; }
+    .label.mt { margin-top: 16px; }
+    .inp { width: 100%; background: #0f172a; border: 1.5px solid #1e293b; border-radius: 10px; padding: 12px 14px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; margin-bottom: 4px; transition: border .15s; }
+    .inp:disabled { background: #0a0f1a; color: #4a5568; cursor: not-allowed; }
+    .inp:focus { border-color: #f97316; }
+    .btn-primary { background: #f97316; border: none; border-radius: 12px; padding: 13px 20px; color: #fff; font-size: 15px; font-weight: 700; transition: all .15s; flex: 1; }
+    .btn-back { background: transparent; border: 1px solid #2d3748; border-radius: 12px; padding: 13px; color: #718096; font-size: 13px; font-weight: 700; width: 78px; flex-shrink: 0; }
+    .anim { animation: fadeIn .25s ease; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .steps { display: flex; align-items: center; margin-bottom: 22px; }
+    .sdot { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; transition:all .3s; flex-shrink:0; border:2px solid #2d3748; background:transparent; color:#4a5568; }
+    .sdot.active { border-color:#f97316; background:#fff; color:#f97316; }
+    .sdot.done { border-color:#f97316; background:#f97316; color:#fff; }
+    .sline { flex:1; height:2px; background:#1e293b; margin:0 4px; margin-bottom:14px; transition:background .3s; }
+    .sline.done { background:#f97316; }
+    .slabel { font-size:8px; font-weight:700; text-align:center; margin-top:3px; white-space:nowrap; color:#4a5568; }
+    .slabel.on { color:#f97316; }
+    .nav { display:flex; gap:10px; margin-top:14px; }
+    .box { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:14px; }
+  </style>
 </head>
 <body>
-<div id="app"></div>
+<div class="card" id="app"></div>
 
 <script>
 const SUPA_URL = "https://zzsgnqlhrksvqkidienm.supabase.co";
-const SUPA_KEY = "PUT_YOUR_ANON_PUBLIC_KEY_HERE"; // ใส่ anon public key ตรงนี้
+const SUPA_KEY = "sb_publishable_KRXKFWO5EHt1zpQ0wJWmTw_G2uShXEx";
 
-let S = {
-  step:1,
-  orderId:null,
-  startDate:null,
-  dueDate:null,
-  submitted:false,
-  loading:false,
-  error:null,
-  name:"",contact:"",channel:"",
-  brand:"",model:"",
-  items:[],color:"",
-  payment:""
-};
+const BRANDS = ["Honda","Yamaha","Kawasaki","Suzuki","BMW","KTM","Ducati","Royal Enfield","Triumph","อื่นๆ"];
+const PRODUCTS = [
+  {id:"crash_bar",label:"แคชบาร์",emoji:"🛡️",unit:1,size:"งานใหญ่"},
+  {id:"side_rack",label:"แร็คข้าง",emoji:"📦",unit:1,size:"งานใหญ่"},
+  {id:"rear_rack",label:"แร็คท้าย",emoji:"🎒",unit:1,size:"งานใหญ่"},
+  {id:"bar",label:"บาร์เสริม",emoji:"🔧",unit:0.5,size:"งานเล็ก"},
+  {id:"other",label:"อื่นๆ",emoji:"✏️",unit:1,size:"งานใหญ่",freetext:true},
+];
+const CHANNELS = ["Line","Facebook","Instagram","มาเอง","อื่นๆ"];
+const CH_ICONS = {Line:"💬",Facebook:"📘",Instagram:"📸","มาเอง":"🏍️","อื่นๆ":"📦"};
+const STEP_LABELS = ["ติดต่อ","รถ","รายการ","ชำระ","ยืนยัน"];
 
-function genOrderId(){
+let S = {step:1,orderId:null,startDate:null,dueDate:null,copied:false,loading:false,error:null,submitted:false,name:"",contact:"",channel:"",brand:"",model:"",selected:{},otherText:"",colorText:"",paymentType:""};
+
+function set(patch){Object.assign(S,patch);render();}
+function totalUnits(){return PRODUCTS.reduce((s,p)=>S.selected[p.id]?s+p.unit:s,0);}
+function selLabels(){return PRODUCTS.filter(p=>S.selected[p.id]).map(p=>p.id==="other"?`อื่นๆ (${S.otherText})`:p.label);}
+
+function generateOrderId(){
   const d=new Date();
   const y=d.getFullYear();
   const m=String(d.getMonth()+1).padStart(2,'0');
   const day=String(d.getDate()).padStart(2,'0');
-  const rand=Math.floor(Math.random()*9000+1000);
-  return `KMO-${y}${m}${day}-${rand}`;
+  const rand=Math.random().toString(36).substring(2,6).toUpperCase();
+  return `ORD-${y}${m}${day}-${rand}`;
 }
-
-function addDays(days){
-  const d=new Date();
-  d.setDate(d.getDate()+days);
-  return d.toISOString();
+function formatDate(d){
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function calculateDates(){
+  const start=new Date();
+  const daysNeeded=Math.ceil(totalUnits()*3);
+  const due=new Date(start);
+  due.setDate(start.getDate()+daysNeeded);
+  return {start_date:formatDate(start),due_date:formatDate(due)};
 }
 
 async function submitOrder(){
-  S.loading=true;
-  render();
-
-  const orderId=genOrderId();
-  const start=new Date().toISOString();
-  const due=addDays(7);
-
+  set({loading:true,error:null});
   try{
+    const orderId=generateOrderId();
+    const dates=calculateDates();
+
     const res=await fetch(`${SUPA_URL}/rest/v1/orders`,{
       method:'POST',
       headers:{
@@ -65,61 +106,33 @@ async function submitOrder(){
         channel:S.channel,
         brand:S.brand,
         model:S.model,
-        items:S.items,
-        color:S.color,
-        payment_type:S.payment,
+        items:selLabels(),
+        color:S.colorText,
+        unit:totalUnits(),
+        payment_type:S.paymentType,
         status:'pending',
-        start_date:start,
-        due_date:due
+        priority:'normal',
+        start_date:dates.start_date,
+        due_date:dates.due_date
       })
     });
 
     if(!res.ok){
-      const t=await res.text();
-      throw new Error(t);
+      const err=await res.json();
+      throw new Error(err.message||"Insert failed");
     }
 
-    S.orderId=orderId;
-    S.startDate=start;
-    S.dueDate=due;
-    S.submitted=true;
-    S.loading=false;
-    render();
+    set({
+      orderId:orderId,
+      startDate:dates.start_date,
+      dueDate:dates.due_date,
+      submitted:true,
+      loading:false
+    });
 
   }catch(err){
-    S.error="บันทึกไม่สำเร็จ ตรวจสอบ Key หรือ Table orders";
-    S.loading=false;
-    render();
+    set({error:err.message,loading:false});
   }
-}
-
-function render(){
-  const app=document.getElementById('app');
-
-  if(S.submitted){
-    app.innerHTML=`
-      <h2>สั่งสำเร็จ</h2>
-      <pre>
-Order ID: ${S.orderId}
-เริ่มผลิต: ${new Date(S.startDate).toLocaleDateString()}
-กำหนดส่ง: ${new Date(S.dueDate).toLocaleDateString()}
-      </pre>
-    `;
-    return;
-  }
-
-  app.innerHTML=`
-  <h2>KMO Order</h2>
-  <input placeholder="ชื่อ" oninput="S.name=this.value">
-  <input placeholder="ติดต่อ" oninput="S.contact=this.value">
-  <input placeholder="ค่ายรถ" oninput="S.brand=this.value">
-  <input placeholder="รุ่นรถ" oninput="S.model=this.value">
-  <input placeholder="สี" oninput="S.color=this.value">
-  <button onclick="submitOrder()" ${S.loading?'disabled':''}>
-    ${S.loading?'กำลังบันทึก...':'ยืนยันออเดอร์'}
-  </button>
-  ${S.error?`<p style="color:red">${S.error}</p>`:''}
-  `;
 }
 
 render();
