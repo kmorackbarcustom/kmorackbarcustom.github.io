@@ -163,10 +163,24 @@ const handleStatus = async (newStatus) => {
         e("div", { style: { fontSize: 16, fontWeight: 800, color: "#e2e8f0" } }, order.unit),
         e("div", { style: { fontSize: 10, color: "#4a6080" } }, "units")
       ),
-      e("div", { style: { textAlign: "center", minWidth: 76 } },
-        e("div", { style: { fontSize: 12, fontWeight: 600, color: order.status === "done" ? "#22c55e" : "#94a3b8" } }, fmt(order.due_date)),
-        e("div", { style: { fontSize: 10, color: "#4a6080" } }, "กำหนดส่ง")
-      ),
+      e("div", { style: { textAlign: "center", minWidth: 90 } },
+
+  // start_date
+  order.start_date && e("div", {
+    style: { fontSize: 11, color: "#38bdf8", marginBottom: 2 }
+  }, "เริ่มผลิต " + fmt(order.start_date)),
+
+  // due_date
+  e("div", { 
+    style: { 
+      fontSize: 12, 
+      fontWeight: 600, 
+      color: order.status === "done" ? "#22c55e" : "#94a3b8" 
+    } 
+  }, fmt(order.due_date)),
+
+  e("div", { style: { fontSize: 10, color: "#4a6080" } }, "กำหนดส่ง")
+),
       e("div", { style: { minWidth: 28, textAlign: "center" } },
         e("span", { title: order.line_user_id || "ยังไม่ผูก UID", style: { fontSize: 14 } },
           order.line_user_id ? "🟢" : "⚪"
