@@ -62,6 +62,11 @@ const STEP_LABELS = ["ติดต่อ","รถ","รายการ","ชำ�
 let S = {step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:””,contact:””,channel:””,brand:””,model:””,selected:{},otherText:””,colorText:””,paymentType:””,deliveryType:””,deliveryAddress:””,startDate:null,dueDate:null};
 
 function set(patch){Object.assign(S,patch);render();}
+function setQuiet(patch){
+Object.assign(S,patch);
+const nb=document.getElementById(‘btn-next’);
+if(nb){const ok=canNext();nb.disabled=!ok;nb.style.opacity=ok?‘1’:’.35’;}
+}
 
 function totalUnits(){return PRODUCTS.reduce((s,p)=>S.selected[p.id]?s+p.unit:s,0);}
 function selLabels(){return PRODUCTS.filter(p=>S.selected[p.id]).map(p=>p.id===“other”?`อื่นๆ (${S.otherText})`:p.label);}
