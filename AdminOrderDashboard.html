@@ -111,14 +111,17 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
   const [shopeeDate, setShopeeDate] = useState(order.shopee_deadline || "");
   const [saving, setSaving] = useState(false);
 
-  const handleStatus = async (newStatus) => {
-    setSaving(true);
-    try {
-      await updateOrder(order.id, { status: newStatus });
-      onStatusChange(order.id, newStatus);
-    } catch (e) { alert(e.message); }
-    finally { setSaving(false); }
-  };
+const handleStatus = async (newStatus) => {
+  setSaving(true);
+  try {
+    await updateOrder(order.id, { status: newStatus });
+    await onRefresh(); // โหลดข้อมูลใหม่จาก Supabase
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleShopeeDeadline = async () => {
     setSaving(true);
