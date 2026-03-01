@@ -1,92 +1,56 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KMO Order</title>
-<style>
-body{
-  margin:0;
-  font-family:system-ui;
-  background:#0f172a;
-  color:white;
-}
-button{
-  padding:10px 16px;
-  border-radius:8px;
-  border:none;
-  cursor:pointer;
-}
-.primary{
-  background:#22c55e;
-  color:white;
-}
-.box{
-  background:#1e293b;
-  padding:20px;
-  border-radius:14px;
-  margin-top:20px;
-}
-textarea{
-  width:100%;
-  height:220px;
-  background:#0f172a;
-  color:#e2e8f0;
-  border-radius:10px;
-  padding:12px;
-  border:1px solid #334155;
-}
-</style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KMO Rackbar Custom</title>
 </head>
-
 <body>
-
 <div id="app"></div>
 
 <script>
 const SUPA_URL = "https://zzsgnqlhrksvqkidienm.supabase.co";
-const SUPA_KEY = "sb_publishable_KRXKFWO5EHt1zpQ0wJWmTw_G2uShXEx"; // 🔥 เปลี่ยนตรงนี้
-
-function fmtDate(d){
-  if(!d) return "-";
-  const dt = new Date(d);
-  return dt.toLocaleDateString('th-TH',{
-    day:'numeric',
-    month:'short',
-    year:'2-digit'
-  });
-}
+const SUPA_KEY = "PUT_YOUR_ANON_PUBLIC_KEY_HERE"; // ใส่ anon public key ตรงนี้
 
 let S = {
-  name:"เทส ลูกค้า",
-  contact:"0800000000",
-  brand:"Honda",
-  model:"ADV350",
-  selected:{ rack:true },
-  paymentType:"deposit1000",
-  submitted:false,
+  step:1,
   orderId:null,
   startDate:null,
   dueDate:null,
+  submitted:false,
   loading:false,
-  error:null
+  error:null,
+  name:"",contact:"",channel:"",
+  brand:"",model:"",
+  items:[],color:"",
+  payment:""
 };
 
-function totalUnits(){
-  return Object.values(S.selected).filter(Boolean).length;
+function genOrderId(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  const rand=Math.floor(Math.random()*9000+1000);
+  return `KMO-${y}${m}${day}-${rand}`;
 }
 
-function selLabels(){
-  return Object.keys(S.selected)
-    .filter(k=>S.selected[k]);
+function addDays(days){
+  const d=new Date();
+  d.setDate(d.getDate()+days);
+  return d.toISOString();
 }
 
 async function submitOrder(){
   S.loading=true;
   render();
 
+  const orderId=genOrderId();
+  const start=new Date().toISOString();
+  const due=addDays(7);
+
   try{
-    const res = await fetch(`${SUPA_URL}/rest/v1/orders`,{
+    const res=await fetch(`${SUPA_URL}/rest/v1/orders`,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -95,116 +59,70 @@ async function submitOrder(){
         'Prefer':'return=representation'
       },
       body:JSON.stringify({
+        order_id:orderId,
         customer_name:S.name,
         contact:S.contact,
+        channel:S.channel,
         brand:S.brand,
         model:S.model,
-        items:selLabels(),
-        unit:totalUnits(),
-        payment_type:S.paymentType,
+        items:S.items,
+        color:S.color,
+        payment_type:S.payment,
         status:'pending',
-        priority:'normal'
+        start_date:start,
+        due_date:due
       })
     });
 
     if(!res.ok){
-      const err=await res.text();
-      throw new Error(err);
+      const t=await res.text();
+      throw new Error(t);
     }
 
-    const data=await res.json();
-    const row = Array.isArray(data)?data[0]:data;
-
-    S.orderId=row.order_id;
-    S.startDate=row.start_date;
-    S.dueDate=row.due_date;
+    S.orderId=orderId;
+    S.startDate=start;
+    S.dueDate=due;
     S.submitted=true;
     S.loading=false;
     render();
 
   }catch(err){
-    S.error=err.message;
+    S.error="บันทึกไม่สำเร็จ ตรวจสอบ Key หรือ Table orders";
     S.loading=false;
     render();
   }
 }
 
-function renderSuccess(){
-  const labels=selLabels();
-
-  const msg =
-`📋 ยืนยันออเดอร์ KMO Rackbar Custom
-
-Order ID: ${S.orderId}
-ชื่อ: ${S.name}
-ติดต่อ: ${S.contact}
-รถ: ${S.brand} ${S.model}
-รายการ: ${labels.join(", ")}
-จำนวน: ${totalUnits()} units
-
-🛠 เริ่มผลิต: ${fmtDate(S.startDate)}
-📦 กำหนดส่งโดยประมาณ: ${fmtDate(S.dueDate)}
-
-การชำระ: ${
-  S.paymentType==="deposit500"?"มัดจำ 500 บาท":
-  S.paymentType==="deposit1000"?"มัดจำ 1,000 บาท":
-  "เต็มจำนวน"
-}
-
-📎 (แนบสลิปในข้อความนี้ด้วยนะครับ)`;
-
-  return `
-  <div style="padding:30px">
-    <h2>สั่งออเดอร์สำเร็จ!</h2>
-
-    <div class="box">
-      <div style="margin-bottom:10px;color:#94a3b8">
-        ข้อความสำหรับส่ง LINE
-      </div>
-
-      <textarea readonly>${msg}</textarea>
-
-      <br><br>
-      <button onclick="navigator.clipboard.writeText(\`${msg}\`)">
-        คัดลอกข้อความ
-      </button>
-
-      <br><br>
-      <a href="https://line.me/R/msg/text/?${encodeURIComponent(msg)}" target="_blank">
-        <button class="primary">ส่งสลิปผ่าน LINE</button>
-      </a>
-    </div>
-  </div>
-  `;
-}
-
-function renderForm(){
-  return `
-  <div style="padding:30px">
-    <h2>Demo Submit Order</h2>
-
-    <button class="primary" onclick="submitOrder()">
-      ${S.loading?"กำลังบันทึก...":"ยืนยันออเดอร์"}
-    </button>
-
-    ${S.error?`<div style="color:red;margin-top:10px">${S.error}</div>`:""}
-  </div>
-  `;
-}
-
 function render(){
-  const app=document.getElementById("app");
-  if(!app) return;
+  const app=document.getElementById('app');
 
   if(S.submitted){
-    app.innerHTML=renderSuccess();
-  }else{
-    app.innerHTML=renderForm();
+    app.innerHTML=`
+      <h2>สั่งสำเร็จ</h2>
+      <pre>
+Order ID: ${S.orderId}
+เริ่มผลิต: ${new Date(S.startDate).toLocaleDateString()}
+กำหนดส่ง: ${new Date(S.dueDate).toLocaleDateString()}
+      </pre>
+    `;
+    return;
   }
+
+  app.innerHTML=`
+  <h2>KMO Order</h2>
+  <input placeholder="ชื่อ" oninput="S.name=this.value">
+  <input placeholder="ติดต่อ" oninput="S.contact=this.value">
+  <input placeholder="ค่ายรถ" oninput="S.brand=this.value">
+  <input placeholder="รุ่นรถ" oninput="S.model=this.value">
+  <input placeholder="สี" oninput="S.color=this.value">
+  <button onclick="submitOrder()" ${S.loading?'disabled':''}>
+    ${S.loading?'กำลังบันทึก...':'ยืนยันออเดอร์'}
+  </button>
+  ${S.error?`<p style="color:red">${S.error}</p>`:''}
+  `;
 }
 
 render();
 </script>
-
 </body>
 </html>
