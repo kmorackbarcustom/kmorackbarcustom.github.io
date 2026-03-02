@@ -338,7 +338,8 @@ function AdminDashboard() {
     setLoading(true); setError(null);
     try {
       const data = await fetchOrders();
-      setOrders(data);
+      const sorted = [...data].sort((a,b)=>(a.status==="done"?1:0)-(b.status==="done"?1:0));
+      setOrders(sorted);
       setLastRefresh(new Date());
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
