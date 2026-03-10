@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | KMO RACK BAR CUSTOM</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface-2: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #f5f5f5;
+      --text-muted: #999;
+      --text-dim: #666;
+      --accent: #fbbf24;
+      --accent-dim: #fcd34d;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --blue: #3b82f6;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans Thai', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      font-size: 18px;
+      color: #000;
+    }
+
+    .logo-text h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .logo-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: 'Space Mono', monospace;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-family: 'IBM Plex Sans Thai', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dim);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Stats Cards */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .stat-card.warning::before { background: var(--warning); }
+    .stat-card.success::before { background: var(--success); }
+    .stat-card.blue::before { background: var(--blue); }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 0.5rem 0;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .stat-footer {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Filters */
+    .filters {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .filter-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    /* Bookings Table */
+    .bookings-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .bookings-list {
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .booking-card {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .booking-card:hover {
+      background: var(--surface-2);
+    }
+
+    .booking-card:last-child {
+      border-bottom: none;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .booking-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+
+    .booking-id {
+      font-family: 'Space Mono', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .booking-status {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge.pending { background: var(--warning); color: #000; }
+    .badge.working { background: var(--danger); color: #fff; }
+    .badge.done { background: var(--success); color: #000; }
+    .badge.waiting { background: var(--blue); color: #fff; }
+
+    .booking-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .info-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .booking-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-sm {
+      padding: 0.5rem 1rem;
+      font-size: 12px;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #000;
+    }
+
+    .btn-warning {
+      background: var(--warning);
+      color: #000;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    /* Status Buttons Group */
+    .status-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .status-btn {
+      padding: 0.5rem 1rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'IBM Plex Sans Thai', sans-serif;
+      font-weight: 500;
+    }
+
+    .status-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .status-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .status-btn.waiting.active {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+
+    .status-btn.working.active {
+      background: var(--warning);
+      border-color: var(--warning);
+      color: #000;
+    }
+
+    .status-btn.done.active {
+      background: var(--success);
+      border-color: var(--success);
+      color: #000;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--surface);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-dim);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .booking-info {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">KMO</div>
+      <div class="logo-text">
+        <h1>Dashboard</h1>
+        <p>RACK BAR CUSTOM</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="refreshData()">🔄 รีเฟรช</button>
+      <button class="btn btn-primary" onclick="window.location.href='booking.html'">+ จองใหม่</button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card warning">
+        <div class="stat-label">งานค้าง</div>
+        <div class="stat-value" id="pendingCount">-</div>
+        <div class="stat-footer">กำลังทำ ยังไม่เสร็จ</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">วันนี้</div>
+        <div class="stat-value" id="todayCount">-</div>
+        <div class="stat-footer">ลูกค้านัดวันนี้</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-label">เสร็จแล้ว</div>
+        <div class="stat-value" id="doneCount">-</div>
+        <div class="stat-footer">สัปดาห์นี้</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ทั้งหมด</div>
+        <div class="stat-value" id="totalCount">-</div>
+        <div class="stat-footer">คิวที่ยืนยันแล้ว</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">ทั้งหมด</button>
+        <button class="filter-btn" data-filter="รอเริ่มงาน">รอเริ่มงาน</button>
+        <button class="filter-btn" data-filter="กำลังทำ">กำลังทำ</button>
+        <button class="filter-btn" data-filter="เสร็จ">เสร็จแล้ว</button>
+      </div>
+    </div>
+
+    <!-- Bookings List -->
+    <div class="bookings-section">
+      <div class="section-header">
+        <h2 class="section-title">รายการจองทั้งหมด</h2>
+      </div>
+      <div class="bookings-list" id="bookingsList">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>กำลังโหลดข้อมูล...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Supabase Config
+    const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+
+    let allBookings = [];
+    let currentFilter = 'all';
+
+    // Format Date
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('th-TH', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
+    }
+
+    // Fetch Bookings
+    async function fetchBookings() {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&order=appointment_date.asc`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch bookings');
+        
+        allBookings = await response.json();
+        updateStats();
+        renderBookings();
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('bookingsList').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⚠️</div>
+            <p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+          </div>
+        `;
+      }
+    }
+
+    // Update Stats
+    function updateStats() {
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const pending = allBookings.filter(b => b.production_status === 'กำลังทำ').length;
+      const todayBookings = allBookings.filter(b => b.appointment_date === today).length;
+      const done = allBookings.filter(b => b.production_status === 'เสร็จ' && b.appointment_date >= weekAgo).length;
+      const total = allBookings.length;
+
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('todayCount').textContent = todayBookings;
+      document.getElementById('doneCount').textContent = done;
+      document.getElementById('totalCount').textContent = total;
+    }
+
+    // Render Bookings
+    function renderBookings() {
+      let filtered = currentFilter === 'all' 
+        ? allBookings 
+        : allBookings.filter(b => b.production_status === currentFilter);
+
+      // เรียงลำดับ: กำลังทำ → รอเริ่มงาน → เสร็จ
+      if (currentFilter === 'all') {
+        const statusOrder = { 'กำลังทำ': 1, 'รอเริ่มงาน': 2, 'เสร็จ': 3 };
+        filtered = filtered.sort((a, b) => {
+          const orderA = statusOrder[a.production_status] || 99;
+          const orderB = statusOrder[b.production_status] || 99;
+          if (orderA !== orderB) return orderA - orderB;
+          return new Date(a.appointment_date) - new Date(b.appointment_date);
+        });
+      }
+
+      const bookingsList = document.getElementById('bookingsList');
+
+      if (filtered.length === 0) {
+        bookingsList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <p>ไม่มีรายการจอง</p>
+          </div>
+        `;
+        return;
+      }
+
+      bookingsList.innerHTML = filtered.map(booking => `
+        <div class="booking-card">
+          <div class="booking-header">
+            <div class="booking-id">${booking.job_id || '-'}</div>
+            <div class="booking-status">
+              <span class="badge ${getProductionBadgeClass(booking.production_status)}">
+                ${booking.production_status || 'ไม่ระบุ'}
+              </span>
+            </div>
+          </div>
+          <div class="booking-info">
+            <div class="info-item">
+              <div class="info-label">ลูกค้า</div>
+              <div class="info-value">${booking.customer_name || '-'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">เบอร์โทร</div>
+              <div class="info-value">${booking.phone || '-'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">รถ</div>
+              <div class="info-value">${booking.brand || ''} ${booking.model || ''}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">รายการ</div>
+              <div class="info-value">${booking.product || '-'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">วันนัด</div>
+              <div class="info-value">${formatDate(booking.appointment_date)}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">วันรับรถ</div>
+              <div class="info-value">${formatDate(booking.pickup_date)}</div>
+            </div>
+          </div>
+          <div class="booking-actions">
+            ${getActionButtons(booking)}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Get Badge Class
+    function getProductionBadgeClass(status) {
+      switch(status) {
+        case 'รอเริ่มงาน': return 'waiting';
+        case 'กำลังทำ': return 'working';
+        case 'เสร็จ': return 'done';
+        default: return 'pending';
+      }
+    }
+
+    // Get Action Buttons
+    function getActionButtons(booking) {
+      const currentStatus = booking.production_status;
+      
+      // ปุ่มเปลี่ยนสถานะ (แบบ radio)
+      const statusButtons = `
+        <div class="status-buttons">
+          <button class="status-btn waiting ${currentStatus === 'รอเริ่มงาน' ? 'active' : ''}" 
+                  onclick="updateStatus(${booking.id}, 'รอเริ่มงาน')" 
+                  ${currentStatus === 'รอเริ่มงาน' ? 'disabled' : ''}>
+            รอเริ่มงาน
+          </button>
+          <button class="status-btn working ${currentStatus === 'กำลังทำ' ? 'active' : ''}" 
+                  onclick="updateStatus(${booking.id}, 'กำลังทำ')" 
+                  ${currentStatus === 'กำลังทำ' ? 'disabled' : ''}>
+            กำลังทำ
+          </button>
+          <button class="status-btn done ${currentStatus === 'เสร็จ' ? 'active' : ''}" 
+                  onclick="updateStatus(${booking.id}, 'เสร็จ')" 
+                  ${currentStatus === 'เสร็จ' ? 'disabled' : ''}>
+            เสร็จ
+          </button>
+        </div>
+      `;
+      
+      // ปุ่มอื่นๆ
+      const actionButtons = `
+        <div class="action-buttons">
+          <button class="btn btn-sm btn-danger" onclick="cancelBooking(${booking.id})">ยกเลิก</button>
+        </div>
+      `;
+      
+      return statusButtons + actionButtons;
+    }
+
+    // Update Status
+    async function updateStatus(id, newStatus) {
+      if (!confirm(`ยืนยันเปลี่ยนสถานะเป็น "${newStatus}"?`)) return;
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ production_status: newStatus })
+        });
+
+        if (!response.ok) throw new Error('Failed to update status');
+        
+        await refreshData();
+        alert('อัพเดทสถานะสำเร็จ!');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาด: ' + error.message);
+      }
+    }
+
+    // Cancel Booking
+    async function cancelBooking(id) {
+      if (!confirm('ยืนยันยกเลิกการจอง?')) return;
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ queue_status: 'ยกเลิก' })
+        });
+
+        if (!response.ok) throw new Error('Failed to cancel booking');
+        
+        await refreshData();
+        alert('ยกเลิกการจองสำเร็จ!');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาด: ' + error.message);
+      }
+    }
+
+    // Refresh Data
+    async function refreshData() {
+      document.getElementById('bookingsList').innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>กำลังโหลดข้อมูล...</p>
+        </div>
+      `;
+      await fetchBookings();
+    }
+
+    // Filter Buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderBookings();
+      });
+    });
+
+    // Initial Load
+    fetchBookings();
+
+    // Auto Refresh every 30 seconds
+    setInterval(fetchBookings, 30000);
+  </script>
+</body>
+</html>
