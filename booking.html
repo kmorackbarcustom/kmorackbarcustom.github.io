@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>จองคิว | KMO RACK BAR CUSTOM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Kanit:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --accent: #fbbf24;
+      --accent2: #fcd34d;
+      --text: #f0ece4;
+      --text-muted: #888;
+      --red: #ef4444;
+      --green: #10b981;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Sarabun', sans-serif;
+      font-size: 16px;
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    /* Header */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-logo {
+      width: 40px; height: 40px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      color: #000;
+      font-size: 18px;
+    }
+    .header-title { font-family: 'Kanit', sans-serif; font-size: 18px; font-weight: 600; }
+    .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .container { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Calendar Banner */
+    .calendar-banner {
+      background: linear-gradient(135deg, #1e1a0f 0%, #2a2210 100%);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      gap: 12px;
+    }
+    .calendar-banner-text { font-size: 14px; line-height: 1.5; }
+    .calendar-banner-text strong { color: var(--accent); font-size: 15px; display: block; margin-bottom: 2px; }
+
+    /* Section */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .form-label .required {
+      color: var(--red);
+      margin-left: 4px;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: 'Sarabun', sans-serif;
+      font-size: 15px;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    /* Date Picker */
+    .date-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .date-cell {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 14px;
+    }
+    .date-cell:hover:not(.disabled):not(.selected) {
+      background: var(--border);
+    }
+    .date-cell.selected {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .date-cell.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .date-cell.full {
+      background: var(--red);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .date-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .date-cell.selected .date-label {
+      color: #000;
+    }
+
+    /* Calendar Header */
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .calendar-month {
+      font-family: 'Kanit', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .calendar-nav {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-nav {
+      width: 36px;
+      height: 36px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .btn-nav:hover {
+      background: var(--border);
+    }
+
+    /* Button */
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Kanit', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: var(--accent2);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Alert */
+    .alert {
+      padding: 16px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .alert-success {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid var(--green);
+      color: var(--green);
+    }
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--red);
+      color: var(--red);
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-muted);
+    }
+    .spinner {
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Image Upload */
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface2);
+      position: relative;
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: var(--accent);
+      background: rgba(251, 191, 36, 0.05);
+    }
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon { font-size: 32px; margin-bottom: 8px; }
+    .upload-text { font-size: 14px; color: var(--text-muted); }
+    .upload-text strong { color: var(--accent); }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .preview-item img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .preview-remove {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 22px; height: 22px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .upload-progress {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Hidden */
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">KMO</div>
+    <div>
+      <div class="header-title">จองคิวขึ้นงาน</div>
+      <div class="header-sub">RACK BAR CUSTOM</div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Success Alert -->
+    <div id="successAlert" class="alert alert-success hidden"></div>
+    
+    <!-- Error Alert -->
+    <div id="errorAlert" class="alert alert-error hidden"></div>
+
+    <!-- Calendar Banner -->
+    <div class="calendar-banner">
+      <div class="calendar-banner-text">
+        <strong>🗓️ เช็ควันว่างก่อนจอง</strong>
+        <span>รับได้วันละ 3 คิว</span>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form id="bookingForm">
+      <!-- Customer Info -->
+      <div class="section">
+        <h3 class="section-title">ข้อมูลลูกค้า</h3>
+        
+        <div class="form-group">
+          <label class="form-label">ชื่อ<span class="required">*</span></label>
+          <input type="text" class="form-input" id="customerName" required placeholder="ชื่อ-นามสกุล">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">เบอร์โทรศัพท์<span class="required">*</span></label>
+          <input type="tel" class="form-input" id="phone" required placeholder="0812345678">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">จองผ่านช่องทางไหน<span class="required">*</span></label>
+          <select class="form-select" id="platform" required>
+            <option value="">เลือกช่องทาง</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Line">LINE</option>
+            <option value="TikTok">TikTok</option>
+            <option value="Instagram">Instagram</option>
+            <option value="หน้าร้าน">มาหน้าร้าน</option>
+            <option value="เพื่อนแนะนำ">เพื่อนแนะนำ</option>
+            <option value="อื่นๆ">อื่นๆ</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Vehicle Info -->
+      <div class="section">
+        <h3 class="section-title">ข้อมูลรถ</h3>
+        
+        <div class="form-group">
+          <label class="form-label">ยี่ห้อรถ<span class="required">*</span></label>
+          <input type="text" class="form-input" id="brand" required placeholder="เช่น Honda, Yamaha">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">รุ่นรถ</label>
+          <input type="text" class="form-input" id="model" placeholder="เช่น PCX 160, NMAX">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">รายการที่ต้องการทำ<span class="required">*</span></label>
+          <textarea class="form-textarea" id="services" required placeholder="เช่น แคชบาร์, แร็คท้าย, แร็คข้าง"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">สี</label>
+          <input type="text" class="form-input" id="color" placeholder="เช่น ดำด้าน, เงิน">
+        </div>
+      </div>
+
+      <!-- Photo Upload -->
+      <div class="section">
+        <h3 class="section-title">📷 รูปภาพรถ (ไม่บังคับ)</h3>
+
+        <div class="upload-area" id="uploadArea">
+          <input type="file" id="imageInput" accept="image/*" multiple>
+          <div class="upload-icon">📸</div>
+          <div class="upload-text">
+            <strong>แตะเพื่อเลือกรูป</strong><br>
+            หรือลากรูปมาวางตรงนี้<br>
+            <span style="font-size:12px;">JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)</span>
+          </div>
+        </div>
+
+        <div class="preview-grid" id="previewGrid"></div>
+        <div class="upload-progress" id="uploadProgress"></div>
+      </div>
+
+      <!-- Date Selection -->
+      <div class="section">
+        <h3 class="section-title">เลือกวันนัด</h3>
+        
+        <div class="calendar-header">
+          <button type="button" class="btn-nav" onclick="changeMonth(-1)">◀</button>
+          <div class="calendar-month" id="calendarMonth"></div>
+          <button type="button" class="btn-nav" onclick="changeMonth(1)">▶</button>
+        </div>
+
+        <div class="date-grid" id="dateGrid">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>กำลังโหลดปฏิทิน...</p>
+          </div>
+        </div>
+
+        <input type="hidden" id="appointDate" required>
+      </div>
+
+      <!-- Pickup Date -->
+      <div class="section">
+        <h3 class="section-title">วันรับรถ</h3>
+        
+        <div class="form-group">
+          <label class="form-label">วันรับรถ (โดยประมาณ)<span class="required">*</span></label>
+          <input type="date" class="form-input" id="pickupDate" required>
+        </div>
+      </div>
+
+      <!-- Deposit -->
+      <div class="section">
+        <h3 class="section-title">ชำระมัดจำ</h3>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="background: #fff; display: inline-block; padding: 12px; border-radius: 12px; margin-bottom: 12px;">
+            <img src="payment.jpg" 
+                 alt="QR Code PromptPay" 
+                 style="width: 280px; height: auto; display: block; border-radius: 8px;">
+          </div>
+          <div style="font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 8px;">₿500</div>
+          <div style="font-size: 14px; color: var(--text-muted); line-height: 1.5;">
+            สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร<br>
+            <span style="font-size: 13px;">PromptPay: 187-8-55343-4</span><br>
+            <span style="font-size: 13px; color: var(--text-dim);">ชื่อบัญชี: เคโม บาย เอนเทคลิป</span>
+          </div>
+        </div>
+
+        <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+            <strong style="color: var(--accent); display: block; margin-bottom: 8px;">📌 ส่งสลิปยืนยัน</strong>
+            หลังจากชำระมัดจำแล้ว กดปุ่มด้านล่าง Add LINE OA<br>
+            แล้วส่งสลิปพร้อมแจ้งรหัสงานให้ทีมงานครับ
+          </div>
+        </div>
+
+        <a href="https://lin.ee/Hm91L7m" 
+           target="_blank"
+           style="display: block; width: 100%; padding: 16px; background: #06C755; color: #fff; border: none; border-radius: var(--radius); font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 12px;">
+          <span style="display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+            </svg>
+            Add Line OA เพื่อส่งสลิป
+          </span>
+        </a>
+
+        <div style="font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.5;">
+          💡 <strong>หมายเหตุ:</strong> หากยังไม่ได้ชำระมัดจำ<br>
+          ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn" id="submitBtn">ยืนยันการจอง</button>
+    </form>
+  </div>
+
+  <script>
+    // Supabase Config
+    const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+
+    let selectedFiles = [];
+    let currentMonth = new Date();
+    let selectedDate = null;
+    let availabilityData = {};
+    let holidays = new Set();
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadHolidays();
+      loadCalendar();
+      setMinPickupDate();
+    });
+
+    // โหลด holidays จาก Supabase
+    async function loadHolidays() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=date`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+        const data = await res.json();
+        holidays = new Set(data.map(h => h.date));
+      } catch (err) {
+        console.error('โหลด holidays ไม่ได้:', err);
+      }
+    }
+
+    // Load Calendar
+    async function loadCalendar() {
+      renderCalendarHeader();
+      await fetchAvailability();
+      renderCalendar();
+    }
+
+    // Render Calendar Header
+    function renderCalendarHeader() {
+      const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                         'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const year = currentMonth.getFullYear() + 543;
+      const month = monthNames[currentMonth.getMonth()];
+      document.getElementById('calendarMonth').textContent = `${month} ${year}`;
+    }
+
+    // Fetch Availability
+    async function fetchAvailability() {
+      try {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+        
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0);
+        
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&select=appointment_date,pickup_date,production_status`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        const bookings = await response.json();
+        
+        // Count bookings per day
+        availabilityData = {};
+        bookings.forEach(booking => {
+          const appointDate = new Date(booking.appointment_date);
+          const pickupDate = new Date(booking.pickup_date);
+          
+          // Count from appoint_date to pickup_date - 1
+          let currentDate = new Date(appointDate);
+          while (currentDate < pickupDate) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching availability:', error);
+      }
+    }
+
+    // Render Calendar
+    function renderCalendar() {
+      const grid = document.getElementById('dateGrid');
+      grid.innerHTML = '';
+      
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Day headers
+      const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+      dayNames.forEach(name => {
+        const cell = document.createElement('div');
+        cell.style.textAlign = 'center';
+        cell.style.color = 'var(--text-muted)';
+        cell.style.fontSize = '12px';
+        cell.style.marginBottom = '8px';
+        cell.textContent = name;
+        grid.appendChild(cell);
+      });
+
+      // Empty cells
+      for (let i = 0; i < firstDay; i++) {
+        grid.appendChild(document.createElement('div'));
+      }
+
+      // Date cells
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = date.toISOString().split('T')[0];
+        const booked = availabilityData[dateStr] || 0;
+        const available = 3 - booked;
+        const isPast = date < today;
+        const isHol = holidays.has(dateStr);
+        const isTue = date.getDay() === 2;
+        
+        const cell = document.createElement('div');
+        cell.className = 'date-cell';
+        
+        if (isPast) {
+          cell.classList.add('disabled');
+        } else if (isHol || isTue || available <= 0) {
+          cell.classList.add('full');
+        } else if (selectedDate === dateStr) {
+          cell.classList.add('selected');
+        }
+        
+        cell.innerHTML = `
+          <div>${day}</div>
+          ${!isPast && !isHol && !isTue && available > 0 ? `<div class="date-label">ว่าง ${available}</div>` : 
+            !isPast ? `<div class="date-label">ปิดรับคิว</div>` : ''}
+        `;
+        
+        if (!isPast && !isHol && !isTue && available > 0) {
+          cell.onclick = () => selectDate(dateStr);
+        }
+        
+        grid.appendChild(cell);
+      }
+    }
+
+    // Select Date
+    function selectDate(dateStr) {
+      selectedDate = dateStr;
+      document.getElementById('appointDate').value = dateStr;
+      renderCalendar();
+      
+      // Set min pickup date
+      const appointDate = new Date(dateStr);
+      appointDate.setDate(appointDate.getDate() + 1);
+      document.getElementById('pickupDate').min = appointDate.toISOString().split('T')[0];
+    }
+
+    // Change Month
+    function changeMonth(delta) {
+      currentMonth.setMonth(currentMonth.getMonth() + delta);
+      selectedDate = null;
+      document.getElementById('appointDate').value = '';
+      loadCalendar();
+    }
+
+    // Set Min Pickup Date
+    function setMinPickupDate() {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      document.getElementById('pickupDate').min = tomorrow.toISOString().split('T')[0];
+    }
+
+    // Form Submit
+    document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'กำลังบันทึก...';
+      
+      try {
+        const data = {
+          customer_name: document.getElementById('customerName').value,
+          phone: document.getElementById('phone').value,
+          source: document.getElementById('platform').value,
+          brand: document.getElementById('brand').value,
+          model: document.getElementById('model').value || null,
+          product: document.getElementById('services').value,
+          color: document.getElementById('color').value || null,
+          appointment_date: document.getElementById('appointDate').value,
+          pickup_date: document.getElementById('pickupDate').value,
+          queue_status: 'รอตรวจสอบ',
+          production_status: 'รอเริ่มงาน'
+        };
+
+        // Generate JobID
+        const jobIdResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/generate_job_id`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_platform: data.source })
+        });
+
+        if (!jobIdResponse.ok) throw new Error('ไม่สามารถสร้างรหัสงานได้');
+        
+        const jobId = await jobIdResponse.json();
+        data.job_id = jobId;
+
+        // อัปโหลดรูป (ถ้ามี) ก่อน insert
+        const imageUrls = await uploadImages(jobId);
+        if (imageUrls.length > 0) {
+          data.images = imageUrls;
+        }
+
+        // Insert booking
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(data)
+        });
+
+        if (!response.ok) throw new Error('ไม่สามารถบันทึกข้อมูลได้');
+
+        // Success
+        showSuccess(`จองคิวสำเร็จ! รหัสงาน: ${jobId}<br>ทางร้านจะติดต่อกลับภายใน 24 ชม.`);
+        document.getElementById('bookingForm').reset();
+        selectedDate = null;
+        selectedFiles = [];
+        document.getElementById('previewGrid').innerHTML = '';
+        await loadCalendar();
+        
+      } catch (error) {
+        showError('เกิดข้อผิดพลาด: ' + error.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'ยืนยันการจอง';
+      }
+    });
+
+    // Show Success
+    function showSuccess(message) {
+      const alert = document.getElementById('successAlert');
+      alert.innerHTML = message;
+      alert.classList.remove('hidden');
+      document.getElementById('errorAlert').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => alert.classList.add('hidden'), 5000);
+    }
+
+    // Show Error
+    function showError(message) {
+      const alert = document.getElementById('errorAlert');
+      alert.textContent = message;
+      alert.classList.remove('hidden');
+      document.getElementById('successAlert').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    // ===== IMAGE UPLOAD =====
+
+    const uploadArea = document.getElementById('uploadArea');
+    uploadArea.addEventListener('dragover', e => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      handleFiles([...e.dataTransfer.files]);
+    });
+
+    document.getElementById('imageInput').addEventListener('change', e => {
+      handleFiles([...e.target.files]);
+      e.target.value = '';
+    });
+
+    function handleFiles(newFiles) {
+      const imageFiles = newFiles.filter(f => f.type.startsWith('image/'));
+      const remaining = 5 - selectedFiles.length;
+      if (remaining <= 0) {
+        showError('เลือกรูปได้สูงสุด 5 รูปเท่านั้น');
+        return;
+      }
+      imageFiles.slice(0, remaining).forEach(file => {
+        if (file.size > 5 * 1024 * 1024) {
+          showError(`รูป ${file.name} ใหญ่เกิน 5MB`);
+          return;
+        }
+        selectedFiles.push(file);
+      });
+      renderPreviews();
+    }
+
+    function renderPreviews() {
+      const grid = document.getElementById('previewGrid');
+      grid.innerHTML = '';
+      selectedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const item = document.createElement('div');
+          item.className = 'preview-item';
+          item.innerHTML = `
+            <img src="${e.target.result}" alt="รูป ${index + 1}">
+            <button class="preview-remove" onclick="removeImage(${index})">✕</button>
+          `;
+          grid.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function removeImage(index) {
+      selectedFiles.splice(index, 1);
+      renderPreviews();
+    }
+
+    async function uploadImages(jobId) {
+      if (selectedFiles.length === 0) return [];
+      const urls = [];
+      const progress = document.getElementById('uploadProgress');
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        progress.textContent = `กำลังอัปโหลดรูป ${i + 1}/${selectedFiles.length}...`;
+        const ext = file.name.split('.').pop();
+        const fileName = `${jobId}/${Date.now()}-${i}.${ext}`;
+        const res = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/booking-images/${fileName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': file.type,
+              'x-upsert': 'true'
+            },
+            body: file
+          }
+        );
+        if (res.ok) {
+          urls.push(`${SUPABASE_URL}/storage/v1/object/public/booking-images/${fileName}`);
+        }
+      }
+      progress.textContent = '';
+      return urls;
+    }
+  </script>
+</body>
+</html>
