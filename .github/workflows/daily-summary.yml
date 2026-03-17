@@ -1,0 +1,22 @@
+name: Daily Summary
+
+on:
+  schedule:
+    - cron: '30 0 * * *'  # 7:30 น. เวลาไทย (UTC+7)
+  workflow_dispatch:        # กดรันมือได้ด้วย
+
+jobs:
+  send-daily-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Booking Daily Summary
+        run: |
+          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/daily-summary" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
+
+      - name: Order Daily Summary
+        run: |
+          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/order-daily-summary" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
