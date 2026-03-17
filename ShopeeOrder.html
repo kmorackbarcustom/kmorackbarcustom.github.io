@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>เพิ่ม Shopee Order — KMO Rackbar Custom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: radial-gradient(ellipse at 20% 40%, #0a1a00 0%, #0a0f1a 55%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; color: #e2e8f0; }
+    input::placeholder, textarea::placeholder { color: #2d3748; }
+    button { cursor: pointer; font-family: inherit; }
+    button:hover:not(:disabled) { opacity: .85; }
+    button:disabled { cursor: not-allowed; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    @keyframes popIn { 0% { transform:scale(.8); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .card { width: 100%; max-width: 480px; background: #1a2236; border-radius: 24px; border: 1px solid #2d3748; box-shadow: 0 40px 80px #00000090; padding: 28px; }
+    .label { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; margin-top: 16px; letter-spacing: .5px; }
+    .label:first-of-type { margin-top: 0; }
+    .inp { width: 100%; background: #0f172a; border: 1.5px solid #1e293b; border-radius: 10px; padding: 12px 14px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border .15s; }
+    .inp:focus { border-color: #06C755; }
+    textarea.inp { resize: vertical; min-height: 80px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-primary { width: 100%; background: #06C755; border: none; border-radius: 12px; padding: 14px 20px; color: #fff; font-size: 15px; font-weight: 700; margin-top: 20px; transition: all .15s; }
+    .btn-primary:disabled { background: #1e3d2a; color: #4a6080; }
+    .product-btn { width: 100%; background: #0f172a; border: 1.5px solid #1e293b; border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; color: #64748b; font-size: 13px; font-weight: 600; margin-bottom: 6px; transition: all .15s; text-align: left; }
+    .product-btn.on { background: #06C75512; border-color: #06C755; color: #06C755; }
+    .check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+    .check.on { background: #06C755; border-color: #06C755; color: #fff; }
+    .tag { display: inline-block; background: #06C75518; border: 1px solid #06C75540; color: #06C755; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; margin-right: 4px; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+<div class="card" id="app"></div>
+<script>
+const SUPA_URL = "https://xfhpwxjywqgqefbncumm.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is";
+
+const BRANDS = ["Honda","Yamaha","Kawasaki","Suzuki","BMW","KTM","Ducati","Royal Enfield","Triumph","อื่นๆ"];
+const PRODUCTS = [
+  {id:"crash_bar", label:"แคชบาร์", emoji:"🛡️", unit:1},
+  {id:"side_rack",  label:"แร็คข้าง", emoji:"📦", unit:1},
+  {id:"rear_rack",  label:"แร็คท้าย", emoji:"🎒", unit:1},
+  {id:"bar",        label:"บาร์เสริม / ค้ำท้าย", emoji:"🔧", unit:0.5},
+  {id:"other",      label:"อื่นๆ / ระบุเพิ่มเติม", emoji:"✏️", unit:1},
+];
+
+let S = {
+  shopeeOrderId: "",
+  brand: "",
+  model: "",
+  color: "",
+  selected: {},
+  itemNote: "",   // หมายเหตุ/รายละเอียดสินค้า
+  deadline: "",
+  loading: false,
+  error: null,
+  success: false,
+  newOrderId: null,
+};
+
+function set(patch) { Object.assign(S, patch); render(); }
+function setQ(patch) { Object.assign(S, patch); updateBtn(); }
+
+function totalUnits() {
+  return PRODUCTS.reduce((s,p) => S.selected[p.id] ? s + p.unit : s, 0);
+}
+function selLabels() {
+  const base = PRODUCTS.filter(p => S.selected[p.id]).map(p => p.label);
+  if (S.itemNote.trim()) base.push(S.itemNote.trim());
+  return base;
+}
+function canSubmit() {
+  return S.shopeeOrderId.trim() && S.brand && S.model.trim() && S.color.trim() && totalUnits() > 0 && S.deadline;
+}
+function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function updateBtn() {
+  const btn = document.getElementById("btn-submit");
+  if (btn) { btn.disabled = !canSubmit(); btn.style.background = canSubmit() ? "#06C755" : "#1e3d2a"; btn.style.color = canSubmit() ? "#fff" : "#4a6080"; }
+}
+
+function render() {
+  const app = document.getElementById("app");
+  if (S.success) { app.innerHTML = renderSuccess(); bindSuccess(); return; }
+  app.innerHTML = renderForm();
+  bind();
+}
+
+function renderForm() {
+  return `
+    <div style="font-size:10px;color:#06C755;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">🛒 Shopee Order</div>
+    <h1 style="font-family:'Playfair Display',serif;font-size:22px;margin:0 0 20px;color:#fff;line-height:1.3">เพิ่ม Order<br>จาก Shopee</h1>
+
+    <div class="label">Shopee Order ID <span style="color:#ef4444">*</span></div>
+    <input class="inp" id="i-shopee" placeholder="เช่น 260226PH1YA64G" value="${esc(S.shopeeOrderId)}" style="font-family:'IBM Plex Mono',monospace">
+
+    <div class="label">ค่ายรถ <span style="color:#ef4444">*</span></div>
+    <div class="grid2" style="margin-bottom:4px">
+      ${BRANDS.map(b => `<button class="brand-btn" data-v="${b}" style="background:${S.brand===b?'#06C75512':'#0f172a'};border:1.5px solid ${S.brand===b?'#06C755':'#1e293b'};border-radius:10px;padding:10px 8px;color:${S.brand===b?'#06C755':'#64748b'};font-size:13px;font-weight:600">${b}</button>`).join('')}
+    </div>
+
+    <div class="label">รุ่นรถ <span style="color:#ef4444">*</span></div>
+    <input class="inp" id="i-model" placeholder="${!S.brand?'เลือกค่ายก่อน':'เช่น Versys650, ADV350'}" value="${esc(S.model)}" ${!S.brand?'disabled':''}>
+
+    <div class="label">สี <span style="color:#ef4444">*</span></div>
+    <input class="inp" id="i-color" placeholder="เช่น ดำด้าน, เทาเมทัลลิก, Raw">
+
+    <div class="label">รายการสินค้า <span style="color:#ef4444">*</span></div>
+    ${PRODUCTS.map(p => {
+      const on = S.selected[p.id];
+      return `<button class="product-btn ${on?'on':''}" data-v="${p.id}">
+        <span>${p.emoji} ${p.label} <span style="color:#475569;font-size:11px">(${p.unit} unit)</span></span>
+        <span class="check ${on?'on':''}">${on?'✓':''}</span>
+      </button>`;
+    }).join('')}
+
+    <div class="label">หมายเหตุ / รายละเอียดเพิ่มเติม</div>
+    <textarea class="inp" id="i-note" placeholder="เช่น แคชบาร์ปี 24-25, ขนาดพิเศษ, สเปคพิเศษ...">${esc(S.itemNote)}</textarea>
+
+    ${totalUnits() > 0 ? `<div style="background:#0f172a;border:1px solid #06C75530;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:13px;display:flex;justify-content:space-between"><span style="color:#64748b">รวม units</span><span style="color:#06C755;font-weight:700">${totalUnits()} units</span></div>` : ''}
+
+    <div class="label">วันกำหนดส่ง Shopee <span style="color:#ef4444">*</span></div>
+    <input class="inp" id="i-deadline" type="date" value="${esc(S.deadline)}">
+
+    ${S.error ? `<div style="background:#ef444418;border:1px solid #ef444440;border-radius:10px;padding:10px 14px;font-size:12px;color:#ef4444;margin-top:12px">❌ ${esc(S.error)}</div>` : ''}
+
+    <button id="btn-submit" class="btn-primary" ${canSubmit()?'':'disabled'} style="background:${canSubmit()?'#06C755':'#1e3d2a'};color:${canSubmit()?'#fff':'#4a6080'}">
+      ✓ บันทึก Shopee Order
+    </button>
+  `;
+}
+
+function renderSuccess() {
+  return `
+    <div style="padding:16px 0;text-align:center;animation:fadeIn .3s ease">
+      <div style="font-size:52px;margin-bottom:12px;animation:popIn .4s ease">🛒</div>
+      <h2 style="font-family:'Playfair Display',serif;font-size:22px;color:#fff;margin-bottom:6px">บันทึกสำเร็จ!</h2>
+      <p style="color:#64748b;font-size:13px;margin-bottom:20px">เพิ่ม Shopee Order เข้าระบบแล้ว</p>
+      <div style="background:#0f172a;border:1px solid #06C75530;border-radius:14px;padding:16px;text-align:left;margin-bottom:16px">
+        ${[
+          ["Order ID", S.newOrderId],
+          ["Shopee #", S.shopeeOrderId],
+          ["รถ", `${S.brand} ${S.model}`],
+          ["สี", S.color],
+          ["รายการ", selLabels().join(", ")],
+          ["กำหนดส่ง", S.deadline],
+        ].map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#64748b">${k}</span><span style="color:#e2e8f0;font-weight:600;text-align:right;max-width:60%">${esc(v)}</span></div>`).join('')}
+      </div>
+      <button id="btn-new" style="width:100%;background:#06C755;border:none;border-radius:12px;padding:13px;color:#fff;font-size:14px;font-weight:700">+ เพิ่ม Order ใหม่</button>
+      <a href="AdminOrderDashboard.html" style="display:block;text-align:center;margin-top:12px;color:#475569;font-size:13px">→ ไปหน้า Dashboard</a>
+    </div>
+  `;
+}
+
+function bind() {
+  // freetext — ไม่ re-render
+  const qi = id => document.getElementById(id);
+  const onInput = (id, key) => { const el = qi(id); if(el) el.addEventListener('input', ev => { S[key] = ev.target.value; updateBtn(); }); };
+  onInput('i-shopee', 'shopeeOrderId');
+  onInput('i-model', 'model');
+  onInput('i-color', 'color');
+  onInput('i-note', 'itemNote');
+  onInput('i-deadline', 'deadline');
+
+  // brand buttons
+  document.querySelectorAll('.brand-btn').forEach(b => b.addEventListener('click', () => set({ brand: b.dataset.v, model: '' })));
+
+  // product buttons
+  document.querySelectorAll('.product-btn').forEach(b => b.addEventListener('click', () => {
+    const sel = { ...S.selected, [b.dataset.v]: !S.selected[b.dataset.v] };
+    set({ selected: sel });
+  }));
+
+  // submit
+  const sb = qi('btn-submit');
+  if (sb) sb.addEventListener('click', async () => {
+    if (!canSubmit()) return;
+    set({ loading: true, error: null });
+    try {
+      const orderId = `SHP-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${S.shopeeOrderId.slice(-4).toUpperCase()}`;
+      const res = await fetch(`${SUPA_URL}/rest/v1/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          customer_name: 'Shopee',
+          order_id: orderId,
+          channel: 'Shopee',
+          shopee_order_id: S.shopeeOrderId.trim(),
+          shopee_deadline: S.deadline,
+          brand: S.brand,
+          model: S.model.trim(),
+          color: S.color.trim(),
+          items: selLabels(),
+          unit: totalUnits(),
+          status: 'pending',
+          priority: 'shopee',
+        }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message || 'บันทึกไม่สำเร็จ'); }
+      set({ loading: false, success: true, newOrderId: orderId });
+    } catch(err) {
+      set({ loading: false, error: err.message });
+    }
+  });
+}
+
+function bindSuccess() {
+  const btn = document.getElementById('btn-new');
+  if (btn) btn.addEventListener('click', () => {
+    S = { shopeeOrderId:"", brand:"", model:"", color:"", selected:{}, itemNote:"", deadline:"", loading:false, error:null, success:false, newOrderId:null };
+    render();
+  });
+}
+
+render();
+</script>
+</body>
+</html>
