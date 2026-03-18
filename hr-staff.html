@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KMO HR — พนักงาน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --surface3: #282828;
+      --border: #2a2a2a;
+      --gold: #d4af37;
+      --gold2: #f0cc55;
+      --gold-dim: rgba(212,175,55,0.15);
+      --text: #f0ece4;
+      --text-muted: #888;
+      --text-dim: #555;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Sarabun', sans-serif; min-height: 100vh; }
+
+    /* LOGIN */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 30% 40%, #1a1500 0%, #0d0d0d 60%);
+      padding: 20px;
+    }
+    .login-card {
+      width: 100%; max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 32px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+    }
+    .login-logo {
+      text-align: center; margin-bottom: 32px;
+    }
+    .login-logo .badge {
+      display: inline-block;
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 3px; color: var(--gold);
+      text-transform: uppercase; margin-bottom: 8px;
+    }
+    .login-logo h1 {
+      font-family: 'Kanit', sans-serif;
+      font-size: 28px; font-weight: 700; color: var(--text);
+    }
+    .login-logo p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+    .form-input {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; color: var(--text);
+      font-family: 'Sarabun', sans-serif; font-size: 15px;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { outline: none; border-color: var(--gold); }
+    .btn-gold {
+      width: 100%; padding: 14px;
+      background: var(--gold); color: #000;
+      border: none; border-radius: 10px;
+      font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; margin-top: 8px;
+    }
+    .btn-gold:hover { background: var(--gold2); transform: translateY(-1px); }
+    .btn-gold:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .error-box {
+      background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 8px; padding: 12px 16px;
+      font-size: 13px; color: #e74c3c; margin-bottom: 16px;
+    }
+
+    /* APP LAYOUT */
+    .app { display: none; min-height: 100vh; }
+    .app.show { display: block; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-logo {
+      width: 36px; height: 36px;
+      background: var(--gold); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Kanit', sans-serif; font-weight: 700; font-size: 14px; color: #000;
+    }
+    .topbar-title { font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 600; }
+    .topbar-sub { font-size: 11px; color: var(--text-muted); }
+    .topbar-user { display: flex; align-items: center; gap: 10px; }
+    .user-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--gold-dim); border: 1px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: var(--gold); font-weight: 600;
+    }
+    .user-name { font-size: 14px; font-weight: 500; }
+    .user-role { font-size: 11px; color: var(--text-muted); }
+    .btn-logout {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 14px;
+      font-size: 13px; color: var(--text-muted); cursor: pointer;
+      transition: all 0.2s; font-family: 'Sarabun', sans-serif;
+    }
+    .btn-logout:hover { background: var(--border); color: var(--text); }
+
+    /* TABS */
+    .tabs {
+      display: flex; gap: 4px;
+      padding: 16px 24px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .tab {
+      padding: 10px 20px;
+      font-family: 'Kanit', sans-serif; font-size: 14px; font-weight: 500;
+      color: var(--text-muted); cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s; border-radius: 8px 8px 0 0;
+    }
+    .tab:hover { color: var(--text); background: var(--surface2); }
+    .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* CONTENT */
+    .content { max-width: 800px; margin: 0 auto; padding: 24px 16px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* QUOTA CARDS */
+    .quota-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; margin-bottom: 24px;
+    }
+    @media (max-width: 600px) { .quota-grid { grid-template-columns: 1fr; } }
+    .quota-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      position: relative; overflow: hidden;
+    }
+    .quota-card::before {
+      content: ''; position: absolute; top: 0; left: 0;
+      width: 3px; height: 100%;
+    }
+    .quota-card.vacation::before { background: var(--blue); }
+    .quota-card.personal::before { background: var(--yellow); }
+    .quota-card.sick::before { background: var(--green); }
+    .quota-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .quota-numbers { display: flex; align-items: baseline; gap: 4px; margin-bottom: 12px; }
+    .quota-remain { font-family: 'Kanit', sans-serif; font-size: 32px; font-weight: 700; }
+    .quota-total { font-size: 14px; color: var(--text-muted); }
+    .quota-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .quota-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+    .quota-card.vacation .quota-fill { background: var(--blue); }
+    .quota-card.personal .quota-fill { background: var(--yellow); }
+    .quota-card.sick .quota-fill { background: var(--green); }
+    .quota-used { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+    /* SECTION */
+    .section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Kanit', sans-serif; font-size: 15px; font-weight: 600;
+      color: var(--gold); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* FORM */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
+    .form-select {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; color: var(--text);
+      font-family: 'Sarabun', sans-serif; font-size: 15px;
+      transition: border-color 0.2s; cursor: pointer;
+    }
+    .form-select:focus { outline: none; border-color: var(--gold); }
+    .form-textarea {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; color: var(--text);
+      font-family: 'Sarabun', sans-serif; font-size: 15px;
+      resize: vertical; min-height: 80px;
+      transition: border-color 0.2s;
+    }
+    .form-textarea:focus { outline: none; border-color: var(--gold); }
+    .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .checkbox-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+    }
+    .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; }
+
+    .btn-submit {
+      width: 100%; padding: 14px;
+      background: var(--gold); color: #000;
+      border: none; border-radius: 10px;
+      font-family: 'Kanit', sans-serif; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; margin-top: 4px;
+    }
+    .btn-submit:hover { background: var(--gold2); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ALERT */
+    .alert {
+      padding: 14px 16px; border-radius: 10px;
+      font-size: 14px; margin-bottom: 16px;
+    }
+    .alert-success { background: rgba(46,204,113,0.1); border: 1px solid rgba(46,204,113,0.3); color: var(--green); }
+    .alert-error { background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3); color: var(--red); }
+    .upload-cert {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 20px 16px; text-align: center; cursor: pointer;
+      transition: all 0.2s; background: var(--surface2); position: relative;
+      margin-top: 10px;
+    }
+    .upload-cert:hover { border-color: var(--gold); background: rgba(212,175,55,0.05); }
+    .upload-cert input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-cert-icon { font-size: 28px; margin-bottom: 6px; }
+    .upload-cert-text { font-size: 13px; color: var(--text-muted); }
+    .cert-preview {
+      margin-top: 10px; border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--border); position: relative;
+    }
+    .cert-preview img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+    .cert-preview-remove {
+      position: absolute; top: 6px; right: 6px;
+      background: rgba(0,0,0,0.7); border: none; border-radius: 50%;
+      width: 24px; height: 24px; color: #fff; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    .hidden { display: none; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      text-align: left; padding: 10px 14px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+
+    /* BADGE */
+    .badge {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+    .badge-pending { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .badge-approved { background: rgba(46,204,113,0.15); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
+    .badge-rejected { background: rgba(231,76,60,0.15); color: var(--red); border: 1px solid rgba(231,76,60,0.3); }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: var(--text-muted); font-size: 14px;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.4; }
+
+    .loading { text-align: center; padding: 30px; color: var(--text-muted); font-size: 14px; }
+    .spinner {
+      border: 3px solid var(--border); border-top-color: var(--gold);
+      border-radius: 50%; width: 36px; height: 36px;
+      animation: spin 1s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* INFO BOX */
+    .info-box {
+      background: var(--gold-dim); border: 1px solid rgba(212,175,55,0.2);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+      font-size: 13px; color: var(--text-muted); line-height: 1.6;
+    }
+    .info-box strong { color: var(--gold); }
+
+    /* OCCURRENCE COUNTER */
+    .occurrence-box {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .occurrence-label { font-size: 13px; color: var(--text-muted); }
+    .occurrence-count {
+      font-family: 'Kanit', sans-serif; font-size: 28px; font-weight: 700;
+    }
+    .occurrence-count.safe { color: var(--green); }
+    .occurrence-count.warning { color: var(--yellow); }
+    .occurrence-count.danger { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="badge">KMO Rack Bar Custom</div>
+      <h1>HR System</h1>
+      <p>ระบบจัดการการลาพนักงาน</p>
+    </div>
+    <div id="loginError" class="error-box hidden"></div>
+    <div class="form-group">
+      <label class="form-label">เบอร์มือถือ</label>
+      <input type="tel" class="form-input" id="loginPhone" placeholder="0812345678" maxlength="10">
+    </div>
+    <button class="btn-gold" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:12px">
+      ใช้เบอร์มือถือที่ลงทะเบียนกับ HR
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="appPage">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">KMO</div>
+      <div>
+        <div class="topbar-title">HR System</div>
+        <div class="topbar-sub">พนักงาน</div>
+      </div>
+    </div>
+    <div class="topbar-user">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <div>
+        <div class="user-name" id="userName">—</div>
+        <div class="user-role" id="userDept">—</div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('quota')">🎯 โควต้าการลา</div>
+    <div class="tab" onclick="switchTab('request')">📝 ลงทะเบียนลา</div>
+    <div class="tab" onclick="switchTab('history')">📋 ประวัติการลา</div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <div id="alertBox" class="hidden"></div>
+
+    <!-- TAB: QUOTA -->
+    <div class="tab-panel active" id="panel-quota">
+      <div class="info-box">
+        <strong>สิทธิ์การลาประจำปี 2026</strong><br>
+        ลาพักร้อน 8 วัน • ลากิจ 5 วัน • ลาป่วยไม่มีใบแพทย์ 2 วัน
+      </div>
+
+      <div class="quota-grid" id="quotaGrid">
+        <div class="loading"><div class="spinner"></div>กำลังโหลด...</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📊 สถิติการลาของฉัน</div>
+        <div class="occurrence-box">
+          <div>
+            <div class="occurrence-label">ครั้งที่นับสะสม (ส่งผลต่อโบนัส)</div>
+            <div class="form-hint">ลาป่วยไม่มีใบแพทย์ + ลากิจ</div>
+          </div>
+          <div class="occurrence-count safe" id="occurrenceCount">0</div>
+        </div>
+        <div class="info-box" style="margin-bottom:0">
+          <strong>เกณฑ์การหักโบนัส:</strong><br>
+          0-4 ครั้ง → ไม่หัก &nbsp;|&nbsp; 5 ครั้ง → หัก 10% &nbsp;|&nbsp; 6 ครั้ง → หัก 20%<br>
+          7 ครั้ง → หัก 30% &nbsp;|&nbsp; 8+ ครั้ง → หัก 40%
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: REQUEST -->
+    <div class="tab-panel" id="panel-request">
+      <div class="section">
+        <div class="section-title">📝 ลงทะเบียนลา</div>
+
+        <div class="form-group">
+          <label class="form-label">ประเภทการลา <span style="color:var(--red)">*</span></label>
+          <select class="form-select" id="leaveType" onchange="onLeaveTypeChange()">
+            <option value="">เลือกประเภท</option>
+            <option value="vacation">🏖️ ลาพักร้อน (แจ้งล่วงหน้า 5 วัน)</option>
+            <option value="personal">📋 ลากิจ (แจ้งล่วงหน้า 2 วัน)</option>
+            <option value="sick">🏥 ลาป่วย</option>
+            <option value="maternity">👶 ลาคลอด</option>
+            <option value="special">⭐ ลาพิเศษ</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">วันที่เริ่มลา <span style="color:var(--red)">*</span></label>
+            <input type="date" class="form-input" id="startDate" onchange="calcDays()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">วันที่สิ้นสุด <span style="color:var(--red)">*</span></label>
+            <input type="date" class="form-input" id="endDate" onchange="calcDays()">
+          </div>
+        </div>
+
+        <div id="daysPreview" class="hidden" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px;">
+          จำนวน: <strong id="daysCount" style="color:var(--gold)">0</strong> วัน
+          &nbsp;|&nbsp; แจ้งล่วงหน้า: <strong id="advanceDays" style="color:var(--gold)">0</strong> วัน
+        </div>
+
+        <div class="form-group" id="medCertRow" style="display:none">
+          <label class="checkbox-row">
+            <input type="checkbox" id="hasMedCert" onchange="onMedCertChange()">
+            <span>มีใบรับรองแพทย์ (ไม่นับครั้ง)</span>
+          </label>
+          <div id="certUploadArea" style="display:none">
+            <div class="upload-cert" id="certDropArea">
+              <input type="file" id="certFile" accept="image/*,.pdf" onchange="onCertFileChange()">
+              <div class="upload-cert-icon">📄</div>
+              <div class="upload-cert-text">แตะเพื่อถ่ายรูป/เลือกไฟล์ใบแพทย์<br><span style="font-size:11px">JPG, PNG, PDF ไม่เกิน 5MB</span></div>
+            </div>
+            <div class="cert-preview hidden" id="certPreview">
+              <img id="certPreviewImg" src="" alt="ใบแพทย์">
+              <button class="cert-preview-remove" onclick="removeCert()">✕</button>
+            </div>
+            <div id="certUploadProgress" style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:6px"></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">เหตุผล</label>
+          <textarea class="form-textarea" id="leaveReason" placeholder="ระบุเหตุผล (ถ้ามี)"></textarea>
+        </div>
+
+        <button class="btn-submit" id="submitLeaveBtn" onclick="submitLeave()">ส่งคำขอลา</button>
+      </div>
+    </div>
+
+    <!-- TAB: HISTORY -->
+    <div class="tab-panel" id="panel-history">
+      <div class="section">
+        <div class="section-title">📋 ประวัติการลาของฉัน</div>
+        <div id="historyContent">
+          <div class="loading"><div class="spinner"></div>กำลังโหลด...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const SUPA_URL = 'https://ybyseaenceyswjnwdmdf.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlieXNlYWVuY2V5c3dqbndkbWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3OTk3MTgsImV4cCI6MjA4OTM3NTcxOH0.NpaB7XrM0MzTknMvFLKkN57WG7_GkCb9zxZQUROz9Ug';
+
+const HEADERS = {
+  'apikey': SUPA_KEY,
+  'Authorization': `Bearer ${SUPA_KEY}`,
+  'Content-Type': 'application/json'
+};
+
+let currentEmployee = null;
+let certFile = null;
+async function doLogin() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  const btn = document.getElementById('loginBtn');
+  const errBox = document.getElementById('loginError');
+
+  if (!phone) { showLoginError('กรุณากรอกเบอร์มือถือ'); return; }
+  if (phone.length < 9) { showLoginError('เบอร์มือถือไม่ถูกต้อง'); return; }
+
+  btn.disabled = true; btn.textContent = 'กำลังค้นหา...';
+  errBox.classList.add('hidden');
+
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/employees?phone=eq.${phone}&active=eq.true&select=*`, {
+      headers: HEADERS
+    });
+    const emps = await res.json();
+    if (!emps.length) throw new Error('ไม่พบเบอร์นี้ในระบบ กรุณาติดต่อ HR');
+
+    currentEmployee = emps[0];
+    showApp();
+  } catch(e) {
+    showLoginError(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+  }
+}
+
+function showLoginError(msg) {
+  const box = document.getElementById('loginError');
+  box.textContent = msg; box.classList.remove('hidden');
+}
+
+function doLogout() {
+  currentEmployee = null;
+  document.getElementById('appPage').classList.remove('show');
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('loginPhone').value = '';
+}
+
+document.getElementById('loginPhone').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ===== APP =====
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPage').classList.add('show');
+
+  const emp = currentEmployee;
+  document.getElementById('userName').textContent = emp.name;
+  document.getElementById('userDept').textContent = emp.department;
+  document.getElementById('userAvatar').textContent = emp.name.charAt(0);
+
+  loadQuota();
+  loadHistory();
+}
+
+// ===== TABS =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const tabs = ['quota','request','history'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${tab}`).classList.add('active');
+}
+
+// ===== QUOTA =====
+async function loadQuota() {
+  const grid = document.getElementById('quotaGrid');
+  try {
+    const year = new Date().getFullYear();
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/leave_quota?employee_id=eq.${currentEmployee.id}&year=eq.${year}`,
+      { headers: HEADERS }
+    );
+    const data = await res.json();
+
+    // count occurrences
+    const occRes = await fetch(
+      `${SUPA_URL}/rest/v1/leave_requests?employee_id=eq.${currentEmployee.id}&status=eq.approved&counts_as_occurrence=eq.true&start_date=gte.${year}-01-01&start_date=lte.${year}-12-31&select=id`,
+      { headers: HEADERS }
+    );
+    const occData = await occRes.json();
+    const occ = occData.length;
+    const occEl = document.getElementById('occurrenceCount');
+    occEl.textContent = occ;
+    occEl.className = `occurrence-count ${occ <= 4 ? 'safe' : occ <= 6 ? 'warning' : 'danger'}`;
+
+    if (!data.length) {
+      grid.innerHTML = '<div class="loading">ไม่พบข้อมูลโควต้า</div>'; return;
+    }
+    const q = data[0];
+    grid.innerHTML = `
+      ${quotaCard('vacation', '🏖️ ลาพักร้อน', q.vacation_days - q.vacation_used, q.vacation_days, q.vacation_used)}
+      ${quotaCard('personal', '📋 ลากิจ', q.personal_days - q.personal_used, q.personal_days, q.personal_used)}
+      ${quotaCard('sick', '🏥 ลาป่วย (ไม่มีใบ)', q.sick_days_no_cert - q.sick_no_cert_used, q.sick_days_no_cert, q.sick_no_cert_used)}
+    `;
+  } catch(e) {
+    grid.innerHTML = `<div class="loading">เกิดข้อผิดพลาด</div>`;
+  }
+}
+
+function quotaCard(type, label, remain, total, used) {
+  const pct = total > 0 ? Math.max(0, ((total - used) / total * 100)) : 0;
+  return `
+    <div class="quota-card ${type}">
+      <div class="quota-label">${label}</div>
+      <div class="quota-numbers">
+        <div class="quota-remain">${remain}</div>
+        <div class="quota-total">/ ${total} วัน</div>
+      </div>
+      <div class="quota-bar"><div class="quota-fill" style="width:${pct}%"></div></div>
+      <div class="quota-used">ใช้ไปแล้ว ${used} วัน</div>
+    </div>
+  `;
+}
+
+// ===== LEAVE REQUEST =====
+function onLeaveTypeChange() {
+  const type = document.getElementById('leaveType').value;
+  document.getElementById('medCertRow').style.display = type === 'sick' ? 'block' : 'none';
+  if (type !== 'sick') {
+    document.getElementById('hasMedCert').checked = false;
+    document.getElementById('certUploadArea').style.display = 'none';
+    removeCert();
+  }
+  calcDays();
+}
+
+function onMedCertChange() {
+  const checked = document.getElementById('hasMedCert').checked;
+  document.getElementById('certUploadArea').style.display = checked ? 'block' : 'none';
+  if (!checked) removeCert();
+}
+
+function onCertFileChange() {
+  const file = document.getElementById('certFile').files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showAlert('ไฟล์ใหญ่เกิน 5MB', 'error'); return; }
+  certFile = file;
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('certPreviewImg').src = e.target.result;
+      document.getElementById('certPreviewImg').alt = 'ใบแพทย์';
+      document.getElementById('certPreview').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  } else {
+    document.getElementById('certPreviewImg').src = '';
+    document.getElementById('certPreviewImg').alt = `📄 ${file.name}`;
+    document.getElementById('certPreview').classList.remove('hidden');
+  }
+}
+
+function removeCert() {
+  certFile = null;
+  document.getElementById('certFile').value = '';
+  document.getElementById('certPreview').classList.add('hidden');
+}
+
+async function uploadCert(employeeId) {
+  if (!certFile) return null;
+  const progress = document.getElementById('certUploadProgress');
+  progress.textContent = 'กำลังอัปโหลดใบแพทย์...';
+  const ext = certFile.name.split('.').pop();
+  const fileName = `${employeeId}/${Date.now()}.${ext}`;
+  try {
+    const res = await fetch(
+      `${SUPA_URL}/storage/v1/object/medical-certs/${fileName}`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Content-Type': certFile.type,
+          'x-upsert': 'true'
+        },
+        body: certFile
+      }
+    );
+    progress.textContent = '';
+    if (!res.ok) return null;
+    return `${SUPA_URL}/storage/v1/object/public/medical-certs/${fileName}`;
+  } catch(e) {
+    progress.textContent = '';
+    return null;
+  }
+}
+
+async function submitLeave() {
+  const type = document.getElementById('leaveType').value;
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  const reason = document.getElementById('leaveReason').value;
+  const hasCert = document.getElementById('hasMedCert').checked;
+  const btn = document.getElementById('submitLeaveBtn');
+
+  if (!type || !start || !end) { showAlert('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+  if (new Date(end) < new Date(start)) { showAlert('วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่ม', 'error'); return; }
+
+  const days = Math.round((new Date(end) - new Date(start)) / (1000*60*60*24)) + 1;
+  const advance = Math.round((new Date(start) - new Date()) / (1000*60*60*24));
+
+  btn.disabled = true; btn.textContent = 'กำลังส่ง...';
+  try {
+    // อัปโหลดใบแพทย์ก่อน (ถ้ามี)
+    let certUrl = null;
+    if (type === 'sick' && hasCert && certFile) {
+      certUrl = await uploadCert(currentEmployee.id);
+    }
+
+    const res = await fetch(`${SUPA_URL}/rest/v1/leave_requests`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        employee_id: currentEmployee.id,
+        leave_type: type,
+        start_date: start,
+        end_date: end,
+        days_count: days,
+        advance_notice_days: advance,
+        has_medical_cert: type === 'sick' ? hasCert : false,
+        medical_cert_url: certUrl,
+        reason: reason || null,
+        status: 'pending'
+      })
+    });
+    if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+    showAlert('ส่งคำขอลาสำเร็จ! รอการอนุมัติจาก HR', 'success');
+    document.getElementById('leaveType').value = '';
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    document.getElementById('leaveReason').value = '';
+    document.getElementById('hasMedCert').checked = false;
+    document.getElementById('certUploadArea').style.display = 'none';
+    document.getElementById('daysPreview').classList.add('hidden');
+    removeCert();
+    loadQuota(); loadHistory();
+    switchTab('history');
+  } catch(e) {
+    showAlert('เกิดข้อผิดพลาด: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'ส่งคำขอลา';
+  }
+}
+
+// ===== HISTORY =====
+async function loadHistory() {
+  const el = document.getElementById('historyContent');
+  try {
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/leave_requests?employee_id=eq.${currentEmployee.id}&order=created_at.desc`,
+      { headers: HEADERS }
+    );
+    const data = await res.json();
+    if (!data.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>ยังไม่มีประวัติการลา</p></div>';
+      return;
+    }
+    const leaveLabels = { vacation:'ลาพักร้อน', personal:'ลากิจ', sick:'ลาป่วย', maternity:'ลาคลอด', special:'ลาพิเศษ' };
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>ประเภท</th><th>วันที่</th><th>จำนวน</th><th>สถานะ</th><th>นับครั้ง</th>
+          </tr></thead>
+          <tbody>
+            ${data.map(r => `
+              <tr>
+                <td>${leaveLabels[r.leave_type] || r.leave_type}</td>
+                <td>${fmtDate(r.start_date)}${r.start_date !== r.end_date ? ' — '+fmtDate(r.end_date) : ''}</td>
+                <td>${r.days_count} วัน</td>
+                <td><span class="badge badge-${r.status}">${r.status === 'pending' ? 'รออนุมัติ' : r.status === 'approved' ? 'อนุมัติแล้ว' : 'ปฏิเสธ'}</span></td>
+                <td>${r.counts_as_occurrence ? '⚠️ นับ' : '✅ ไม่นับ'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch(e) {
+    el.innerHTML = '<div class="loading">เกิดข้อผิดพลาด</div>';
+  }
+}
+
+// ===== HELPERS =====
+function fmtDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('th-TH', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function showAlert(msg, type) {
+  const box = document.getElementById('alertBox');
+  box.className = `alert alert-${type}`;
+  box.textContent = msg;
+  box.classList.remove('hidden');
+  setTimeout(() => box.classList.add('hidden'), 4000);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
