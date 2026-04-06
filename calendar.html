@@ -521,7 +521,7 @@
       const lastDayStr = toDateStr(lastDay);
 
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,pickup_date`,
+        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,pickup_date,queue_status`,
         {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
@@ -533,7 +533,9 @@
 
       // นับจำนวนคิวแต่ละวัน
       bookingData = {};
-      bookings.forEach(b => {
+      bookings
+        .filter(b => b.queue_status !== 'ยกเลิก')
+        .forEach(b => {
         const start = new Date(b.appointment_date);
         const end   = new Date(b.pickup_date);
         let cur = new Date(start);
@@ -1222,7 +1224,7 @@
       const lastDayStr = toDateStr(lastDay);
 
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,pickup_date`,
+        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,pickup_date,queue_status`,
         {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
@@ -1234,7 +1236,9 @@
 
       // นับจำนวนคิวแต่ละวัน
       bookingData = {};
-      bookings.forEach(b => {
+      bookings
+        .filter(b => b.queue_status !== 'ยกเลิก')
+        .forEach(b => {
         const start = new Date(b.appointment_date);
         const end   = new Date(b.pickup_date);
         let cur = new Date(start);
