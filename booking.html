@@ -567,17 +567,22 @@
     async function fetchAvailability() {
       try {
         const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth() + 1;
+        const month = currentMonth.getMonth();
         
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0);
+        // คำนวณวันแรกและวันสุดท้ายของเดือน
+        const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
+        const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
         
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=appointment_date,pickup_date,production_status,queue_status`, {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        // ดึงคิวที่ส่งผลกระทบต่อเดือนนี้: appointment_date <= lastDay AND pickup_date > firstDay
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/bookings?appointment_date=lte.${lastDay}&pickup_date=gt.${firstDay}&select=appointment_date,pickup_date,queue_status`,
+          {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
           }
-        });
+        );
 
         const bookings = await response.json();
         
