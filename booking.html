@@ -572,7 +572,7 @@
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
         
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&select=appointment_date,pickup_date,production_status`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=appointment_date,pickup_date,production_status,queue_status`, {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
@@ -581,20 +581,22 @@
 
         const bookings = await response.json();
         
-        // Count bookings per day
+        // Count bookings per day (ไม่นับคิวที่ยกเลิก)
         availabilityData = {};
-        bookings.forEach(booking => {
-          const appointDate = new Date(booking.appointment_date);
-          const pickupDate = new Date(booking.pickup_date);
-          
-          // Count from appoint_date to pickup_date - 1
-          let currentDate = new Date(appointDate);
-          while (currentDate < pickupDate) {
-            const dateStr = currentDate.toISOString().split('T')[0];
-            availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
-            currentDate.setDate(currentDate.getDate() + 1);
-          }
-        });
+        bookings
+          .filter(booking => booking.queue_status !== 'ยกเลิก')
+          .forEach(booking => {
+            const appointDate = new Date(booking.appointment_date);
+            const pickupDate = new Date(booking.pickup_date);
+            
+            // Count from appoint_date to pickup_date - 1
+            let currentDate = new Date(appointDate);
+            while (currentDate < pickupDate) {
+              const dateStr = currentDate.toISOString().split('T')[0];
+              availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
+              currentDate.setDate(currentDate.getDate() + 1);
+            }
+          });
       } catch (error) {
         console.error('Error fetching availability:', error);
       }
@@ -710,7 +712,7 @@
           color: document.getElementById('color').value || null,
           appointment_date: document.getElementById('appointDate').value,
           pickup_date: document.getElementById('pickupDate').value,
-          queue_status: 'รอตรวจสอบ',
+          queue_status: 'ยืนยัน',
           production_status: 'รอเริ่มงาน'
         };
 
