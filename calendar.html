@@ -515,13 +515,14 @@
     isLoading = true;
 
     try {
-      // ดึง bookings ของเดือนนี้
+      // ดึง bookings ที่ส่งผลกระทบต่อเดือนนี้
       const firstDay = `${currentYear}-${String(currentMonth + 1).padStart(2,'0')}-01`;
       const lastDay  = new Date(currentYear, currentMonth + 1, 0);
       const lastDayStr = toDateStr(lastDay);
 
+      // ดึงคิวที่: appointment_date <= lastDay AND pickup_date > firstDay
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,pickup_date,queue_status`,
+        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=lte.${lastDayStr}&pickup_date=gt.${firstDay}&select=appointment_date,pickup_date,queue_status`,
         {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
