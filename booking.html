@@ -17,6 +17,8 @@
       --text-muted: #888;
       --red: #ef4444;
       --green: #10b981;
+      --yellow: #f59e0b;
+      --accent-glow: rgba(251, 191, 36, 0.28);
       --radius: 10px;
     }
 
@@ -125,47 +127,168 @@
     }
 
     /* Date Picker */
+    .booking-legend {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 0 0 16px;
+    }
+    .booking-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+    }
+    .booking-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .booking-calendar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
+    }
+    .date-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: linear-gradient(180deg, var(--surface2) 0%, #1d1d1d 100%);
+      border-bottom: 1px solid var(--border);
+    }
+    .date-weekday {
+      text-align: center;
+      padding: 12px 4px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .date-weekday.sun,
+    .date-weekday.tue {
+      color: rgba(239, 68, 68, 0.7);
+    }
     .date-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 8px;
-      margin-top: 12px;
+      gap: 1px;
+      background: var(--border);
+    }
+    .date-grid .loading {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      padding: 50px 20px;
     }
     .date-cell {
-      aspect-ratio: 1;
+      min-height: 76px;
+      padding: 8px 4px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      background: var(--surface);
       cursor: pointer;
-      transition: all 0.2s;
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .date-cell:hover:not(.disabled):not(.empty):not(.selected) {
+      background: #282828;
+      transform: scale(1.02);
+      z-index: 10;
+      box-shadow: inset 0 0 0 2px var(--accent-glow);
+    }
+    .date-cell.empty {
+      background: var(--bg);
+      cursor: default;
+    }
+    .date-cell.today {
+      background: linear-gradient(135deg, #1a1810 0%, #1e1a12 100%);
+    }
+    .date-cell.today::before {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      opacity: 0.5;
+      animation: pulse-border 2s ease-in-out infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.7; }
+    }
+    .date-num {
+      font-family: 'Kanit', sans-serif;
       font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+      border-radius: 50%;
+      transition: all 0.2s ease;
     }
-    .date-cell:hover:not(.disabled):not(.selected) {
-      background: var(--border);
-    }
-    .date-cell.selected {
+    .date-cell.today .date-num {
       background: var(--accent);
       color: #000;
-      border-color: var(--accent);
-      font-weight: 600;
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+    .date-cell.selected {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(252, 211, 77, 0.95));
+      color: #000;
+      box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.2);
+    }
+    .date-cell.selected .date-num {
+      color: #000;
+      background: rgba(0, 0, 0, 0.08);
     }
     .date-cell.disabled {
-      opacity: 0.3;
       cursor: not-allowed;
     }
+    .date-cell.past {
+      opacity: 0.35;
+    }
     .date-cell.full {
-      background: var(--red);
-      opacity: 0.5;
-      cursor: not-allowed;
+      background: #2a1515;
+    }
+    .date-cell.status-open .date-label { color: var(--green); }
+    .date-cell.status-low .date-label { color: var(--yellow); }
+    .date-cell.status-full .date-label,
+    .date-cell.full .date-label { color: var(--red); }
+    .date-cell.status-open:hover:not(.disabled) .date-num { background: rgba(16, 185, 129, 0.15); }
+    .date-cell.status-low:hover:not(.disabled) .date-num { background: rgba(245, 158, 11, 0.15); }
+    .date-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 4px;
+      transition: transform 0.2s ease;
+    }
+    .date-cell:hover:not(.disabled):not(.past) .date-dot {
+      transform: scale(1.3);
+    }
+    .date-cell.status-open .date-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .date-cell.status-low .date-dot { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+    .date-cell.status-full .date-dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .date-cell.selected .date-dot {
+      background: #000;
+      box-shadow: none;
     }
     .date-label {
       font-size: 10px;
-      color: var(--text-muted);
-      margin-top: 2px;
+      font-family: 'Sarabun', sans-serif;
+      text-align: center;
+      line-height: 1.3;
+      font-weight: 600;
     }
     .date-cell.selected .date-label {
       color: #000;
@@ -176,32 +299,55 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      margin: 4px 0 16px;
     }
     .calendar-month {
       font-family: 'Kanit', sans-serif;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: 600;
+      color: var(--accent);
     }
     .calendar-nav {
       display: flex;
       gap: 8px;
     }
     .btn-nav {
-      width: 36px;
-      height: 36px;
+      width: 48px;
+      height: 48px;
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 12px;
       color: var(--text);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.2s;
+      font-size: 20px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .btn-nav:hover {
-      background: var(--border);
+      background: var(--accent);
+      color: #000;
+      transform: scale(1.05);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    @media (max-width: 480px) {
+      .date-cell {
+        min-height: 70px;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .date-cell:hover:not(.disabled):not(.empty):not(.selected) {
+        transform: none;
+      }
+      .date-cell:not(.disabled):not(.empty):active {
+        background: #2a2a2a;
+        transform: scale(0.97);
+      }
+      .btn-nav {
+        width: 52px;
+        height: 52px;
+      }
     }
 
     /* Button */
@@ -224,6 +370,51 @@
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+    .btn-secondary {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      font-family: 'Kanit', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+    .btn-secondary:hover {
+      background: rgba(251, 191, 36, 0.08);
+    }
+    .slip-message-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .slip-message-title {
+      color: var(--accent);
+      font-family: 'Kanit', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .slip-message-text {
+      width: 100%;
+      min-height: 170px;
+      resize: vertical;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Sarabun', sans-serif;
+      font-size: 13px;
+      line-height: 1.55;
+      padding: 12px;
+      margin-bottom: 12px;
     }
 
     /* Alert */
@@ -438,17 +629,43 @@
       <!-- Date Selection -->
       <div class="section">
         <h3 class="section-title">เลือกวันนัด</h3>
+
+        <div class="booking-legend">
+          <div class="booking-legend-item">
+            <div class="booking-legend-dot" style="background:var(--green); box-shadow: 0 0 6px var(--green);"></div>
+            <span>ว่าง 3 คิว</span>
+          </div>
+          <div class="booking-legend-item">
+            <div class="booking-legend-dot" style="background:var(--yellow); box-shadow: 0 0 6px var(--yellow);"></div>
+            <span>ว่าง 1-2 คิว</span>
+          </div>
+          <div class="booking-legend-item">
+            <div class="booking-legend-dot" style="background:var(--red); box-shadow: 0 0 6px var(--red);"></div>
+            <span>ปิดรับคิว</span>
+          </div>
+        </div>
         
         <div class="calendar-header">
-          <button type="button" class="btn-nav" onclick="changeMonth(-1)">◀</button>
+          <button type="button" class="btn-nav" onclick="changeMonth(-1)" aria-label="เดือนก่อนหน้า">‹</button>
           <div class="calendar-month" id="calendarMonth"></div>
-          <button type="button" class="btn-nav" onclick="changeMonth(1)">▶</button>
+          <button type="button" class="btn-nav" onclick="changeMonth(1)" aria-label="เดือนถัดไป">›</button>
         </div>
 
-        <div class="date-grid" id="dateGrid">
-          <div class="loading">
-            <div class="spinner"></div>
-            <p>กำลังโหลดปฏิทิน...</p>
+        <div class="booking-calendar">
+          <div class="date-weekdays">
+            <div class="date-weekday sun">อา</div>
+            <div class="date-weekday">จ</div>
+            <div class="date-weekday tue">อ</div>
+            <div class="date-weekday">พ</div>
+            <div class="date-weekday">พฤ</div>
+            <div class="date-weekday">ศ</div>
+            <div class="date-weekday">ส</div>
+          </div>
+          <div class="date-grid" id="dateGrid">
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>กำลังโหลดปฏิทิน...</p>
+            </div>
           </div>
         </div>
 
@@ -464,6 +681,9 @@
           <input type="date" class="form-input" id="pickupDate" required>
         </div>
       </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn" id="submitBtn">ยืนยันการจอง</button>
 
       <!-- Deposit -->
       <div class="section">
@@ -486,13 +706,20 @@
         <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
           <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
             <strong style="color: var(--accent); display: block; margin-bottom: 8px;">📌 ส่งสลิปยืนยัน</strong>
-            หลังจากชำระมัดจำแล้ว กดปุ่มด้านล่าง Add LINE OA<br>
-            แล้วส่งสลิปพร้อมแจ้งรหัสงานให้ทีมงานครับ
+            กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>
+            จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ
           </div>
         </div>
 
+        <div class="slip-message-box hidden" id="slipMessageBox">
+          <div class="slip-message-title">ข้อความสำหรับส่งพร้อมสลิป</div>
+          <textarea class="slip-message-text" id="slipMessageText" readonly></textarea>
+          <button type="button" class="btn-secondary" id="copySlipMessageBtn">คัดลอกข้อความส่งสลิป</button>
+        </div>
+
         <a href="https://lin.ee/Hm91L7m" 
-           target="_blank"
+           id="lineSlipLink"
+           target="_self"
            style="display: block; width: 100%; padding: 16px; background: #06C755; color: #fff; border: none; border-radius: var(--radius); font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 12px;">
           <span style="display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -507,9 +734,6 @@
           ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน
         </div>
       </div>
-
-      <!-- Submit -->
-      <button type="submit" class="btn" id="submitBtn">ยืนยันการจอง</button>
     </form>
   </div>
 
@@ -523,13 +747,30 @@
     let selectedDate = null;
     let availabilityData = {};
     let holidays = new Set();
+    let latestSlipMessage = '';
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
+      const dateParam = getDateFromQuery();
+      if (dateParam) currentMonth = parseDateStr(dateParam);
+
       await loadHolidays();
-      loadCalendar();
+      await loadCalendar();
       setMinPickupDate();
+      if (dateParam) selectDate(dateParam);
     });
+
+    function toDateStr(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function parseDateStr(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
 
     // โหลด holidays จาก Supabase
     async function loadHolidays() {
@@ -570,8 +811,8 @@
         const month = currentMonth.getMonth();
         
         // คำนวณวันแรกและวันสุดท้ายของเดือน
-        const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-        const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const firstDay = toDateStr(new Date(year, month, 1));
+        const lastDay = toDateStr(new Date(year, month + 1, 0));
         
         // ดึงคิวที่ส่งผลกระทบต่อเดือนนี้: appointment_date <= lastDay AND pickup_date > firstDay
         const response = await fetch(
@@ -591,13 +832,13 @@
         bookings
           .filter(booking => booking.queue_status !== 'ยกเลิก')
           .forEach(booking => {
-            const appointDate = new Date(booking.appointment_date);
-            const pickupDate = new Date(booking.pickup_date);
+            const appointDate = parseDateStr(booking.appointment_date);
+            const pickupDate = parseDateStr(booking.pickup_date);
             
             // Count from appoint_date to pickup_date - 1
             let currentDate = new Date(appointDate);
             while (currentDate < pickupDate) {
-              const dateStr = currentDate.toISOString().split('T')[0];
+              const dateStr = toDateStr(currentDate);
               availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
               currentDate.setDate(currentDate.getDate() + 1);
             }
@@ -618,49 +859,53 @@
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-      // Day headers
-      const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
-      dayNames.forEach(name => {
-        const cell = document.createElement('div');
-        cell.style.textAlign = 'center';
-        cell.style.color = 'var(--text-muted)';
-        cell.style.fontSize = '12px';
-        cell.style.marginBottom = '8px';
-        cell.textContent = name;
-        grid.appendChild(cell);
-      });
+      const todayStr = toDateStr(today);
 
       // Empty cells
       for (let i = 0; i < firstDay; i++) {
-        grid.appendChild(document.createElement('div'));
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'date-cell empty';
+        grid.appendChild(emptyCell);
       }
 
       // Date cells
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = toDateStr(date);
         const booked = availabilityData[dateStr] || 0;
         const available = 3 - booked;
         const isPast = date < today;
         const isHol = holidays.has(dateStr);
         const isTue = date.getDay() === 2;
+        const isToday = dateStr === todayStr;
         
         const cell = document.createElement('div');
         cell.className = 'date-cell';
         
         if (isPast) {
-          cell.classList.add('disabled');
+          cell.classList.add('past', 'disabled');
         } else if (isHol || isTue || available <= 0) {
-          cell.classList.add('full');
+          cell.classList.add('full', 'status-full', 'disabled');
         } else if (selectedDate === dateStr) {
           cell.classList.add('selected');
+        } else if (available <= 2) {
+          cell.classList.add('status-low');
+        } else {
+          cell.classList.add('status-open');
         }
+
+        if (selectedDate === dateStr) cell.classList.add('selected');
+        if (isToday) cell.classList.add('today');
         
         cell.innerHTML = `
-          <div>${day}</div>
-          ${!isPast && !isHol && !isTue && available > 0 ? `<div class="date-label">ว่าง ${available}</div>` : 
-            !isPast ? `<div class="date-label">ปิดรับคิว</div>` : ''}
+          <div class="date-num">${day}</div>
+          ${!isPast && !isHol && !isTue && available > 0 ? `
+            <div class="date-label">ว่าง ${available} คิว</div>
+            <div class="date-dot"></div>
+          ` : !isPast ? `
+            <div class="date-label">ปิดรับคิว</div>
+            <div class="date-dot"></div>
+          ` : ''}
         `;
         
         if (!isPast && !isHol && !isTue && available > 0) {
@@ -678,9 +923,9 @@
       renderCalendar();
       
       // Set min pickup date
-      const appointDate = new Date(dateStr);
+      const appointDate = parseDateStr(dateStr);
       appointDate.setDate(appointDate.getDate() + 1);
-      document.getElementById('pickupDate').min = appointDate.toISOString().split('T')[0];
+      document.getElementById('pickupDate').min = toDateStr(appointDate);
     }
 
     // Change Month
@@ -695,7 +940,14 @@
     function setMinPickupDate() {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      document.getElementById('pickupDate').min = tomorrow.toISOString().split('T')[0];
+      document.getElementById('pickupDate').min = toDateStr(tomorrow);
+    }
+
+    function getDateFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const dateParam = params.get('date');
+      if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return null;
+      return dateParam;
     }
 
     // Form Submit
@@ -758,12 +1010,15 @@
         if (!response.ok) throw new Error('ไม่สามารถบันทึกข้อมูลได้');
 
         // Success
-        showSuccess(`จองคิวสำเร็จ! รหัสงาน: ${jobId}<br>ทางร้านจะติดต่อกลับภายใน 24 ชม.`);
+        latestSlipMessage = buildSlipMessage(data);
         document.getElementById('bookingForm').reset();
         selectedDate = null;
         selectedFiles = [];
         document.getElementById('previewGrid').innerHTML = '';
+        setMinPickupDate();
         await loadCalendar();
+        showSlipMessage(latestSlipMessage);
+        showSuccess(`จองคิวสำเร็จ! รหัสงาน: ${jobId}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย`, false);
         
       } catch (error) {
         showError('เกิดข้อผิดพลาด: ' + error.message);
@@ -774,12 +1029,12 @@
     });
 
     // Show Success
-    function showSuccess(message) {
+    function showSuccess(message, scrollToTop = true) {
       const alert = document.getElementById('successAlert');
       alert.innerHTML = message;
       alert.classList.remove('hidden');
       document.getElementById('errorAlert').classList.add('hidden');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(() => alert.classList.add('hidden'), 5000);
     }
 
@@ -791,6 +1046,64 @@
       document.getElementById('successAlert').classList.add('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    function buildSlipMessage(data) {
+      return [
+        'แจ้งชำระมัดจำจองคิว',
+        '',
+        `รหัสงาน: ${data.job_id}`,
+        `ชื่อ: ${data.customer_name}`,
+        `เบอร์: ${data.phone}`,
+        `วันนัด: ${data.appointment_date}`,
+        `วันรับรถ: ${data.pickup_date}`,
+        `รายการทำ: ${data.product}`,
+        `สี: ${data.color || '-'}`,
+        '',
+        'แนบสลิปมัดจำ 500 บาท'
+      ].join('\n');
+    }
+
+    function showSlipMessage(message) {
+      document.getElementById('slipMessageText').value = message;
+      const box = document.getElementById('slipMessageBox');
+      box.classList.remove('hidden');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function copySlipMessage() {
+      const message = latestSlipMessage || document.getElementById('slipMessageText').value;
+      if (!message) return;
+      const text = document.getElementById('slipMessageText');
+      const button = document.getElementById('copySlipMessageBtn');
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(message);
+        } else {
+          text.focus();
+          text.select();
+          text.setSelectionRange(0, text.value.length);
+          const copied = document.execCommand('copy');
+          if (!copied) throw new Error('copy failed');
+        }
+
+        button.textContent = 'คัดลอกแล้ว';
+        setTimeout(() => {
+          button.textContent = 'คัดลอกข้อความส่งสลิป';
+        }, 1800);
+      } catch (error) {
+        text.focus();
+        text.select();
+        text.setSelectionRange(0, text.value.length);
+        button.textContent = 'เลือกข้อความให้แล้ว กรุณากด Copy';
+        setTimeout(() => {
+          button.textContent = 'คัดลอกข้อความส่งสลิป';
+        }, 2600);
+      }
+    }
+
+    document.getElementById('copySlipMessageBtn').addEventListener('click', copySlipMessage);
+
     // ===== IMAGE UPLOAD =====
 
     const uploadArea = document.getElementById('uploadArea');
@@ -839,7 +1152,7 @@
           item.className = 'preview-item';
           item.innerHTML = `
             <img src="${e.target.result}" alt="รูป ${index + 1}">
-            <button class="preview-remove" onclick="removeImage(${index})">✕</button>
+            <button type="button" class="preview-remove" onclick="removeImage(${index})">✕</button>
           `;
           grid.appendChild(item);
         };
