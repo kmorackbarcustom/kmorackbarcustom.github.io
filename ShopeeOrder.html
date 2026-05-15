@@ -76,6 +76,17 @@ function canSubmit() {
   return S.shopeeOrderId.trim() && S.brand && S.model.trim() && S.color.trim() && totalUnits() > 0 && S.deadline;
 }
 function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+async function rpc(name, payload) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.message || data?.error || 'บันทึกไม่สำเร็จ');
+  return data;
+}
 
 function updateBtn() {
   const btn = document.getElementById("btn-submit");
@@ -180,18 +191,9 @@ function bind() {
     if (!canSubmit()) return;
     set({ loading: true, error: null });
     try {
-      const orderId = `SHP-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${S.shopeeOrderId.slice(-4).toUpperCase()}`;
-      const res = await fetch(`${SUPA_URL}/rest/v1/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPA_KEY,
-          'Authorization': `Bearer ${SUPA_KEY}`,
-          'Prefer': 'return=representation',
-        },
-        body: JSON.stringify({
+      const saved = await rpc('create_shopee_order', {
+        p_payload: {
           customer_name: 'Shopee',
-          order_id: orderId,
           channel: 'Shopee',
           shopee_order_id: S.shopeeOrderId.trim(),
           shopee_deadline: S.deadline,
@@ -202,10 +204,10 @@ function bind() {
           unit: totalUnits(),
           status: 'pending',
           priority: 'shopee',
-        }),
+        },
       });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.message || 'บันทึกไม่สำเร็จ'); }
-      set({ loading: false, success: true, newOrderId: orderId });
+      if (!saved?.order_id) throw new Error('บันทึกแล้วแต่ยังไม่ได้เลข Order ID');
+      set({ loading: false, success: true, newOrderId: saved.order_id });
     } catch(err) {
       set({ loading: false, error: err.message });
     }
