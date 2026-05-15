@@ -161,10 +161,9 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext('kmo_production_schedule'));
 
-  delete from public.production_allocations pa
-  using public.orders o
-  where pa.order_id = o.id
-    and o.status in ('pending', 'in_progress');
+  -- Allocations are derived data. Rebuild from scratch so done/cancelled
+  -- orders never leave stale capacity behind.
+  delete from public.production_allocations;
 
   for v_order in
     select o.*
