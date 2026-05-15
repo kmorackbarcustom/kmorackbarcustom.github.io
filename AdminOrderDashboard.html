@@ -50,20 +50,31 @@ const headers = {
 // ── API HELPERS ───────────────────────────────────────────────
 async function fetchOrders() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/orders?select=*&order=due_date.asc.nullslast,priority.asc,created_at.asc`,
+    `${SUPABASE_URL}/rest/v1/orders?select=*&status=neq.cancelled&order=due_date.asc.nullslast,created_at.asc`,
     { headers }
   );
   if (!res.ok) throw new Error("โหลดข้อมูลไม่ได้");
   return res.json();
 }
 
-async function updateOrder(id, patch) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/orders?id=eq.${id}`,
-    { method: "PATCH", headers, body: JSON.stringify(patch) }
-  );
-  if (!res.ok) throw new Error("อัปเดตไม่สำเร็จ");
+async function rpc(name, payload = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.message || data?.error || `${name} ไม่สำเร็จ`);
+  return data;
 }
+
+const updateOrderStatus = (id, status) => rpc("update_order_status", { p_order_id: id, p_status: status });
+const updateShopeeDeadline = (id, deadline) => rpc("update_shopee_deadline", { p_order_id: id, p_deadline: deadline });
+const fetchScheduleHealth = async () => {
+  try { return await rpc("get_schedule_health"); }
+  catch (err) { console.warn("schedule health unavailable", err); return []; }
+};
 
 async function rpcMatchAndLink(lineUid, orderId, name, contact) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_and_link_uid`, {
@@ -90,6 +101,29 @@ const STATUS_CONFIG = {
 
 const TABS = ["ทั้งหมด", "รอดำเนินการ", "กำลังผลิต", "เสร็จแล้ว", "UID Matching"];
 
+const effectiveDueDate = (order) => order?.priority === "shopee"
+  ? (order.shopee_deadline || order.due_date)
+  : (order.due_date || order.shopee_deadline);
+const priorityRank = (order) => order?.priority === "shopee" ? 0 : 1;
+const DAILY_UNIT_CAPACITY = 2.5;
+const todayKey = () => {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+function sortOrdersForQueue(list) {
+  return [...list].sort((a,b) => {
+    const doneDiff = (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0);
+    if (doneDiff) return doneDiff;
+    const dateA = effectiveDueDate(a) || "9999-12-31";
+    const dateB = effectiveDueDate(b) || "9999-12-31";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const priorityDiff = priorityRank(a) - priorityRank(b);
+    if (priorityDiff) return priorityDiff;
+    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  });
+}
 const fmt = (d) => d ? new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—";
 const fmtTime = (d) => d ? new Date(d).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
@@ -113,7 +147,7 @@ function StatCard({ label, value, sub, color }) {
 }
 
 // ── ORDER CARD ────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
+function OrderCard({ order, onStatusChange, onShopeeOverride, scheduleHealth }) {
   const [expanded, setExpanded] = useState(false);
   const [editDeadline, setEditDeadline] = useState(false);
   const [shopeeDate, setShopeeDate] = useState(order.shopee_deadline || "");
@@ -122,8 +156,7 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
   const handleStatus = async (newStatus) => {
     setSaving(true);
     try {
-      await updateOrder(order.id, { status: newStatus });
-      onStatusChange(order.id, newStatus);
+      await onStatusChange(order.id, newStatus);
     } catch (e) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -131,20 +164,21 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
   const handleShopeeDeadline = async () => {
     setSaving(true);
     try {
-      await updateOrder(order.id, { shopee_deadline: shopeeDate, priority: "shopee" });
-      onShopeeOverride(order.id, shopeeDate);
+      await onShopeeOverride(order.id, shopeeDate);
       setEditDeadline(false);
     } catch (e) { alert(e.message); }
     finally { setSaving(false); }
   };
 
   const items = Array.isArray(order.items) ? order.items : [];
+  const dueDate = effectiveDueDate(order);
+  const dayHealth = scheduleHealth?.[dueDate];
   const e = React.createElement;
 
   return e("div", {
     style: {
       background: "#0d1929",
-      border: `1px solid ${order.priority === "shopee" ? "#f9731430" : "#1e2d3d"}`,
+      border: `1px solid ${dayHealth ? "#ef444460" : order.priority === "shopee" ? "#f9731430" : "#1e2d3d"}`,
       borderLeft: `3px solid ${order.priority === "shopee" ? "#f97316" : STATUS_CONFIG[order.status]?.color || "#334155"}`,
       borderRadius: 12, marginBottom: 8, overflow: "hidden",
     }
@@ -169,7 +203,7 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
         e("div", { style: { fontSize: 10, color: "#4a6080" } }, "units")
       ),
       e("div", { style: { textAlign: "center", minWidth: 76 } },
-        e("div", { style: { fontSize: 12, fontWeight: 600, color: order.status === "done" ? "#22c55e" : "#94a3b8" } }, fmt(order.due_date)),
+        e("div", { style: { fontSize: 12, fontWeight: 600, color: dayHealth ? "#ef4444" : order.status === "done" ? "#22c55e" : "#94a3b8" } }, fmt(dueDate)),
         e("div", { style: { fontSize: 10, color: "#4a6080" } }, "กำหนดส่ง")
       ),
       e("div", { className: "uid-col", style: { minWidth: 28, textAlign: "center" } },
@@ -178,6 +212,7 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
         )
       ),
       e(Badge, { status: order.status }),
+      dayHealth && e("span", { title: `เกิน ${dayHealth.over_units} units`, style: { background: "#ef444418", border: "1px solid #ef444450", borderRadius: 6, padding: "3px 7px", color: "#ef4444", fontSize: 10, fontWeight: 800 } }, "OVER"),
       e("span", { style: { color: "#4a6080", fontSize: 12 } }, expanded ? "▲" : "▼")
     ),
 
@@ -189,7 +224,7 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, onRefresh }) {
         [
           ["ติดต่อ", order.contact],
           ["ช่องทาง", order.channel],
-          ["การชำระ", order.payment_type === "half" ? "มัดจำ 50%" : order.payment_type === "full" ? "เต็มจำนวน" : "—"],
+          ["การชำระ", order.payment_type === "deposit500" ? "มัดจำ 500 บาท" : order.payment_type === "deposit1000" ? "มัดจำ 1,000 บาท" : order.payment_type === "half" ? "มัดจำ 50%" : order.payment_type === "full" ? "เต็มจำนวน" : "—"],
           ["รายการ", items.join(", ") || "—"],
           ["เริ่มผลิต", fmt(order.start_date)],
           ["สร้างเมื่อ", fmtTime(order.created_at)],
@@ -263,7 +298,7 @@ function UidMatchPanel({ orders, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const e = React.createElement;
 
-  const unlinked = orders.filter(o => !o.line_user_id && o.status !== "done");
+  const unlinked = orders.filter(o => !o.line_user_id && o.channel !== "Shopee" && o.status !== "done");
 
   const runMatch = async () => {
     if (!lineUid.trim()) { alert("กรุณากรอก LINE UID ก่อนครับ"); return; }
@@ -340,14 +375,16 @@ function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("ทั้งหมด");
   const [search, setSearch] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [scheduleHealth, setScheduleHealth] = useState([]);
   const e = React.createElement;
 
   const loadOrders = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const data = await fetchOrders();
-      const sorted = [...data].sort((a,b)=>(a.status==="done"?1:0)-(b.status==="done"?1:0));
-      setOrders(sorted);
+      const [data, health] = await Promise.all([fetchOrders(), fetchScheduleHealth()]);
+      const visibleHealth = (Array.isArray(health) ? health : []).filter(h => String(h.work_date) >= todayKey());
+      setOrders(sortOrdersForQueue(data));
+      setScheduleHealth(visibleHealth);
       setLastRefresh(new Date());
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -361,16 +398,25 @@ function AdminDashboard() {
     return () => clearInterval(interval);
   }, [loadOrders]);
 
-  const handleStatusChange = (id, newStatus) => setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
-  const handleShopeeOverride = (id, newDate) => setOrders(prev => prev.map(o => o.id === id ? { ...o, shopee_deadline: newDate, priority: "shopee" } : o));
+  const handleStatusChange = async (id, newStatus) => {
+    await updateOrderStatus(id, newStatus);
+    await loadOrders();
+  };
+  const handleShopeeOverride = async (id, newDate) => {
+    await updateShopeeDeadline(id, newDate);
+    await loadOrders();
+  };
+
+  const healthByDate = Object.fromEntries(scheduleHealth.map(h => [h.work_date, h]));
 
   const stats = {
     total:       orders.length,
     pending:     orders.filter(o => o.status === "pending").length,
     in_progress: orders.filter(o => o.status === "in_progress").length,
     done:        orders.filter(o => o.status === "done").length,
-    no_uid:      orders.filter(o => !o.line_user_id && o.status !== "done").length,
+    no_uid:      orders.filter(o => !o.line_user_id && o.channel !== "Shopee" && o.status !== "done").length,
     shopee:      orders.filter(o => o.priority === "shopee" && o.status !== "done").length,
+    over_days:   scheduleHealth.length,
   };
 
   const filtered = orders.filter(o => {
@@ -424,7 +470,14 @@ function AdminDashboard() {
         e(StatCard, { label: "รอดำเนินการ", value: loading ? "—" : stats.pending,     color: "#f59e0b" }),
         e(StatCard, { label: "กำลังผลิต",   value: loading ? "—" : stats.in_progress, color: "#3b82f6" }),
         e(StatCard, { label: "เสร็จแล้ว",   value: loading ? "—" : stats.done,        color: "#22c55e" }),
-        e(StatCard, { label: "ไม่มี UID",   value: loading ? "—" : stats.no_uid,      color: stats.no_uid > 0 ? "#ef4444" : "#22c55e", sub: stats.no_uid > 0 ? "ต้องผูก LINE" : "ครบแล้ว" })
+        e(StatCard, { label: "ไม่มี UID",   value: loading ? "—" : stats.no_uid,      color: stats.no_uid > 0 ? "#ef4444" : "#22c55e", sub: stats.no_uid > 0 ? "ต้องผูก LINE" : "ครบแล้ว" }),
+        e(StatCard, { label: "เกิน 2.5u",   value: loading ? "—" : stats.over_days,   color: stats.over_days > 0 ? "#ef4444" : "#22c55e", sub: `${DAILY_UNIT_CAPACITY}u/วัน` })
+      ),
+
+      scheduleHealth.length > 0 && e("div", { style: { background: "#ef444414", border: "1px solid #ef444450", borderRadius: 10, padding: "10px 14px", marginBottom: 14, color: "#fecaca", fontSize: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
+        e("strong", { style: { color: "#ef4444" } }, "⚠️ วันเกิน capacity"),
+        ...scheduleHealth.slice(0, 6).map(h => e("span", { key: h.work_date, style: { background: "#0a1220", border: "1px solid #ef444440", borderRadius: 7, padding: "4px 8px" } }, `${fmt(h.work_date)}: ${h.total_units}u`)),
+        scheduleHealth.length > 6 && e("span", { style: { color: "#ef4444" } }, `+${scheduleHealth.length - 6} วัน`)
       ),
 
       // Tabs + Search
@@ -470,7 +523,7 @@ function AdminDashboard() {
                   e("div", { style: { minWidth: 16 } })
                 ),
                 ...filtered.map(o =>
-                  e(OrderCard, { key: o.id, order: o, onStatusChange: handleStatusChange, onShopeeOverride: handleShopeeOverride, onRefresh: loadOrders })
+                  e(OrderCard, { key: o.id, order: o, onStatusChange: handleStatusChange, onShopeeOverride: handleShopeeOverride, scheduleHealth: healthByDate })
                 )
               )
     )
