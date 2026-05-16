@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สร้างใบรับรถ - KMO RACK BAR CUSTOM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/styles.css">
+    <!-- jsPDF and html2canvas for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container">
+            <div class="logo-area">
+                <img src="assets/logo.jpg" alt="Logo" class="logo" onerror="this.src='https://via.placeholder.com/150x50?text=KMO+RACK+BAR'">
+                <h1>KMO RACK BAR CUSTOM</h1>
+            </div>
+            <nav>
+                <a href="index.html" class="active">สร้างใบรับรถ</a>
+                <a href="history.html">ประวัติ</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="form-card">
+            <h2>แบบฟอร์มรับรถเข้าร้าน</h2>
+            <form id="intakeForm">
+                <div class="form-section">
+                    <h3>ข้อมูลลูกค้า</h3>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label for="customer_name">ชื่อลูกค้า *</label>
+                            <input type="text" id="customer_name" name="customer_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="customer_phone">เบอร์โทรศัพท์ *</label>
+                            <input type="tel" id="customer_phone" name="customer_phone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="intake_date">วันที่รับรถ *</label>
+                            <input type="date" id="intake_date" name="intake_date" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>ข้อมูลรถ</h3>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label for="vehicle_brand">ยี่ห้อ *</label>
+                            <input type="text" id="vehicle_brand" name="vehicle_brand" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vehicle_model">รุ่น *</label>
+                            <input type="text" id="vehicle_model" name="vehicle_model" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vehicle_color">สี</label>
+                            <input type="text" id="vehicle_color" name="vehicle_color">
+                        </div>
+                        <div class="form-group">
+                            <label for="license_plate">ทะเบียน *</label>
+                            <input type="text" id="license_plate" name="license_plate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="mileage">เลขไมล์ *</label>
+                            <input type="number" id="mileage" name="mileage" required>
+                            <p class="field-note">อาจมีเลขไมล์เพิ่มเติมจากการนำรถไปติดตั้งไฟหน้า shop ไม่เกิน 1-2 กม.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="vin_number">เลขตัวถัง (VIN)</label>
+                            <input type="text" id="vin_number" name="vin_number">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>รายละเอียดสภาพรถ</h3>
+                    <div class="form-group">
+                        <label for="damage_notes">ตำหนิรอบคัน</label>
+                        <textarea id="damage_notes" name="damage_notes" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="accessories">อะไหล่/ของติดรถ</label>
+                        <textarea id="accessories" name="accessories" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="note">หมายเหตุอื่น ๆ</label>
+                        <textarea id="note" name="note" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>รูปภาพสภาพรถ</h3>
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="imageInput" multiple accept="image/*" class="file-input">
+                        <div class="file-drop-area">
+                            <p>คลิกหรือลากรูปภาพมาวางที่นี่ (เลือกได้หลายรูป)</p>
+                        </div>
+                    </div>
+                    <div id="imagePreview" class="image-preview-grid"></div>
+                </div>
+
+                <div class="form-notice">
+                    หมายเหตุ: อาจมีการขับไปติดตั้งอุปกรณ์อื่น ๆ เช่น จอแอนดรอย ไฟสปอร์ตไลท์ ที่หน้า shop ไม่เกิน 1-2 กิโลเมตร
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">บันทึกและสร้าง PDF</button>
+                    <button type="reset" id="resetBtn" class="btn btn-secondary">ล้างฟอร์ม</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <div class="success-icon">✓</div>
+            <h2>บันทึกข้อมูลสำเร็จ!</h2>
+            <p>ระบบได้บันทึกข้อมูลและเตรียมไฟล์ PDF ให้คุณแล้ว</p>
+            <div class="modal-actions">
+                <button id="downloadPdfAgain" class="btn btn-primary">ดาวน์โหลด PDF อีกครั้ง</button>
+                <a href="history.html" class="btn btn-secondary">ไปหน้าประวัติ</a>
+                <button id="closeModal" class="btn btn-ghost">สร้างใบใหม่</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden element for PDF rendering -->
+    <div id="pdfTemplate" style="position: absolute; left: -9999px; top: -9999px;"></div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ประวัติใบรับรถ - KMO RACK BAR CUSTOM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container">
+            <div class="logo-area">
+                <img src="assets/logo.jpg" alt="Logo" class="logo" onerror="this.src='https://via.placeholder.com/150x50?text=KMO+RACK+BAR'">
+                <h1>KMO RACK BAR CUSTOM</h1>
+            </div>
+            <nav>
+                <a href="index.html">สร้างใบรับรถ</a>
+                <a href="history.html" class="active">ประวัติ</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="search-section">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="ค้นหาจากทะเบียน, ชื่อลูกค้า, หรือเบอร์โทร...">
+                <div class="date-filters">
+                    <input type="date" id="dateFrom" title="ตั้งแต่วันที่">
+                    <span>ถึง</span>
+                    <input type="date" id="dateTo" title="ถึงวันที่">
+                </div>
+                <button id="searchBtn" class="btn btn-primary">ค้นหา</button>
+                <button id="resetSearchBtn" class="btn btn-secondary">ล้างการกรอง</button>
+            </div>
+        </section>
+
+        <section id="historyGrid" class="history-grid">
+            <!-- Cards will be injected here -->
+            <div class="loading-state">กำลังโหลดข้อมูล...</div>
+        </section>
+
+        <div id="pagination" class="pagination"></div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content modal-lg">
+            <span class="close-btn">&times;</span>
+            <div id="modalDetailContent">
+                <!-- Detail will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden element for PDF rendering -->
+    <div id="pdfTemplate" style="position: absolute; left: -9999px; top: -9999px;"></div>
+
+    <script type="module" src="src/history.js"></script>
+</body>
+</html>
