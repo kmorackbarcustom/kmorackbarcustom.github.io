@@ -1,5 +1,5 @@
 export const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co'
-export const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY_HERE'
+export const SUPABASE_ANON_KEY = 'sb_publishable_8sBSio03fAXOoBK3inSnSQ_gTXsEVGT'
 export const SHOP_NAME = 'KMO RACK BAR CUSTOM'
 export const SHOP_ADDRESS = 'ที่อยู่ร้าน'
 export const SHOP_PHONE = 'เบอร์ร้าน'
