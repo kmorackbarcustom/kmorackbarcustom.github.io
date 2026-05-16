@@ -163,7 +163,7 @@ begin
 
   -- Allocations are derived data. Rebuild from scratch so done/cancelled
   -- orders never leave stale capacity behind.
-  delete from public.production_allocations;
+  delete from public.production_allocations where true;
 
   for v_order in
     select o.*
