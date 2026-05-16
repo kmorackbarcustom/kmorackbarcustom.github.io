@@ -1,5 +1,7 @@
 import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE } from './config.js'
 
+const PDF_IMAGE_TIMEOUT_MS = 8000;
+
 /**
  * Generate PDF for a vehicle intake form
  * @param {Object} data - Record data
@@ -107,17 +109,31 @@ export async function generateVehicleIntakePDF(data) {
 function getBase64Image(url) {
     return new Promise((resolve, reject) => {
         const img = new Image();
+        const timeoutId = setTimeout(() => {
+            img.onload = null;
+            img.onerror = null;
+            reject(new Error(`โหลดรูปเข้า PDF นานเกินไป: ${url}`));
+        }, PDF_IMAGE_TIMEOUT_MS);
+
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-            resolve(dataURL);
+            clearTimeout(timeoutId);
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                resolve(dataURL);
+            } catch (err) {
+                reject(err);
+            }
         };
-        img.onerror = reject;
+        img.onerror = () => {
+            clearTimeout(timeoutId);
+            reject(new Error(`โหลดรูปเข้า PDF ไม่สำเร็จ: ${url}`));
+        };
         img.src = url;
     });
 }

@@ -12,6 +12,17 @@ const downloadPdfAgain = document.getElementById('downloadPdfAgain');
 let selectedFiles = [];
 let lastSavedData = null;
 
+const IMAGE_PROCESS_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, message) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), ms);
+    });
+
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 // Initialize date input with today's date
 document.getElementById('intake_date').valueAsDate = new Date();
 
@@ -60,12 +71,12 @@ function renderPreviews() {
  * Compress image before upload
  */
 async function compressImage(file) {
-    return new Promise((resolve) => {
+    return withTimeout(new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.readAsDataURL(file);
+        reader.onerror = () => reject(new Error(`อ่านไฟล์รูป ${file.name} ไม่สำเร็จ`));
         reader.onload = (event) => {
             const img = new Image();
-            img.src = event.target.result;
+            img.onerror = () => reject(new Error(`รูป ${file.name} เปิดอ่านไม่ได้ อาจเป็นไฟล์ HEIC/ไฟล์เสีย`));
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 const MAX_WIDTH = 1920;
@@ -83,11 +94,17 @@ async function compressImage(file) {
                 ctx.drawImage(img, 0, 0, width, height);
                 
                 canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error(`บีบอัดรูป ${file.name} ไม่สำเร็จ`));
+                        return;
+                    }
                     resolve(new File([blob], file.name, { type: 'image/jpeg' }));
                 }, 'image/jpeg', 0.8);
             };
+            img.src = event.target.result;
         };
-    });
+        reader.readAsDataURL(file);
+    }), IMAGE_PROCESS_TIMEOUT_MS, `ประมวลผลรูป ${file.name} นานเกินไป กรุณาลองใช้รูป JPG/PNG`);
 }
 
 // Form Submission
@@ -124,11 +141,20 @@ form.onsubmit = async (e) => {
 
         lastSavedData = savedRecord;
 
-        // 3. Generate PDF
-        await generateVehicleIntakePDF(savedRecord);
-
-        // 4. Show Success
+        // 3. Show Success before PDF generation so the UI never spins forever.
         showSuccess();
+
+        // 4. Generate PDF
+        try {
+            await withTimeout(
+                generateVehicleIntakePDF(savedRecord),
+                20000,
+                'สร้าง PDF นานเกินไป กรุณากดดาวน์โหลด PDF อีกครั้งจากหน้าต่างสำเร็จ'
+            );
+        } catch (pdfErr) {
+            console.error('PDF generation failed:', pdfErr);
+            alert('บันทึกข้อมูลสำเร็จแล้ว แต่สร้าง PDF อัตโนมัติไม่สำเร็จ: ' + pdfErr.message);
+        }
         
     } catch (err) {
         console.error('Error saving:', err);
@@ -156,7 +182,12 @@ closeModal.onclick = () => {
 };
 
 downloadPdfAgain.onclick = () => {
-    if (lastSavedData) generateVehicleIntakePDF(lastSavedData);
+    if (lastSavedData) {
+        generateVehicleIntakePDF(lastSavedData).catch(err => {
+            console.error('PDF download failed:', err);
+            alert('สร้าง PDF ไม่สำเร็จ: ' + err.message);
+        });
+    }
 };
 
 window.onclick = (event) => {
