@@ -25,6 +25,17 @@ function sanitizeSearchTerm(value) {
         .slice(0, 80);
 }
 
+function sanitizeStorageSegment(value, fallback) {
+    const sanitized = String(value || '')
+        .normalize('NFKD')
+        .replace(/[^a-zA-Z0-9_.-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 80);
+
+    return sanitized || fallback;
+}
+
 /**
  * Upload an image to Supabase Storage
  * @param {File} file 
@@ -33,8 +44,8 @@ function sanitizeSearchTerm(value) {
  */
 export async function uploadImage(file, path) {
     assertSupabaseConfigured();
-    const safePath = String(path || 'unknown').replace(/[^\p{L}\p{N}_-]+/gu, '_');
-    const safeName = String(file.name || 'image.jpg').replace(/[^\p{L}\p{N}_.-]+/gu, '_');
+    const safePath = sanitizeStorageSegment(path, 'vehicle');
+    const safeName = sanitizeStorageSegment(file.name || 'image.jpg', 'image.jpg');
     const fileName = `${safePath}/${crypto.randomUUID()}_${safeName}`;
     const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
