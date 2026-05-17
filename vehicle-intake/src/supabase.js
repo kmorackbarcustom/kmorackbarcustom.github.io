@@ -66,12 +66,25 @@ export async function uploadImage(file, path) {
  */
 export async function deleteImage(url) {
     assertSupabaseConfigured();
+    const path = getStoragePathFromUrl(url);
+    if (!path) return;
+
+    const { error } = await supabase.storage.from(BUCKET_NAME).remove([path]);
+    if (error) {
+        throw error;
+    }
+}
+
+function getStoragePathFromUrl(url) {
     try {
-        const path = url.split(`${BUCKET_NAME}/`)[1];
-        if (!path) return;
-        await supabase.storage.from(BUCKET_NAME).remove([path]);
+        const parsed = new URL(url);
+        const marker = `/object/public/${BUCKET_NAME}/`;
+        const markerIndex = parsed.pathname.indexOf(marker);
+        if (markerIndex === -1) return null;
+        return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
     } catch (err) {
-        console.error('Error deleting image:', err);
+        const path = String(url || '').split(`${BUCKET_NAME}/`)[1];
+        return path ? decodeURIComponent(path) : null;
     }
 }
 

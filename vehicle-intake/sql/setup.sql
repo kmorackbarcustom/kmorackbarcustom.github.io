@@ -34,13 +34,14 @@ CREATE INDEX IF NOT EXISTS idx_customer_phone ON vehicle_intake_forms(customer_p
 CREATE INDEX IF NOT EXISTS idx_intake_date ON vehicle_intake_forms(intake_date);
 
 -- RLS Policy
--- Client ที่ใช้ anon key อ่านและเพิ่มข้อมูลได้เท่านั้น
--- การแก้ไข/ลบควรทำผ่าน Supabase Dashboard, service role, หรือระบบ admin/auth แยกต่างหาก
+-- Client ที่ใช้ anon key อ่าน เพิ่ม และลบข้อมูลได้
+-- หมายเหตุ: เหมาะกับการใช้งานภายในร้านที่แชร์ลิงก์เฉพาะพนักงาน
 ALTER TABLE vehicle_intake_forms ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow all operations" ON vehicle_intake_forms;
 DROP POLICY IF EXISTS "Allow anon select intake forms" ON vehicle_intake_forms;
 DROP POLICY IF EXISTS "Allow anon insert intake forms" ON vehicle_intake_forms;
+DROP POLICY IF EXISTS "Allow anon delete intake forms" ON vehicle_intake_forms;
 
 CREATE POLICY "Allow anon select intake forms"
 ON vehicle_intake_forms
@@ -54,15 +55,22 @@ FOR INSERT
 TO anon
 WITH CHECK (true);
 
+CREATE POLICY "Allow anon delete intake forms"
+ON vehicle_intake_forms
+FOR DELETE
+TO anon
+USING (true);
+
 -- Storage Bucket: vehicle-intake-images
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('vehicle-intake-images', 'vehicle-intake-images', true)
 ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
 
--- Storage policy: anon อ่านและอัปโหลดรูปได้ แต่ไม่ให้แก้/ลบจาก client
+-- Storage policy: anon อ่าน อัปโหลด และลบรูปของระบบใบรับรถได้
 DROP POLICY IF EXISTS "Allow all operations" ON storage.objects;
 DROP POLICY IF EXISTS "Allow anon read vehicle images" ON storage.objects;
 DROP POLICY IF EXISTS "Allow anon upload vehicle images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow anon delete vehicle images" ON storage.objects;
 
 CREATE POLICY "Allow anon read vehicle images"
 ON storage.objects
@@ -75,3 +83,9 @@ ON storage.objects
 FOR INSERT
 TO anon
 WITH CHECK (bucket_id = 'vehicle-intake-images');
+
+CREATE POLICY "Allow anon delete vehicle images"
+ON storage.objects
+FOR DELETE
+TO anon
+USING (bucket_id = 'vehicle-intake-images');

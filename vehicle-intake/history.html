@@ -39,6 +39,15 @@
             </div>
         </section>
 
+        <section id="bulkActions" class="bulk-actions">
+            <label class="select-all-control">
+                <input type="checkbox" id="selectAllRecords">
+                เลือกทั้งหมด
+            </label>
+            <span id="selectedCount">เลือก 0 รายการ</span>
+            <button id="deleteSelectedBtn" class="btn btn-danger" type="button" disabled>ลบรายการที่เลือก</button>
+        </section>
+
         <section id="historyGrid" class="history-grid">
             <!-- Cards will be injected here -->
             <div class="loading-state">กำลังโหลดข้อมูล...</div>

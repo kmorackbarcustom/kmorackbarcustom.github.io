@@ -1,4 +1,4 @@
-import { searchIntakeForms, getIntakeFormById } from './supabase.js'
+import { searchIntakeForms, getIntakeFormById, deleteIntakeForm } from './supabase.js'
 import { generateVehicleIntakePDF } from './pdf.js'
 
 const historyGrid = document.getElementById('historyGrid');
@@ -7,15 +7,21 @@ const dateFrom = document.getElementById('dateFrom');
 const dateTo = document.getElementById('dateTo');
 const searchBtn = document.getElementById('searchBtn');
 const resetSearchBtn = document.getElementById('resetSearchBtn');
+const selectAllRecords = document.getElementById('selectAllRecords');
+const selectedCount = document.getElementById('selectedCount');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 const detailModal = document.getElementById('detailModal');
 const modalContent = document.getElementById('modalDetailContent');
 const closeBtn = document.querySelector('.close-btn');
 
 let currentRecords = [];
+let selectedRecordIds = new Set();
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300x200?text=No+Image';
 
 function setStatus(message, className = 'loading-state') {
     historyGrid.innerHTML = '';
+    selectedRecordIds.clear();
+    updateBulkActions();
     const status = document.createElement('div');
     status.className = className;
     status.textContent = message;
@@ -54,6 +60,7 @@ async function loadHistory() {
             dateTo: dateTo.value
         });
         currentRecords = data;
+        selectedRecordIds.clear();
         renderHistory(data);
     } catch (err) {
         setStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
@@ -72,6 +79,25 @@ function renderHistory(records) {
         
         const card = document.createElement('div');
         card.className = 'card';
+
+        const selectLabel = document.createElement('label');
+        selectLabel.className = 'card-select';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = selectedRecordIds.has(item.id);
+        checkbox.onchange = () => {
+            if (checkbox.checked) {
+                selectedRecordIds.add(item.id);
+            } else {
+                selectedRecordIds.delete(item.id);
+            }
+            updateBulkActions();
+        };
+
+        const selectText = document.createElement('span');
+        selectText.textContent = 'เลือก';
+        selectLabel.append(checkbox, selectText);
 
         const img = document.createElement('img');
         img.src = firstImg;
@@ -108,10 +134,18 @@ function renderHistory(records) {
         viewBtn.textContent = 'รายละเอียด';
         viewBtn.onclick = () => openDetail(item.id);
 
-        actions.appendChild(viewBtn);
-        card.append(img, content, actions);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-danger btn-sm delete-record';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'ลบ';
+        deleteBtn.onclick = () => handleDelete(item.id);
+
+        actions.append(viewBtn, deleteBtn);
+        card.append(selectLabel, img, content, actions);
         historyGrid.appendChild(card);
     });
+
+    updateBulkActions();
 }
 
 async function openDetail(id) {
@@ -132,7 +166,17 @@ async function openDetail(id) {
         downloadBtn.textContent = 'ดาวน์โหลด PDF';
         downloadBtn.onclick = () => generateVehicleIntakePDF(record);
 
-        header.append(heading, downloadBtn);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-danger delete-record';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'ลบรายการนี้';
+        deleteBtn.onclick = () => handleDelete(record.id, { closeModal: true });
+
+        const detailActions = document.createElement('div');
+        detailActions.className = 'detail-actions';
+        detailActions.append(downloadBtn, deleteBtn);
+
+        header.append(heading, detailActions);
 
         const hr = document.createElement('hr');
         const grid = document.createElement('div');
@@ -188,6 +232,83 @@ async function openDetail(id) {
     }
 }
 
+function updateBulkActions() {
+    const selectedTotal = selectedRecordIds.size;
+    selectedCount.textContent = `เลือก ${selectedTotal} รายการ`;
+    deleteSelectedBtn.disabled = selectedTotal === 0;
+
+    if (currentRecords.length === 0) {
+        selectAllRecords.checked = false;
+        selectAllRecords.indeterminate = false;
+        selectAllRecords.disabled = true;
+        return;
+    }
+
+    selectAllRecords.disabled = false;
+    selectAllRecords.checked = selectedTotal > 0 && selectedTotal === currentRecords.length;
+    selectAllRecords.indeterminate = selectedTotal > 0 && selectedTotal < currentRecords.length;
+}
+
+async function handleDelete(id, { closeModal = false } = {}) {
+    const record = currentRecords.find(item => item.id === id) || await getIntakeFormById(id);
+    const label = `${record.license_plate || '-'} - ${record.customer_name || '-'}`;
+
+    if (!confirm(`ลบประวัติใบรับรถนี้หรือไม่?\n\n${label}\n\nระบบจะลบทั้งข้อมูลในฐานข้อมูลและรูปภาพที่แนบไว้`)) {
+        return;
+    }
+
+    try {
+        setDeleteLoading(true);
+        await deleteIntakeForm(id);
+        selectedRecordIds.delete(id);
+
+        if (closeModal) {
+            detailModal.style.display = 'none';
+        }
+
+        await loadHistory();
+        alert('ลบข้อมูลและรูปภาพเรียบร้อยแล้ว');
+    } catch (err) {
+        alert('ลบไม่สำเร็จ: ' + err.message);
+    } finally {
+        setDeleteLoading(false);
+    }
+}
+
+async function handleDeleteSelected() {
+    const ids = Array.from(selectedRecordIds);
+    if (ids.length === 0) return;
+
+    if (!confirm(`ลบประวัติที่เลือก ${ids.length} รายการหรือไม่?\n\nระบบจะลบทั้งข้อมูลในฐานข้อมูลและรูปภาพที่แนบไว้`)) {
+        return;
+    }
+
+    try {
+        setDeleteLoading(true);
+        for (const id of ids) {
+            await deleteIntakeForm(id);
+        }
+
+        selectedRecordIds.clear();
+        await loadHistory();
+        alert(`ลบข้อมูล ${ids.length} รายการเรียบร้อยแล้ว`);
+    } catch (err) {
+        alert('ลบไม่สำเร็จ: ' + err.message);
+        await loadHistory();
+    } finally {
+        setDeleteLoading(false);
+    }
+}
+
+function setDeleteLoading(isLoading) {
+    deleteSelectedBtn.disabled = isLoading || selectedRecordIds.size === 0;
+    deleteSelectedBtn.textContent = isLoading ? 'กำลังลบ...' : 'ลบรายการที่เลือก';
+
+    document.querySelectorAll('.btn-danger').forEach(btn => {
+        btn.disabled = isLoading;
+    });
+}
+
 searchBtn.onclick = loadHistory;
 resetSearchBtn.onclick = () => {
     searchInput.value = '';
@@ -195,6 +316,17 @@ resetSearchBtn.onclick = () => {
     dateTo.value = '';
     loadHistory();
 };
+
+selectAllRecords.onchange = () => {
+    if (selectAllRecords.checked) {
+        selectedRecordIds = new Set(currentRecords.map(item => item.id));
+    } else {
+        selectedRecordIds.clear();
+    }
+    renderHistory(currentRecords);
+};
+
+deleteSelectedBtn.onclick = handleDeleteSelected;
 
 closeBtn.onclick = () => {
     detailModal.style.display = 'none';
