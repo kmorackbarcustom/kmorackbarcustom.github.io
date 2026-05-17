@@ -13,6 +13,7 @@ let selectedFiles = [];
 let lastSavedData = null;
 
 const IMAGE_PROCESS_TIMEOUT_MS = 15000;
+const HEIC_EXTENSIONS = ['.heic', '.heif'];
 
 function withTimeout(promise, ms, message) {
     let timeoutId;
@@ -27,19 +28,25 @@ function withTimeout(promise, ms, message) {
 document.getElementById('intake_date').valueAsDate = new Date();
 
 // Handle image selection
-imageInput.addEventListener('change', (e) => {
+imageInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
-    files.forEach(file => {
-        if (!file.type.startsWith('image/')) return;
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
+
+    for (const file of files) {
+        if (!isSupportedImage(file)) continue;
+
+        try {
+            const normalizedFile = await normalizeImageFile(file);
+            const preview = await readFileAsDataUrl(normalizedFile);
             const id = Math.random().toString(36).substr(2, 9);
-            selectedFiles.push({ id, file, preview: event.target.result });
+            selectedFiles.push({ id, file: normalizedFile, originalName: file.name, preview });
             renderPreviews();
-        };
-        reader.readAsDataURL(file);
-    });
+        } catch (err) {
+            console.error('Image selection failed:', err);
+            alert(`รูป ${file.name} ใช้งานไม่ได้: ${err.message}`);
+        }
+    }
+
+    imageInput.value = '';
 });
 
 function renderPreviews() {
@@ -65,6 +72,46 @@ function renderPreviews() {
         div.append(img, removeBtn);
         imagePreview.appendChild(div);
     });
+}
+
+function isHeicFile(file) {
+    const name = file.name.toLowerCase();
+    return HEIC_EXTENSIONS.some(ext => name.endsWith(ext)) || ['image/heic', 'image/heif'].includes(file.type);
+}
+
+function isSupportedImage(file) {
+    return file.type.startsWith('image/') || isHeicFile(file);
+}
+
+async function normalizeImageFile(file) {
+    if (!isHeicFile(file)) return file;
+
+    if (typeof window.heic2any !== 'function') {
+        throw new Error('ระบบแปลง HEIC ยังโหลดไม่สำเร็จ กรุณารีเฟรชหน้าแล้วลองใหม่');
+    }
+
+    const converted = await withTimeout(
+        window.heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.86
+        }),
+        IMAGE_PROCESS_TIMEOUT_MS,
+        `แปลงไฟล์ HEIC ${file.name} นานเกินไป`
+    );
+
+    const blob = Array.isArray(converted) ? converted[0] : converted;
+    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+    return new File([blob], newName, { type: 'image/jpeg' });
+}
+
+function readFileAsDataUrl(file) {
+    return withTimeout(new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+        reader.onload = (event) => resolve(event.target.result);
+        reader.readAsDataURL(file);
+    }), IMAGE_PROCESS_TIMEOUT_MS, `อ่านไฟล์รูป ${file.name} นานเกินไป`);
 }
 
 /**

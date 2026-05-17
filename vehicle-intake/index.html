@@ -8,9 +8,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/styles.css">
-    <!-- jsPDF and html2canvas for PDF generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+	    <!-- jsPDF and html2canvas for PDF generation -->
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+	    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
     <header class="main-header">
@@ -98,7 +99,7 @@
                 <div class="form-section">
                     <h3>รูปภาพสภาพรถ</h3>
                     <div class="file-upload-wrapper">
-                        <input type="file" id="imageInput" multiple accept="image/*" class="file-input">
+	                        <input type="file" id="imageInput" multiple accept="image/*,.heic,.heif,image/heic,image/heif" class="file-input">
                         <div class="file-drop-area">
                             <p>คลิกหรือลากรูปภาพมาวางที่นี่ (เลือกได้หลายรูป)</p>
                         </div>
