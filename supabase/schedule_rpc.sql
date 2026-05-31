@@ -3,6 +3,15 @@
 
 create extension if not exists pgcrypto;
 
+create or replace function public.kmo_today()
+returns date
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select (now() at time zone 'Asia/Bangkok')::date;
+$$;
+
 create table if not exists public.production_allocations (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
@@ -56,6 +65,19 @@ as $$
   select coalesce((select sum(pa.units) from public.production_allocations pa where pa.work_date = p_day), 0) + p_units <= 2.5;
 $$;
 
+create or replace function public.kmo_daily_allocation_units(p_units numeric)
+returns numeric
+language sql
+immutable
+set search_path = public, pg_temp
+as $$
+  select case
+    when coalesce(p_units, 0) <= 0 then 0
+    when p_units <= 0.5 then 0.5
+    else 1
+  end;
+$$;
+
 create or replace function public.kmo_allocate_forward(
   p_order_id uuid,
   p_units numeric,
@@ -68,21 +90,22 @@ set search_path = public, pg_temp
 as $$
 declare
   v_days integer := public.kmo_production_days(p_units);
+  v_daily_units numeric := public.kmo_daily_allocation_units(p_units);
   v_remaining integer := v_days;
-  v_day date := greatest(coalesce(p_earliest, current_date + 1), current_date + 1);
+  v_day date := greatest(coalesce(p_earliest, public.kmo_today() + 1), public.kmo_today() + 1);
 begin
   if coalesce(p_units, 0) <= 0 then
     raise exception 'Order units must be greater than 0';
   end if;
 
   while v_remaining > 0 loop
-    if v_day > current_date + 180 then
+    if v_day > public.kmo_today() + 180 then
       raise exception 'Production queue is full for the next 180 days';
     end if;
 
-    if public.kmo_day_has_capacity(v_day, p_units) then
+    if public.kmo_day_has_capacity(v_day, v_daily_units) then
       insert into public.production_allocations (order_id, work_date, units, source)
-      values (p_order_id, v_day, p_units, 'customer')
+      values (p_order_id, v_day, v_daily_units, 'customer')
       on conflict (order_id, work_date)
       do update set units = excluded.units;
 
@@ -113,6 +136,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_days integer := public.kmo_production_days(p_units);
+  v_daily_units numeric := public.kmo_daily_allocation_units(p_units);
   v_remaining integer := v_days;
   v_day date := p_due_date;
 begin
@@ -126,13 +150,13 @@ begin
   due_date := p_due_date;
 
   while v_remaining > 0 loop
-    if v_day < current_date then
+    if v_day < public.kmo_today() then
       raise exception 'Not enough days before due date % for order %', p_due_date, p_order_id;
     end if;
 
-    if public.kmo_day_has_capacity(v_day, p_units) then
+    if public.kmo_day_has_capacity(v_day, v_daily_units) then
       insert into public.production_allocations (order_id, work_date, units, source)
-      values (p_order_id, v_day, p_units, p_source)
+      values (p_order_id, v_day, v_daily_units, p_source)
       on conflict (order_id, work_date)
       do update set units = excluded.units;
 
@@ -192,19 +216,19 @@ begin
       exception when others then
         for v_due in
           select generate_series(
-            greatest(current_date, public.kmo_order_effective_due(v_order) - (public.kmo_production_days(v_order.unit) - 1)),
+            greatest(public.kmo_today(), public.kmo_order_effective_due(v_order) - (public.kmo_production_days(v_order.unit) - 1)),
             public.kmo_order_effective_due(v_order),
             interval '1 day'
           )::date
         loop
           insert into public.production_allocations (order_id, work_date, units, source)
-          values (v_order.id, v_due, v_order.unit, 'shopee')
+          values (v_order.id, v_due, public.kmo_daily_allocation_units(v_order.unit), 'shopee')
           on conflict (order_id, work_date)
           do update set units = excluded.units;
         end loop;
 
         update public.orders
-          set start_date = greatest(current_date, public.kmo_order_effective_due(v_order) - (public.kmo_production_days(v_order.unit) - 1)),
+          set start_date = greatest(public.kmo_today(), public.kmo_order_effective_due(v_order) - (public.kmo_production_days(v_order.unit) - 1)),
               due_date = public.kmo_order_effective_due(v_order)
         where id = v_order.id;
       end;
@@ -224,7 +248,7 @@ begin
         select generate_series(v_order.start_date, v_order.due_date, interval '1 day')::date
       loop
         insert into public.production_allocations (order_id, work_date, units, source)
-        values (v_order.id, v_due, v_order.unit, 'customer')
+        values (v_order.id, v_due, public.kmo_daily_allocation_units(v_order.unit), 'customer')
         on conflict (order_id, work_date)
         do update set units = excluded.units;
       end loop;
@@ -257,7 +281,7 @@ begin
     from public.kmo_allocate_forward(
       v_order.id,
       v_order.unit,
-      current_date + 1
+      public.kmo_today() + 1
     );
 
     if v_order.start_date is distinct from v_alloc.start_date
@@ -301,11 +325,20 @@ begin
   from jsonb_array_elements_text(coalesce(p_payload->'items', '[]'::jsonb));
 
   if p_is_shopee and v_order_id is null then
-    v_order_id := 'SHP-' || to_char(current_date, 'YYYYMMDD') || '-' ||
+    v_order_id := 'SHP-' || to_char(public.kmo_today(), 'YYYYMMDD') || '-' ||
       upper(right(coalesce(p_payload->>'shopee_order_id', md5(random()::text)), 4));
     if exists (select 1 from public.orders where order_id = v_order_id) then
       v_order_id := v_order_id || '-' || upper(substr(md5(clock_timestamp()::text || random()::text), 1, 4));
     end if;
+  end if;
+
+  if not p_is_shopee and v_order_id is null then
+    v_order_id := 'ORD-' || to_char(public.kmo_today(), 'YYYYMMDD') || '-' ||
+      upper(substr(md5(clock_timestamp()::text || random()::text), 1, 4));
+    while exists (select 1 from public.orders where order_id = v_order_id) loop
+      v_order_id := 'ORD-' || to_char(public.kmo_today(), 'YYYYMMDD') || '-' ||
+        upper(substr(md5(clock_timestamp()::text || random()::text), 1, 4));
+    end loop;
   end if;
 
   if v_items_type = 'ARRAY' then
@@ -363,7 +396,7 @@ begin
   end if;
 
   update public.orders
-    set order_id = 'ORD-' || to_char(current_date, 'YYYYMMDD') || '-' || upper(substr(md5(v_id::text), 1, 4))
+    set order_id = 'ORD-' || to_char(public.kmo_today(), 'YYYYMMDD') || '-' || upper(substr(md5(v_id::text), 1, 4))
   where id = v_id
     and nullif(order_id, '') is null;
 
@@ -535,9 +568,12 @@ as $$
 $$;
 
 revoke execute on function public.kmo_order_effective_due(public.orders) from public, anon, authenticated;
+revoke execute on function public.kmo_today() from public, anon, authenticated;
 drop function if exists public.kmo_allocate_customer_order(uuid, numeric, date);
+drop trigger if exists trigger_queue on public.orders;
 revoke execute on function public.kmo_production_days(numeric) from public, anon, authenticated;
 revoke execute on function public.kmo_day_has_capacity(date, numeric) from public, anon, authenticated;
+revoke execute on function public.kmo_daily_allocation_units(numeric) from public, anon, authenticated;
 revoke execute on function public.kmo_allocate_forward(uuid, numeric, date) from public, anon, authenticated;
 revoke execute on function public.kmo_allocate_backward(uuid, numeric, date, text) from public, anon, authenticated;
 revoke execute on function public.kmo_insert_order_from_payload(jsonb, boolean) from public, anon, authenticated;
@@ -548,3 +584,63 @@ grant execute on function public.update_shopee_deadline(uuid, date) to anon, aut
 grant execute on function public.update_order_status(uuid, text) to anon, authenticated;
 grant execute on function public.rebuild_production_schedule() to anon, authenticated;
 grant execute on function public.get_schedule_health() to anon, authenticated;
+
+create or replace function public.notify_telegram_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform net.http_post(
+    url := 'https://xfhpwxjywqgqefbncumm.supabase.co/functions/v1/telegram-notify',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body := json_build_object(
+      'type', 'INSERT',
+      'table', 'orders',
+      'record', row_to_json(new)
+    )::jsonb
+  );
+
+  return new;
+exception when others then
+  return new;
+end;
+$$;
+
+drop trigger if exists new_booking_notification on public.bookings;
+drop trigger if exists on_order_ready_line on public.orders;
+drop trigger if exists on_shopee_insert_line on public.orders;
+drop function if exists public.notify_new_booking();
+drop function if exists public.notify_new_order();
+
+drop trigger if exists on_order_insert on public.orders;
+drop trigger if exists trigger_order_new_notification on public.orders;
+drop trigger if exists on_shopee_insert_telegram on public.orders;
+drop trigger if exists on_order_insert_telegram on public.orders;
+drop trigger if exists on_order_ready_telegram on public.orders;
+
+create trigger on_order_insert_telegram
+after insert on public.orders
+for each row
+when (
+  new.order_id is not null
+  and new.start_date is not null
+  and new.due_date is not null
+)
+execute function public.notify_telegram_order();
+
+create trigger on_order_ready_telegram
+after update of order_id, start_date, due_date on public.orders
+for each row
+when (
+  new.order_id is not null
+  and new.start_date is not null
+  and new.due_date is not null
+  and (
+    old.order_id is null
+    or old.due_date is null
+    or old.start_date is null
+  )
+)
+execute function public.notify_telegram_order();

@@ -1,0 +1,16 @@
+name: Telegram Webhook Health
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  repair-telegram-webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure Telegram webhook
+        run: |
+          curl -fsS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/telegram-webhook-health" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"

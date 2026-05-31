@@ -9,14 +9,8 @@ jobs:
   send-daily-summary:
     runs-on: ubuntu-latest
     steps:
-      - name: Booking Daily Summary
+      - name: Booking and Order Daily Summary
         run: |
           curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/daily-summary" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -H "Content-Type: application/json"
-
-      - name: Order Daily Summary
-        run: |
-          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/order-daily-summary" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json"
