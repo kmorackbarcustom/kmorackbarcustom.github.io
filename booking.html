@@ -813,10 +813,11 @@
         // คำนวณวันแรกและวันสุดท้ายของเดือน
         const firstDay = toDateStr(new Date(year, month, 1));
         const lastDay = toDateStr(new Date(year, month + 1, 0));
-        
-        // ดึงคิวที่ส่งผลกระทบต่อเดือนนี้: appointment_date <= lastDay AND pickup_date > firstDay
+
+        // นับ "คิวรับรถเข้าใหม่" ต่อวัน — ดูแค่ appointment_date ในเดือนนี้
+        // (ไม่นับ pickup_date เพราะงานที่ค้างอยู่ในร้านนานไม่ควรไปบล็อกคิวรับรถใหม่วันอื่น)
         const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/bookings?appointment_date=lte.${lastDay}&pickup_date=gt.${firstDay}&select=appointment_date,pickup_date,queue_status`,
+          `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDay}&select=appointment_date,queue_status`,
           {
             headers: {
               'apikey': SUPABASE_ANON_KEY,
@@ -826,22 +827,14 @@
         );
 
         const bookings = await response.json();
-        
+
         // Count bookings per day (ไม่นับคิวที่ยกเลิก)
         availabilityData = {};
         bookings
           .filter(booking => booking.queue_status !== 'ยกเลิก')
           .forEach(booking => {
-            const appointDate = parseDateStr(booking.appointment_date);
-            const pickupDate = parseDateStr(booking.pickup_date);
-            
-            // Count from appoint_date to pickup_date - 1
-            let currentDate = new Date(appointDate);
-            while (currentDate < pickupDate) {
-              const dateStr = toDateStr(currentDate);
-              availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
-              currentDate.setDate(currentDate.getDate() + 1);
-            }
+            const dateStr = booking.appointment_date;
+            availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
           });
       } catch (error) {
         console.error('Error fetching availability:', error);

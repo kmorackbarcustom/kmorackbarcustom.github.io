@@ -515,14 +515,15 @@
     isLoading = true;
 
     try {
-      // ดึง bookings ที่ส่งผลกระทบต่อเดือนนี้
+      // ดึง bookings ของเดือนนี้
       const firstDay = `${currentYear}-${String(currentMonth + 1).padStart(2,'0')}-01`;
       const lastDay  = new Date(currentYear, currentMonth + 1, 0);
       const lastDayStr = toDateStr(lastDay);
 
-      // ดึงคิวที่: appointment_date <= lastDay AND pickup_date > firstDay
+      // นับ "คิวรับรถเข้าใหม่" ต่อวัน — ดูแค่ appointment_date ในเดือนนี้
+      // (ไม่นับ pickup_date เพราะงานที่ค้างอยู่ในร้านนานไม่ควรไปบล็อกคิวรับรถใหม่วันอื่น)
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=lte.${lastDayStr}&pickup_date=gt.${firstDay}&select=appointment_date,pickup_date,queue_status`,
+        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,queue_status`,
         {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
@@ -537,15 +538,8 @@
       bookings
         .filter(b => b.queue_status !== 'ยกเลิก')
         .forEach(b => {
-        const start = new Date(b.appointment_date);
-        const end   = new Date(b.pickup_date);
-        let cur = new Date(start);
-        while (cur < end) {
-          const ds = toDateStr(cur);
-          bookingData[ds] = (bookingData[ds] || 0) + 1;
-          cur.setDate(cur.getDate() + 1);
-        }
-      });
+          bookingData[b.appointment_date] = (bookingData[b.appointment_date] || 0) + 1;
+        });
     } catch (err) {
       console.error('โหลด bookings ไม่ได้:', err);
       bookingData = {};
