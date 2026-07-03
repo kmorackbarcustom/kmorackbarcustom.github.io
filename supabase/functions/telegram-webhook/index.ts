@@ -772,8 +772,8 @@ serve(async (req) => {
     }
 
     const update = await req.json() as TelegramUpdate;
-    const fridayResponse = await handleFridayMessage(update);
-    if (fridayResponse) return fridayResponse;
+    // Friday chat replies disabled 2026-07-03 — OpenClaw handles chat in the group now.
+    // handleFridayMessage() left intact below in case this needs to flip back on.
 
     const callback = update.callback_query;
     callbackForError = callback;
