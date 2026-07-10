@@ -749,6 +749,35 @@
     let holidays = new Set();
     let latestSlipMessage = '';
 
+    // ปฏิทินนับเป็น 2 พูลอิสระ: งานใหญ่ (จองยาว >=3 วัน) รับพร้อมกันได้ 1 คิว
+    // งานเล็ก (<=2 วัน) รับได้ 2 คิว/วัน ไม่แย่งกันเพราะเป็นคนละช่างในทางปฏิบัติ
+    const BIG_CAP = 1;
+    const SMALL_CAP = 2;
+
+    function buildPoolUsage(bookings) {
+      const bigUsage = {};
+      const smallUsage = {};
+
+      bookings
+        .filter(b => b.queue_status !== 'ยกเลิก')
+        .forEach(b => {
+          const start = parseDateStr(b.appointment_date);
+          const end = parseDateStr(b.pickup_date);
+          if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
+          const spanDays = Math.round((end - start) / 86400000) + 1;
+          const usage = spanDays >= 3 ? bigUsage : smallUsage;
+
+          const cursor = new Date(start);
+          while (cursor <= end) {
+            const key = toDateStr(cursor);
+            usage[key] = (usage[key] || 0) + 1;
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        });
+
+      return { bigUsage, smallUsage };
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
       const dateParam = getDateFromQuery();
@@ -814,9 +843,8 @@
         const firstDay = toDateStr(new Date(year, month, 1));
         const lastDay = toDateStr(new Date(year, month + 1, 0));
 
-        // นับ "คิวรับรถเข้าใหม่" ต่อวัน — ดูแค่ appointment_date ในเดือนนี้
-        // (ไม่นับ pickup_date เพราะงานที่ค้างอยู่ในร้านนานไม่ควรไปบล็อกคิวรับรถใหม่วันอื่น)
         // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
+        // นับความจุแบบ 2 พูล (งานใหญ่/งานเล็ก) จากช่วง appointment_date-pickup_date ไม่ใช่แค่วันรับรถเข้า
         const response = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
           {
@@ -831,15 +859,7 @@
         );
 
         const bookings = await response.json();
-
-        // Count bookings per day (ไม่นับคิวที่ยกเลิก)
-        availabilityData = {};
-        bookings
-          .filter(booking => booking.queue_status !== 'ยกเลิก')
-          .forEach(booking => {
-            const dateStr = booking.appointment_date;
-            availabilityData[dateStr] = (availabilityData[dateStr] || 0) + 1;
-          });
+        availabilityData = buildPoolUsage(bookings);
       } catch (error) {
         console.error('Error fetching availability:', error);
       }
@@ -869,23 +889,26 @@
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const dateStr = toDateStr(date);
-        const booked = availabilityData[dateStr] || 0;
-        const available = 3 - booked;
+        const bigUsage = availabilityData.bigUsage || {};
+        const smallUsage = availabilityData.smallUsage || {};
+        const bigFull = (bigUsage[dateStr] || 0) >= BIG_CAP;
+        const smallFull = (smallUsage[dateStr] || 0) >= SMALL_CAP;
+        const isFullyClosed = bigFull && smallFull;
         const isPast = date < today;
         const isHol = holidays.has(dateStr);
         const isTue = date.getDay() === 2;
         const isToday = dateStr === todayStr;
-        
+
         const cell = document.createElement('div');
         cell.className = 'date-cell';
-        
+
         if (isPast) {
           cell.classList.add('past', 'disabled');
-        } else if (isHol || isTue || available <= 0) {
+        } else if (isHol || isTue || isFullyClosed) {
           cell.classList.add('full', 'status-full', 'disabled');
         } else if (selectedDate === dateStr) {
           cell.classList.add('selected');
-        } else if (available <= 2) {
+        } else if (bigFull) {
           cell.classList.add('status-low');
         } else {
           cell.classList.add('status-open');
@@ -893,22 +916,24 @@
 
         if (selectedDate === dateStr) cell.classList.add('selected');
         if (isToday) cell.classList.add('today');
-        
+
+        let labelText = '';
+        if (!isPast && !isHol && !isTue) {
+          labelText = isFullyClosed ? 'ปิดรับคิว' : (bigFull ? 'ว่างเฉพาะงานเล็ก' : 'ว่าง');
+        }
+
         cell.innerHTML = `
           <div class="date-num">${day}</div>
-          ${!isPast && !isHol && !isTue && available > 0 ? `
-            <div class="date-label">ว่าง ${available} คิว</div>
-            <div class="date-dot"></div>
-          ` : !isPast ? `
-            <div class="date-label">ปิดรับคิว</div>
+          ${labelText ? `
+            <div class="date-label">${labelText}</div>
             <div class="date-dot"></div>
           ` : ''}
         `;
-        
-        if (!isPast && !isHol && !isTue && available > 0) {
+
+        if (!isPast && !isHol && !isTue && !isFullyClosed) {
           cell.onclick = () => selectDate(dateStr);
         }
-        
+
         grid.appendChild(cell);
       }
     }
@@ -969,6 +994,38 @@
           queue_status: 'ยืนยัน',
           production_status: 'รอเริ่มงาน'
         };
+
+        // ปฏิทินเช็คได้แค่วันเริ่ม แต่งานใหญ่จองยาวหลายวัน ต้อง re-check
+        // ทุกวันในช่วงจริงก่อนบันทึก กันช่วงจองซ้อนที่ปฏิทินตอนโหลดไม่รู้จัก
+        // (best-effort กัน race condition ไม่ใช่ DB-level guarantee)
+        const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_start: data.appointment_date, p_end: data.pickup_date })
+        });
+        if (!checkRes.ok) throw new Error('ไม่สามารถตรวจสอบคิวว่างได้');
+
+        const activePool = buildPoolUsage(await checkRes.json());
+        const newStart = parseDateStr(data.appointment_date);
+        const newEnd = parseDateStr(data.pickup_date);
+        if (newEnd < newStart) throw new Error('วันรับรถต้องไม่ก่อนวันนัดเข้า');
+
+        const newSpanDays = Math.round((newEnd - newStart) / 86400000) + 1;
+        const targetUsage = newSpanDays >= 3 ? activePool.bigUsage : activePool.smallUsage;
+        const cap = newSpanDays >= 3 ? BIG_CAP : SMALL_CAP;
+
+        const blockedDates = [];
+        for (const cursor = new Date(newStart); cursor <= newEnd; cursor.setDate(cursor.getDate() + 1)) {
+          const key = toDateStr(cursor);
+          if ((targetUsage[key] || 0) >= cap) blockedDates.push(key);
+        }
+        if (blockedDates.length > 0) {
+          throw new Error(`ช่วงวันที่เลือกมีคิวเต็มบางวัน (${blockedDates.join(', ')}) กรุณาเลือกวันใหม่`);
+        }
 
         // Generate JobID
         const jobIdResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/generate_job_id`, {

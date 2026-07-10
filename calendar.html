@@ -478,7 +478,10 @@
   // ===== ตั้งค่า =====
   const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
-  const MAX_PER_DAY = 3;
+  // ปฏิทินนับเป็น 2 พูลอิสระ: งานใหญ่ (จองยาว >=3 วัน) รับพร้อมกันได้ 1 คิว
+  // งานเล็ก (<=2 วัน) รับได้ 2 คิว/วัน ไม่แย่งกันเพราะเป็นคนละช่างในทางปฏิบัติ
+  const BIG_CAP = 1;
+  const SMALL_CAP = 2;
   // ===================
 
   let currentYear  = new Date().getFullYear();
@@ -491,6 +494,35 @@
     'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
     'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'
   ];
+
+  function parseDateStr(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function buildPoolUsage(bookings) {
+    const bigUsage = {};
+    const smallUsage = {};
+
+    bookings
+      .filter(b => b.queue_status !== 'ยกเลิก')
+      .forEach(b => {
+        const start = parseDateStr(b.appointment_date);
+        const end = parseDateStr(b.pickup_date);
+        if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
+        const spanDays = Math.round((end - start) / 86400000) + 1;
+        const usage = spanDays >= 3 ? bigUsage : smallUsage;
+
+        const cursor = new Date(start);
+        while (cursor <= end) {
+          const key = toDateStr(cursor);
+          usage[key] = (usage[key] || 0) + 1;
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      });
+
+    return { bigUsage, smallUsage };
+  }
 
   // ===== โหลด holidays จาก Supabase =====
   async function loadHolidays() {
@@ -536,14 +568,7 @@
         }
       );
       const bookings = await res.json();
-
-      // นับจำนวนคิวแต่ละวัน
-      bookingData = {};
-      bookings
-        .filter(b => b.queue_status !== 'ยกเลิก')
-        .forEach(b => {
-          bookingData[b.appointment_date] = (bookingData[b.appointment_date] || 0) + 1;
-        });
+      bookingData = buildPoolUsage(bookings);
     } catch (err) {
       console.error('โหลด bookings ไม่ได้:', err);
       bookingData = {};
@@ -601,8 +626,11 @@
       const isTue   = isTuesday(date);
       const isHol   = isHoliday(dateStr);
       const isToday = dateStr === todayStr;
-      const count   = bookingData[dateStr] || 0;
-      const remain  = MAX_PER_DAY - count;
+      const bigUsage = bookingData.bigUsage || {};
+      const smallUsage = bookingData.smallUsage || {};
+      const bigFull = (bigUsage[dateStr] || 0) >= BIG_CAP;
+      const smallFull = (smallUsage[dateStr] || 0) >= SMALL_CAP;
+      const isFullyClosed = bigFull && smallFull;
 
       const el = document.createElement('div');
       el.className = 'cal-day';
@@ -614,23 +642,23 @@
       if (isPast) {
         el.classList.add('past', 'disabled');
         statusText = '';
-      } else if (isTue || isHol || remain <= 0) {
+      } else if (isTue || isHol || isFullyClosed) {
         statusClass = 'status-full';
         el.classList.add('disabled');
         statusText = 'ปิดรับคิว';
-      } else if (remain <= 2) {
+      } else if (bigFull) {
         statusClass = 'status-low';
-        statusText = 'ว่าง ' + remain + ' คิว';
+        statusText = 'ว่างเฉพาะงานเล็ก';
       } else {
         statusClass = 'status-open';
-        statusText = 'ว่าง ' + remain + ' คิว';
+        statusText = 'ว่าง';
       }
 
       if (statusClass) el.classList.add(statusClass);
       if (isToday) el.classList.add('today');
 
       // คลิกวันที่ว่าง → เด้งไปหน้าจอง
-      if (!isPast && !isTue && !isHol && remain > 0) {
+      if (!isPast && !isTue && !isHol && !isFullyClosed) {
         el.classList.add('clickable');
         el.addEventListener('click', function() {
           window.location.href = 'booking.html?date=' + dateStr;
