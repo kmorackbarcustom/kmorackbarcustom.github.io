@@ -522,13 +522,17 @@
 
       // นับ "คิวรับรถเข้าใหม่" ต่อวัน — ดูแค่ appointment_date ในเดือนนี้
       // (ไม่นับ pickup_date เพราะงานที่ค้างอยู่ในร้านนานไม่ควรไปบล็อกคิวรับรถใหม่วันอื่น)
+      // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/bookings?appointment_date=gte.${firstDay}&appointment_date=lte.${lastDayStr}&select=appointment_date,queue_status`,
+        `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
         {
+          method: 'POST',
           headers: {
             'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_start: firstDay, p_end: lastDayStr })
         }
       );
       const bookings = await res.json();

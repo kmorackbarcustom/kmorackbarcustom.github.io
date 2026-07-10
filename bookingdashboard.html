@@ -833,7 +833,73 @@
   <script>
     // Supabase Config
     const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
+    // ponytail: anon key นี้แค่ไว้ผ่านด่าน JWT ของ Supabase Edge Function gateway เอง
+    // ไม่มีสิทธิ์เข้าถึงข้อมูลอะไรทั้งนั้นเพราะ RLS บล็อก anon ไปแล้ว ตัวกันจริงคือ x-staff-key
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+
+    async function fetchWithProxy(endpoint, options = {}) {
+      let staffKey = localStorage.getItem("kmo_staff_key");
+      if (!staffKey) {
+        staffKey = prompt("กรุณากรอกรหัสผ่านร้าน KMO เพื่อตรวจสอบ:");
+        if (staffKey) localStorage.setItem("kmo_staff_key", staffKey);
+      }
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/internal-proxy/${endpoint}`, {
+        ...options,
+        headers: {
+          ...options.headers,
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "x-staff-key": staffKey || "",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem("kmo_staff_key");
+        alert("รหัสผ่านร้านไม่ถูกต้อง กรุณารีเฟรชหน้าจอใหม่เพื่อใส่รหัสอีกครั้ง");
+        throw new Error("Unauthorized");
+      }
+      return res;
+    }
+
+    // ponytail: bucket booking-images เป็น private แล้ว ต้องดึงผ่าน proxy เป็น
+    // blob ก่อนแสดงผล (แก้บั๊กเดียวกับที่เจอใน vehicle-intake)
+    const PLACEHOLDER_IMG = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23222"/%3E%3C/svg%3E';
+    const bookingImageBlobCache = new Map();
+
+    function getBookingImagePath(url) {
+      try {
+        const parsed = new URL(url);
+        const marker = '/object/public/booking-images/';
+        const idx = parsed.pathname.indexOf(marker);
+        if (idx === -1) return null;
+        return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+      } catch (err) {
+        const path = String(url || '').split('booking-images/')[1];
+        return path ? decodeURIComponent(path) : null;
+      }
+    }
+
+    async function resolveBookingImageSrc(url) {
+      if (!url) return '';
+      if (bookingImageBlobCache.has(url)) return bookingImageBlobCache.get(url);
+
+      const path = getBookingImagePath(url);
+      if (!path) return url;
+
+      try {
+        const res = await fetchWithProxy(`storage/v1/object/booking-images/${path}`, { method: 'GET' });
+        if (!res.ok) throw new Error(`load failed (${res.status})`);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        bookingImageBlobCache.set(url, blobUrl);
+        return blobUrl;
+      } catch (err) {
+        console.error('resolveBookingImageSrc failed:', url, err);
+        return '';
+      }
+    }
 
     let allBookings = [];
     let currentFilter = 'all';
@@ -852,12 +918,7 @@
     // Fetch Bookings
     async function fetchBookings() {
       try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?queue_status=eq.ยืนยัน&order=appointment_date.asc`, {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
+        const response = await fetchWithProxy('bookings?queue_status=eq.ยืนยัน&order=appointment_date.asc');
 
         if (!response.ok) throw new Error('Failed to fetch bookings');
 
@@ -960,7 +1021,8 @@
             <div class="booking-images">
               ${booking.images.map((url, idx) => `
                 <img class="booking-img-thumb"
-                     src="${url}"
+                     src="${PLACEHOLDER_IMG}"
+                     data-src="${url}"
                      alt="รูป ${idx + 1}"
                      onclick="openLightbox(${JSON.stringify(booking.images)}, ${idx})"
                 >
@@ -972,6 +1034,10 @@
           </div>
         </div>
       `).join('');
+
+      bookingsList.querySelectorAll('.booking-img-thumb[data-src]').forEach(img => {
+        resolveBookingImageSrc(img.dataset.src).then(src => { if (src) img.src = src; });
+      });
     }
 
     // Get Badge Class
@@ -1022,14 +1088,9 @@
       if (!confirm(`ยืนยันเปลี่ยนสถานะเป็น "${newStatus}"?`)) return;
 
       try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+        const response = await fetchWithProxy(`bookings?id=eq.${id}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
+          headers: { 'Prefer': 'return=minimal' },
           body: JSON.stringify({ production_status: newStatus })
         });
 
@@ -1048,14 +1109,9 @@
       if (!confirm('ยืนยันยกเลิกการจอง?')) return;
 
       try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+        const response = await fetchWithProxy(`bookings?id=eq.${id}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
+          headers: { 'Prefer': 'return=minimal' },
           body: JSON.stringify({ queue_status: 'ยกเลิก' })
         });
 
@@ -1103,7 +1159,9 @@
     }
 
     function updateLightbox() {
-      document.getElementById('lightboxImg').src = lightboxImages[lightboxIndex];
+      const imgEl = document.getElementById('lightboxImg');
+      imgEl.src = PLACEHOLDER_IMG;
+      resolveBookingImageSrc(lightboxImages[lightboxIndex]).then(src => { if (src) imgEl.src = src; });
       document.getElementById('lightboxCounter').textContent =
         `${lightboxIndex + 1} / ${lightboxImages.length}`;
     }

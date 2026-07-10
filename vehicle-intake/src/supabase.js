@@ -1,20 +1,34 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js'
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+// ponytail: ทุก call ยิงผ่าน internal-proxy (service_role ฝั่ง server + staff key)
+// แทน SDK+anon key ตรงๆ เพราะ bucket/table นี้ปิด anon เข้าถึงทั้งหมดแล้ว
 
 const BUCKET_NAME = 'vehicle-intake-images'
-const CONFIG_PLACEHOLDERS = new Set([
-    '',
-    'YOUR_PROJECT_URL',
-    'YOUR_ANON_KEY',
-    'YOUR_ANON_KEY_HERE'
-]);
+const imageBlobCache = new Map()
 
-function assertSupabaseConfigured() {
-    if (CONFIG_PLACEHOLDERS.has(SUPABASE_URL) || CONFIG_PLACEHOLDERS.has(SUPABASE_ANON_KEY)) {
-        throw new Error('กรุณาตั้งค่า SUPABASE_URL และ SUPABASE_ANON_KEY ในไฟล์ src/config.js ก่อนใช้งาน');
+async function fetchWithProxy(endpoint, options = {}) {
+    let staffKey = localStorage.getItem('kmo_staff_key');
+    if (!staffKey) {
+        staffKey = prompt('กรุณากรอกรหัสผ่านร้าน KMO เพื่อบันทึกใบรับรถ:');
+        if (staffKey) localStorage.setItem('kmo_staff_key', staffKey);
     }
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/internal-proxy/${endpoint}`, {
+        ...options,
+        headers: {
+            ...options.headers,
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'x-staff-key': staffKey || '',
+        },
+    });
+
+    if (res.status === 401) {
+        localStorage.removeItem('kmo_staff_key');
+        alert('รหัสผ่านร้านไม่ถูกต้อง กรุณารีเฟรชเพื่อเข้าสู่ระบบใหม่');
+        throw new Error('Unauthorized');
+    }
+    return res;
 }
 
 function sanitizeSearchTerm(value) {
@@ -37,41 +51,78 @@ function sanitizeStorageSegment(value, fallback) {
 }
 
 /**
- * Upload an image to Supabase Storage
- * @param {File} file 
- * @param {string} path 
- * @returns {Promise<string>} Public URL
+ * Upload an image to Supabase Storage via internal-proxy
+ * @param {File} file
+ * @param {string} path
+ * @returns {Promise<string>} Storage path (not a directly-fetchable public URL anymore — bucket is private)
  */
 export async function uploadImage(file, path) {
-    assertSupabaseConfigured();
     const safePath = sanitizeStorageSegment(path, 'vehicle');
     const safeName = sanitizeStorageSegment(file.name || 'image.jpg', 'image.jpg');
     const fileName = `${safePath}/${crypto.randomUUID()}_${safeName}`;
-    const { data, error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(fileName, file);
 
-    if (error) throw error;
+    const res = await fetchWithProxy(`storage/v1/object/${BUCKET_NAME}/${fileName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+    });
 
-    const { data: { publicUrl } } = supabase.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(data.path);
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`อัปโหลดรูปภาพล้มเหลว: ${errText}`);
+    }
 
-    return publicUrl;
+    // เก็บเป็น "public URL แบบเดิม" ไว้ในฟิลด์ image_urls เพื่อความเข้ากันได้กับ record เก่า
+    // (bucket เป็น private แล้ว URL นี้ดึงตรงไม่ได้ ต้องผ่าน resolveImageSrc เท่านั้น)
+    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
 }
 
 /**
- * Delete an image from Supabase Storage
- * @param {string} url 
+ * Delete an image from Supabase Storage via internal-proxy
+ * @param {string} url
  */
 export async function deleteImage(url) {
-    assertSupabaseConfigured();
     const path = getStoragePathFromUrl(url);
     if (!path) return;
 
-    const { error } = await supabase.storage.from(BUCKET_NAME).remove([path]);
-    if (error) {
-        throw error;
+    const res = await fetchWithProxy(`storage/v1/object/${BUCKET_NAME}/${path}`, {
+        method: 'DELETE',
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`ลบรูปภาพล้มเหลว: ${errText}`);
+    }
+    imageBlobCache.delete(url);
+}
+
+/**
+ * Resolve a stored image URL into a browser-usable src (blob: URL).
+ * Needed because the bucket is private now — a plain <img src="..."> can't
+ * send the staff-key header, so we fetch the bytes ourselves via the proxy.
+ * Cached per URL so re-rendering the same list doesn't re-fetch.
+ * @param {string} url
+ * @returns {Promise<string>} blob: URL, or a placeholder on failure
+ */
+export async function resolveImageSrc(url) {
+    if (!url) return '';
+    if (imageBlobCache.has(url)) return imageBlobCache.get(url);
+
+    const path = getStoragePathFromUrl(url);
+    if (!path) return url;
+
+    try {
+        const res = await fetchWithProxy(`storage/v1/object/${BUCKET_NAME}/${path}`, {
+            method: 'GET',
+        });
+        if (!res.ok) throw new Error(`load failed (${res.status})`);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        imageBlobCache.set(url, blobUrl);
+        return blobUrl;
+    } catch (err) {
+        console.error('resolveImageSrc failed:', url, err);
+        return '';
     }
 }
 
@@ -90,16 +141,22 @@ function getStoragePathFromUrl(url) {
 
 /**
  * Create a new intake form record
- * @param {Object} formData 
  */
 export async function createIntakeForm(formData) {
-    assertSupabaseConfigured();
-    const { data, error } = await supabase
-        .from('vehicle_intake_forms')
-        .insert([formData])
-        .select();
+    const res = await fetchWithProxy('vehicle_intake_forms', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(formData),
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'บันทึกข้อมูลล้มเหลว');
+    }
+    const data = await res.json();
     return data[0];
 }
 
@@ -107,76 +164,87 @@ export async function createIntakeForm(formData) {
  * Search intake forms
  */
 export async function searchIntakeForms({ query, dateFrom, dateTo }) {
-    assertSupabaseConfigured();
-    let rpcQuery = supabase.from('vehicle_intake_forms').select('*').order('created_at', { ascending: false });
+    const params = new URLSearchParams();
+    params.append('select', '*');
+    params.append('order', 'created_at.desc');
+
     const safeQuery = sanitizeSearchTerm(query);
-
     if (safeQuery) {
-        rpcQuery = rpcQuery.or(`license_plate.ilike.%${safeQuery}%,customer_name.ilike.%${safeQuery}%,customer_phone.ilike.%${safeQuery}%`);
+        params.append('or', `license_plate.ilike.%${safeQuery}%,customer_name.ilike.%${safeQuery}%,customer_phone.ilike.%${safeQuery}%`);
     }
-
     if (dateFrom) {
-        rpcQuery = rpcQuery.gte('intake_date', dateFrom);
+        params.append('intake_date', `gte.${dateFrom}`);
     }
-
     if (dateTo) {
-        rpcQuery = rpcQuery.lte('intake_date', dateTo);
+        params.append('intake_date', `lte.${dateTo}`);
     }
 
-    const { data, error } = await rpcQuery;
-    if (error) throw error;
-    return data;
+    const res = await fetchWithProxy(`vehicle_intake_forms?${params.toString()}`, {
+        method: 'GET',
+    });
+
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'ดึงประวัติการรับรถล้มเหลว');
+    }
+    return res.json();
 }
 
 /**
  * Get single record by ID
  */
 export async function getIntakeFormById(id) {
-    assertSupabaseConfigured();
-    const { data, error } = await supabase
-        .from('vehicle_intake_forms')
-        .select('*')
-        .eq('id', id)
-        .single();
+    const res = await fetchWithProxy(`vehicle_intake_forms?id=eq.${id}&select=*`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/vnd.pgrst.object+json' },
+    });
 
-    if (error) throw error;
-    return data;
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'ดึงรายละเอียดใบรับรถล้มเหลว');
+    }
+    return res.json();
 }
 
 /**
  * Delete record and its images
  */
 export async function deleteIntakeForm(id) {
-    assertSupabaseConfigured();
     const record = await getIntakeFormById(id);
-    
-    // Delete images from storage
+
     if (record.image_urls && record.image_urls.length > 0) {
         for (const url of record.image_urls) {
             await deleteImage(url);
         }
     }
 
-    // Delete record
-    const { error } = await supabase
-        .from('vehicle_intake_forms')
-        .delete()
-        .eq('id', id);
+    const res = await fetchWithProxy(`vehicle_intake_forms?id=eq.${id}`, {
+        method: 'DELETE',
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'ลบใบรับรถล้มเหลว');
+    }
 }
 
 /**
  * Update record
  */
 export async function updateIntakeForm(id, formData) {
-    assertSupabaseConfigured();
-    const { data, error } = await supabase
-        .from('vehicle_intake_forms')
-        .update(formData)
-        .eq('id', id)
-        .select();
+    const res = await fetchWithProxy(`vehicle_intake_forms?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(formData),
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'อัปเดตข้อมูลล้มเหลว');
+    }
+    const data = await res.json();
     return data[0];
 }

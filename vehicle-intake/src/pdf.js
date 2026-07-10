@@ -1,4 +1,5 @@
 import { SHOP_NAME } from './config.js'
+import { resolveImageSrc } from './supabase.js'
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
@@ -12,7 +13,12 @@ const PDF_RENDER_TIMEOUT_MS = 20000;
 export async function generateVehicleIntakePDF(data) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
-    const pages = buildPdfPages(data);
+    // ponytail: bucket รูปเป็น private แล้ว ต้อง resolve เป็น blob URL ผ่าน proxy ก่อน
+    // สร้าง HTML ของหน้ารูป ไม่งั้น <img> ในหน้า PDF จะโหลดไม่ขึ้นเลย (403)
+    const resolvedImageUrls = await Promise.all(
+        (data.image_urls || []).map(url => resolveImageSrc(url))
+    );
+    const pages = buildPdfPages({ ...data, image_urls: resolvedImageUrls.filter(Boolean) });
 
     document.body.appendChild(pages);
 

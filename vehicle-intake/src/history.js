@@ -1,4 +1,4 @@
-import { searchIntakeForms, getIntakeFormById, deleteIntakeForm } from './supabase.js'
+import { searchIntakeForms, getIntakeFormById, deleteIntakeForm, resolveImageSrc } from './supabase.js'
 import { generateVehicleIntakePDF } from './pdf.js'
 
 const historyGrid = document.getElementById('historyGrid');
@@ -26,18 +26,6 @@ function setStatus(message, className = 'loading-state') {
     status.className = className;
     status.textContent = message;
     historyGrid.appendChild(status);
-}
-
-function safeImageUrl(url) {
-    try {
-        const parsed = new URL(url);
-        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-            return parsed.href;
-        }
-    } catch (err) {
-        return PLACEHOLDER_IMAGE;
-    }
-    return PLACEHOLDER_IMAGE;
 }
 
 function appendField(parent, label, value) {
@@ -75,8 +63,8 @@ function renderHistory(records) {
 
     historyGrid.innerHTML = '';
     records.forEach(item => {
-        const firstImg = item.image_urls && item.image_urls.length > 0 ? safeImageUrl(item.image_urls[0]) : PLACEHOLDER_IMAGE;
-        
+        const firstUrl = item.image_urls && item.image_urls.length > 0 ? item.image_urls[0] : null;
+
         const card = document.createElement('div');
         card.className = 'card';
 
@@ -100,9 +88,13 @@ function renderHistory(records) {
         selectLabel.append(checkbox, selectText);
 
         const img = document.createElement('img');
-        img.src = firstImg;
+        img.src = PLACEHOLDER_IMAGE;
         img.className = 'card-img';
         img.alt = 'Vehicle';
+        // ponytail: bucket เป็น private ต้องดึงผ่าน proxy เป็น blob ก่อนถึงจะแสดงได้ (แก้ทีหลัง render เพื่อไม่บล็อก UI)
+        if (firstUrl) {
+            resolveImageSrc(firstUrl).then(src => { if (src) img.src = src; });
+        }
 
         const content = document.createElement('div');
         content.className = 'card-content';
@@ -211,14 +203,19 @@ async function openDetail(id) {
         imageGrid.className = 'image-preview-grid';
 
         (record.image_urls || []).forEach(url => {
-            const safeUrl = safeImageUrl(url);
             const item = document.createElement('div');
             item.className = 'preview-item';
 
             const img = document.createElement('img');
-            img.src = safeUrl;
+            img.src = PLACEHOLDER_IMAGE;
             img.alt = 'vehicle';
-            img.onclick = () => window.open(safeUrl, '_blank', 'noopener');
+
+            // ponytail: bucket เป็น private ต้องดึงผ่าน proxy เป็น blob ก่อนแสดง/เปิดดูรูปเต็ม
+            resolveImageSrc(url).then(src => {
+                if (!src) return;
+                img.src = src;
+                img.onclick = () => window.open(src, '_blank', 'noopener');
+            });
 
             item.appendChild(img);
             imageGrid.appendChild(item);

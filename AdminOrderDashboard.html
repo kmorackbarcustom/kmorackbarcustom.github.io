@@ -38,29 +38,48 @@ const { useState, useEffect, useCallback } = React;
 
 // ── SUPABASE CONFIG ───────────────────────────────────────────
 const SUPABASE_URL = "https://xfhpwxjywqgqefbncumm.supabase.co";
+// ponytail: anon key นี้แค่ไว้ผ่านด่าน JWT ของ Supabase Edge Function gateway เอง
+// ไม่มีสิทธิ์เข้าถึงข้อมูลอะไรทั้งนั้นเพราะ RLS บล็อก anon ไปแล้ว ตัวกันจริงคือ x-staff-key
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is";
 
-const headers = {
-  "apikey": SUPABASE_ANON_KEY,
-  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-  "Content-Type": "application/json",
-  "Prefer": "return=representation",
-};
+async function fetchWithProxy(endpoint, options = {}) {
+  let staffKey = localStorage.getItem("kmo_staff_key");
+  if (!staffKey) {
+    staffKey = prompt("กรุณากรอกรหัสผ่านเข้าใช้งานร้าน KMO:");
+    if (staffKey) localStorage.setItem("kmo_staff_key", staffKey);
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/internal-proxy/${endpoint}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "x-staff-key": staffKey || "",
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (res.status === 401) {
+    localStorage.removeItem("kmo_staff_key");
+    alert("รหัสผ่านร้านไม่ถูกต้อง กรุณารีเฟรชหน้าจอใหม่เพื่อลองอีกครั้ง");
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
 
 // ── API HELPERS ───────────────────────────────────────────────
 async function fetchOrders() {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/orders?select=*&status=neq.cancelled&order=due_date.asc.nullslast,created_at.asc`,
-    { headers }
+  const res = await fetchWithProxy(
+    "orders?select=*&status=neq.cancelled&order=due_date.asc.nullslast,created_at.asc"
   );
   if (!res.ok) throw new Error("โหลดข้อมูลไม่ได้");
   return res.json();
 }
 
 async function rpc(name, payload = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+  const res = await fetchWithProxy(`rpc/${name}`, {
     method: "POST",
-    headers,
     body: JSON.stringify(payload),
   });
   const text = await res.text();
@@ -77,9 +96,8 @@ const fetchScheduleHealth = async () => {
 };
 
 async function rpcMatchAndLink(lineUid, orderId, name, contact) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_and_link_uid`, {
+  const res = await fetchWithProxy("rpc/match_and_link_uid", {
     method: "POST",
-    headers,
     body: JSON.stringify({
       p_line_uid: lineUid,
       p_order_id: orderId || null,
