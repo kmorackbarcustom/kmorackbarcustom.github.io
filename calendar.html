@@ -510,13 +510,21 @@
         const start = parseDateStr(b.appointment_date);
         const end = parseDateStr(b.pickup_date);
         if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
-        const spanDays = Math.round((end - start) / 86400000) + 1;
+
+        // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
+        // (เพื่อจัดงานใหญ่/เล็ก) และไม่ถือว่าใช้คิวในวันนั้น
+        let spanDays = 0;
+        for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
+          if (c.getDay() !== 2) spanDays++;
+        }
         const usage = spanDays >= 3 ? bigUsage : smallUsage;
 
         const cursor = new Date(start);
         while (cursor <= end) {
-          const key = toDateStr(cursor);
-          usage[key] = (usage[key] || 0) + 1;
+          if (cursor.getDay() !== 2) {
+            const key = toDateStr(cursor);
+            usage[key] = (usage[key] || 0) + 1;
+          }
           cursor.setDate(cursor.getDate() + 1);
         }
       });

@@ -764,13 +764,21 @@
           const start = parseDateStr(b.appointment_date);
           const end = parseDateStr(b.pickup_date);
           if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
-          const spanDays = Math.round((end - start) / 86400000) + 1;
+
+          // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
+          // (เพื่อจัดงานใหญ่/เล็ก) และไม่ถือว่าใช้คิวในวันนั้น
+          let spanDays = 0;
+          for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
+            if (c.getDay() !== 2) spanDays++;
+          }
           const usage = spanDays >= 3 ? bigUsage : smallUsage;
 
           const cursor = new Date(start);
           while (cursor <= end) {
-            const key = toDateStr(cursor);
-            usage[key] = (usage[key] || 0) + 1;
+            if (cursor.getDay() !== 2) {
+              const key = toDateStr(cursor);
+              usage[key] = (usage[key] || 0) + 1;
+            }
             cursor.setDate(cursor.getDate() + 1);
           }
         });
@@ -1014,12 +1022,18 @@
         const newEnd = parseDateStr(data.pickup_date);
         if (newEnd < newStart) throw new Error('วันรับรถต้องไม่ก่อนวันนัดเข้า');
 
-        const newSpanDays = Math.round((newEnd - newStart) / 86400000) + 1;
+        // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
+        // (เพื่อจัดงานใหญ่/เล็ก) และไม่เช็ค/ไม่โชว์ในลิสต์วันที่คิวเต็ม
+        let newSpanDays = 0;
+        for (const c = new Date(newStart); c <= newEnd; c.setDate(c.getDate() + 1)) {
+          if (c.getDay() !== 2) newSpanDays++;
+        }
         const targetUsage = newSpanDays >= 3 ? activePool.bigUsage : activePool.smallUsage;
         const cap = newSpanDays >= 3 ? BIG_CAP : SMALL_CAP;
 
         const blockedDates = [];
         for (const cursor = new Date(newStart); cursor <= newEnd; cursor.setDate(cursor.getDate() + 1)) {
+          if (cursor.getDay() === 2) continue;
           const key = toDateStr(cursor);
           if ((targetUsage[key] || 0) >= cap) blockedDates.push(key);
         }
