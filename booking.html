@@ -757,9 +757,11 @@
     let holidays = new Set();
     let latestSlipMessage = '';
 
-    // Cap เดียว: รับได้ DAILY_CAP คิวพร้อมกันไม่ว่างานใหญ่/เล็ก จองผ่านเว็บขั้นต่ำ
-    // MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคารที่ร้านปิด) คิวสั้นกว่านี้/เร่งด่วน
-    // ให้ทักแอดมินแทน — เมื่อวันไหนเหลือช่องไม่เกิน DENSE_THRESHOLD ให้เตือนลูกค้าว่าคิวแน่น
+    // Cap เดียว: รับรถเข้าใหม่ได้ DAILY_CAP คัน/วัน นับแค่วันรับรถเข้า (appointment_date)
+    // เท่านั้น — งานที่ค้างอยู่ในร้านนานถึง pickup_date ไม่ไปบล็อกคิวรับรถใหม่วันอื่น
+    // (เคย fix แบบนี้มาแล้วรอบ 656a791 แต่ถูก revert ตอนทำโมเดล 2 พูล ตอนนี้เอากลับมา)
+    // จองผ่านเว็บขั้นต่ำ MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคารที่ร้านปิด) คิวสั้นกว่านี้/
+    // เร่งด่วนให้ทักแอดมินแทน — วันไหนเหลือช่องไม่เกิน DENSE_THRESHOLD เตือนลูกค้าว่าคิวแน่น
     const DAILY_CAP = 3;
     const MIN_BOOKING_DAYS = 2;
     const DENSE_THRESHOLD = 1;
@@ -770,19 +772,8 @@
       bookings
         .filter(b => b.queue_status !== 'ยกเลิก')
         .forEach(b => {
-          const start = parseDateStr(b.appointment_date);
-          const end = parseDateStr(b.pickup_date);
-          if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
-
-          // วันอังคารเป็นวันหยุดร้าน ไม่ถือว่าใช้คิวในวันนั้น
-          const cursor = new Date(start);
-          while (cursor <= end) {
-            if (cursor.getDay() !== 2) {
-              const key = toDateStr(cursor);
-              usage[key] = (usage[key] || 0) + 1;
-            }
-            cursor.setDate(cursor.getDate() + 1);
-          }
+          const key = b.appointment_date;
+          usage[key] = (usage[key] || 0) + 1;
         });
 
       return usage;
@@ -800,15 +791,13 @@
       document.getElementById('pickupDate').addEventListener('change', checkQueueDensity);
     });
 
-    // เตือนลูกค้าล่วงหน้าถ้าช่วงที่เลือกคิวเหลือน้อย (ไม่บล็อกการจอง แค่แจ้งเตือน)
+    // เตือนลูกค้าล่วงหน้าถ้าวันรับรถเข้าที่เลือกคิวเหลือน้อย (ไม่บล็อกการจอง แค่แจ้งเตือน)
+    // capacity นับแค่วันรับรถเข้าวันเดียว ไม่เกี่ยวกับ pickup_date
     async function checkQueueDensity() {
       const appointVal = document.getElementById('appointDate').value;
       const pickupVal = document.getElementById('pickupDate').value;
       if (!appointVal || !pickupVal) { hideWarning(); return; }
-
-      const start = parseDateStr(appointVal);
-      const end = parseDateStr(pickupVal);
-      if (end < start) { hideWarning(); return; }
+      if (parseDateStr(pickupVal) < parseDateStr(appointVal)) { hideWarning(); return; }
 
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
@@ -818,16 +807,12 @@
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ p_start: appointVal, p_end: pickupVal })
+          body: JSON.stringify({ p_start: appointVal, p_end: appointVal })
         });
         if (!res.ok) return; // ponytail: เช็คแบบ soft warning เน็ตมีปัญหาก็แค่ไม่เตือน ไม่บล็อกฟอร์ม
 
         const usage = buildPoolUsage(await res.json());
-        let dense = false;
-        for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
-          if (c.getDay() === 2) continue;
-          if (DAILY_CAP - (usage[toDateStr(c)] || 0) <= DENSE_THRESHOLD) { dense = true; break; }
-        }
+        const dense = DAILY_CAP - (usage[appointVal] || 0) <= DENSE_THRESHOLD;
 
         if (dense) {
           showWarning('⚠️ ช่วงวันที่เลือกคิวค่อนข้างแน่น อาจส่งงานล่าช้ากว่ากำหนดที่แจ้งไว้ หากต้องการความชัวร์ แนะนำทักแอดมินก่อนจอง');
@@ -894,7 +879,9 @@
         const lastDay = toDateStr(new Date(year, month + 1, 0));
 
         // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
-        // นับความจุจากช่วง appointment_date-pickup_date ทั้งช่วง ไม่ใช่แค่วันรับรถเข้า
+        // RPC คืนแถวที่ overlap ช่วงเดือนนี้มาให้ (รวมงานที่เริ่มเดือนก่อนแต่ยัง
+        // ไม่รับคืน) แต่ buildPoolUsage นับความจุจากแค่ appointment_date เท่านั้น
+        // แถวที่ appointment_date ไม่ได้อยู่ในเดือนนี้จะไม่ไปแมตช์วันไหนในปฏิทิน — ไม่มีผล
         const response = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
           {
@@ -1053,9 +1040,9 @@
           production_status: 'รอเริ่มงาน'
         };
 
-        // ปฏิทินเช็คได้แค่วันเริ่ม แต่งานใหญ่จองยาวหลายวัน ต้อง re-check
-        // ทุกวันในช่วงจริงก่อนบันทึก กันช่วงจองซ้อนที่ปฏิทินตอนโหลดไม่รู้จัก
-        // (best-effort กัน race condition ไม่ใช่ DB-level guarantee)
+        // ปฏิทินเช็คได้แค่ตอนโหลดเดือน ต้อง re-check วันรับรถเข้าจริงก่อนบันทึก
+        // กันคิวชนที่ปฏิทินตอนโหลดไม่รู้จัก (best-effort กัน race condition ไม่ใช่ DB-level guarantee)
+        // capacity นับแค่วันรับรถเข้า (appointment_date) วันเดียว ไม่เกี่ยวกับ pickup_date
         const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
           method: 'POST',
           headers: {
@@ -1063,7 +1050,7 @@
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ p_start: data.appointment_date, p_end: data.pickup_date })
+          body: JSON.stringify({ p_start: data.appointment_date, p_end: data.appointment_date })
         });
         if (!checkRes.ok) throw new Error('ไม่สามารถตรวจสอบคิวว่างได้');
 
@@ -1073,7 +1060,6 @@
         if (newEnd < newStart) throw new Error('วันรับรถต้องไม่ก่อนวันนัดเข้า');
 
         // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
-        // และไม่เช็ค/ไม่โชว์ในลิสต์วันที่คิวเต็ม
         let newSpanDays = 0;
         for (const c = new Date(newStart); c <= newEnd; c.setDate(c.getDate() + 1)) {
           if (c.getDay() !== 2) newSpanDays++;
@@ -1082,14 +1068,8 @@
           throw new Error(`จองผ่านเว็บขั้นต่ำ ${MIN_BOOKING_DAYS} วันทำการ (ไม่นับวันอังคาร) หากต้องการคิววันเดียว/เร่งด่วน กรุณาติดต่อแอดมินโดยตรง`);
         }
 
-        const blockedDates = [];
-        for (const cursor = new Date(newStart); cursor <= newEnd; cursor.setDate(cursor.getDate() + 1)) {
-          if (cursor.getDay() === 2) continue;
-          const key = toDateStr(cursor);
-          if ((usage[key] || 0) >= DAILY_CAP) blockedDates.push(key);
-        }
-        if (blockedDates.length > 0) {
-          throw new Error(`ช่วงวันที่เลือกมีคิวเต็มบางวัน (${blockedDates.join(', ')}) กรุณาเลือกวันใหม่`);
+        if ((usage[data.appointment_date] || 0) >= DAILY_CAP) {
+          throw new Error(`วันที่เลือก (${data.appointment_date}) คิวเต็มพอดี กรุณาเลือกวันใหม่`);
         }
 
         // Generate JobID
