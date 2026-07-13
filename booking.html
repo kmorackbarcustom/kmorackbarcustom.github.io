@@ -125,6 +125,12 @@
       resize: vertical;
       min-height: 80px;
     }
+    .form-hint {
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
 
     /* Date Picker */
     .booking-legend {
@@ -608,6 +614,7 @@
         <div class="form-group">
           <label class="form-label">รายการที่ต้องการทำ<span class="required">*</span></label>
           <textarea class="form-textarea" id="services" required placeholder="เช่น แคชบาร์, แร็คท้าย, แร็คข้าง"></textarea>
+          <div class="form-hint" id="servicesPrefillNote" hidden></div>
         </div>
 
         <div class="form-group">
@@ -788,6 +795,7 @@
       await loadCalendar();
       setMinPickupDate();
       if (dateParam) selectDate(dateParam);
+      applyCartPrefillFromQuery();
       document.getElementById('pickupDate').addEventListener('change', checkQueueDensity);
     });
 
@@ -1015,6 +1023,22 @@
       const dateParam = params.get('date');
       if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return null;
       return dateParam;
+    }
+
+    function applyCartPrefillFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const servicesParam = params.get('services');
+      const noteParam = params.get('note');
+
+      if (servicesParam) {
+        document.getElementById('services').value = servicesParam;
+      }
+
+      if (noteParam) {
+        const noteEl = document.getElementById('servicesPrefillNote');
+        noteEl.textContent = noteParam;
+        noteEl.hidden = false;
+      }
     }
 
     // Form Submit
