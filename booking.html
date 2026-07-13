@@ -434,6 +434,11 @@
       border: 1px solid var(--red);
       color: var(--red);
     }
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid var(--yellow);
+      color: var(--yellow);
+    }
 
     /* Loading */
     .loading {
@@ -543,6 +548,9 @@
     
     <!-- Error Alert -->
     <div id="errorAlert" class="alert alert-error hidden"></div>
+
+    <!-- Warning Alert (non-blocking) -->
+    <div id="warningAlert" class="alert alert-warning hidden"></div>
 
     <!-- Calendar Banner -->
     <div class="calendar-banner">
@@ -749,14 +757,15 @@
     let holidays = new Set();
     let latestSlipMessage = '';
 
-    // ปฏิทินนับเป็น 2 พูลอิสระ: งานใหญ่ (จองยาว >=3 วัน) รับพร้อมกันได้ 1 คิว
-    // งานเล็ก (<=2 วัน) รับได้ 2 คิว/วัน ไม่แย่งกันเพราะเป็นคนละช่างในทางปฏิบัติ
-    const BIG_CAP = 1;
-    const SMALL_CAP = 2;
+    // Cap เดียว: รับได้ DAILY_CAP คิวพร้อมกันไม่ว่างานใหญ่/เล็ก จองผ่านเว็บขั้นต่ำ
+    // MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคารที่ร้านปิด) คิวสั้นกว่านี้/เร่งด่วน
+    // ให้ทักแอดมินแทน — เมื่อวันไหนเหลือช่องไม่เกิน DENSE_THRESHOLD ให้เตือนลูกค้าว่าคิวแน่น
+    const DAILY_CAP = 3;
+    const MIN_BOOKING_DAYS = 2;
+    const DENSE_THRESHOLD = 1;
 
     function buildPoolUsage(bookings) {
-      const bigUsage = {};
-      const smallUsage = {};
+      const usage = {};
 
       bookings
         .filter(b => b.queue_status !== 'ยกเลิก')
@@ -765,14 +774,7 @@
           const end = parseDateStr(b.pickup_date);
           if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
 
-          // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
-          // (เพื่อจัดงานใหญ่/เล็ก) และไม่ถือว่าใช้คิวในวันนั้น
-          let spanDays = 0;
-          for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
-            if (c.getDay() !== 2) spanDays++;
-          }
-          const usage = spanDays >= 3 ? bigUsage : smallUsage;
-
+          // วันอังคารเป็นวันหยุดร้าน ไม่ถือว่าใช้คิวในวันนั้น
           const cursor = new Date(start);
           while (cursor <= end) {
             if (cursor.getDay() !== 2) {
@@ -783,7 +785,7 @@
           }
         });
 
-      return { bigUsage, smallUsage };
+      return usage;
     }
 
     // Initialize
@@ -795,7 +797,47 @@
       await loadCalendar();
       setMinPickupDate();
       if (dateParam) selectDate(dateParam);
+      document.getElementById('pickupDate').addEventListener('change', checkQueueDensity);
     });
+
+    // เตือนลูกค้าล่วงหน้าถ้าช่วงที่เลือกคิวเหลือน้อย (ไม่บล็อกการจอง แค่แจ้งเตือน)
+    async function checkQueueDensity() {
+      const appointVal = document.getElementById('appointDate').value;
+      const pickupVal = document.getElementById('pickupDate').value;
+      if (!appointVal || !pickupVal) { hideWarning(); return; }
+
+      const start = parseDateStr(appointVal);
+      const end = parseDateStr(pickupVal);
+      if (end < start) { hideWarning(); return; }
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ p_start: appointVal, p_end: pickupVal })
+        });
+        if (!res.ok) return; // ponytail: เช็คแบบ soft warning เน็ตมีปัญหาก็แค่ไม่เตือน ไม่บล็อกฟอร์ม
+
+        const usage = buildPoolUsage(await res.json());
+        let dense = false;
+        for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
+          if (c.getDay() === 2) continue;
+          if (DAILY_CAP - (usage[toDateStr(c)] || 0) <= DENSE_THRESHOLD) { dense = true; break; }
+        }
+
+        if (dense) {
+          showWarning('⚠️ ช่วงวันที่เลือกคิวค่อนข้างแน่น อาจส่งงานล่าช้ากว่ากำหนดที่แจ้งไว้ หากต้องการความชัวร์ แนะนำทักแอดมินก่อนจอง');
+        } else {
+          hideWarning();
+        }
+      } catch (error) {
+        // เน็ตมีปัญหา ไม่บล็อกฟอร์ม
+      }
+    }
 
     function toDateStr(date) {
       const y = date.getFullYear();
@@ -852,7 +894,7 @@
         const lastDay = toDateStr(new Date(year, month + 1, 0));
 
         // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
-        // นับความจุแบบ 2 พูล (งานใหญ่/งานเล็ก) จากช่วง appointment_date-pickup_date ไม่ใช่แค่วันรับรถเข้า
+        // นับความจุจากช่วง appointment_date-pickup_date ทั้งช่วง ไม่ใช่แค่วันรับรถเข้า
         const response = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
           {
@@ -897,11 +939,10 @@
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const dateStr = toDateStr(date);
-        const bigUsage = availabilityData.bigUsage || {};
-        const smallUsage = availabilityData.smallUsage || {};
-        const bigFull = (bigUsage[dateStr] || 0) >= BIG_CAP;
-        const smallFull = (smallUsage[dateStr] || 0) >= SMALL_CAP;
-        const isFullyClosed = bigFull && smallFull;
+        const used = (availabilityData || {})[dateStr] || 0;
+        const remaining = DAILY_CAP - used;
+        const isFullyClosed = remaining <= 0;
+        const isDense = remaining <= DENSE_THRESHOLD;
         const isPast = date < today;
         const isHol = holidays.has(dateStr);
         const isTue = date.getDay() === 2;
@@ -916,7 +957,7 @@
           cell.classList.add('full', 'status-full', 'disabled');
         } else if (selectedDate === dateStr) {
           cell.classList.add('selected');
-        } else if (bigFull) {
+        } else if (isDense) {
           cell.classList.add('status-low');
         } else {
           cell.classList.add('status-open');
@@ -927,7 +968,7 @@
 
         let labelText = '';
         if (!isPast && !isHol && !isTue) {
-          labelText = isFullyClosed ? 'ปิดรับคิว' : (bigFull ? 'ว่างเฉพาะงานเล็ก' : 'ว่าง');
+          labelText = isFullyClosed ? 'ปิดรับคิว' : `ว่าง ${remaining} คิว`;
         }
 
         cell.innerHTML = `
@@ -951,11 +992,20 @@
       selectedDate = dateStr;
       document.getElementById('appointDate').value = dateStr;
       renderCalendar();
-      
-      // Set min pickup date
-      const appointDate = parseDateStr(dateStr);
-      appointDate.setDate(appointDate.getDate() + 1);
-      document.getElementById('pickupDate').min = toDateStr(appointDate);
+
+      // วันรับรถต้องห่างจากวันนัดอย่างน้อย MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคาร)
+      document.getElementById('pickupDate').min = minPickupFor(dateStr);
+      checkQueueDensity();
+    }
+
+    function minPickupFor(appointDateStr) {
+      const d = parseDateStr(appointDateStr);
+      let workingDays = 1; // วันนัดเองนับเป็นวันทำการวันที่ 1
+      while (workingDays < MIN_BOOKING_DAYS) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 2) workingDays++;
+      }
+      return toDateStr(d);
     }
 
     // Change Month
@@ -1017,25 +1067,26 @@
         });
         if (!checkRes.ok) throw new Error('ไม่สามารถตรวจสอบคิวว่างได้');
 
-        const activePool = buildPoolUsage(await checkRes.json());
+        const usage = buildPoolUsage(await checkRes.json());
         const newStart = parseDateStr(data.appointment_date);
         const newEnd = parseDateStr(data.pickup_date);
         if (newEnd < newStart) throw new Error('วันรับรถต้องไม่ก่อนวันนัดเข้า');
 
         // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
-        // (เพื่อจัดงานใหญ่/เล็ก) และไม่เช็ค/ไม่โชว์ในลิสต์วันที่คิวเต็ม
+        // และไม่เช็ค/ไม่โชว์ในลิสต์วันที่คิวเต็ม
         let newSpanDays = 0;
         for (const c = new Date(newStart); c <= newEnd; c.setDate(c.getDate() + 1)) {
           if (c.getDay() !== 2) newSpanDays++;
         }
-        const targetUsage = newSpanDays >= 3 ? activePool.bigUsage : activePool.smallUsage;
-        const cap = newSpanDays >= 3 ? BIG_CAP : SMALL_CAP;
+        if (newSpanDays < MIN_BOOKING_DAYS) {
+          throw new Error(`จองผ่านเว็บขั้นต่ำ ${MIN_BOOKING_DAYS} วันทำการ (ไม่นับวันอังคาร) หากต้องการคิววันเดียว/เร่งด่วน กรุณาติดต่อแอดมินโดยตรง`);
+        }
 
         const blockedDates = [];
         for (const cursor = new Date(newStart); cursor <= newEnd; cursor.setDate(cursor.getDate() + 1)) {
           if (cursor.getDay() === 2) continue;
           const key = toDateStr(cursor);
-          if ((targetUsage[key] || 0) >= cap) blockedDates.push(key);
+          if ((usage[key] || 0) >= DAILY_CAP) blockedDates.push(key);
         }
         if (blockedDates.length > 0) {
           throw new Error(`ช่วงวันที่เลือกมีคิวเต็มบางวัน (${blockedDates.join(', ')}) กรุณาเลือกวันใหม่`);
@@ -1084,6 +1135,7 @@
         selectedFiles = [];
         document.getElementById('previewGrid').innerHTML = '';
         setMinPickupDate();
+        hideWarning();
         await loadCalendar();
         showSlipMessage(latestSlipMessage);
         showSuccess(`จองคิวสำเร็จ! รหัสงาน: ${jobId}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย`, false);
@@ -1113,6 +1165,17 @@
       alert.classList.remove('hidden');
       document.getElementById('successAlert').classList.add('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Show/Hide Warning (non-blocking — คิวแน่น แค่เตือน ไม่ห้ามจอง)
+    function showWarning(message) {
+      const alert = document.getElementById('warningAlert');
+      alert.textContent = message;
+      alert.classList.remove('hidden');
+    }
+
+    function hideWarning() {
+      document.getElementById('warningAlert').classList.add('hidden');
     }
 
     function buildSlipMessage(data) {

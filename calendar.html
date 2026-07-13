@@ -478,10 +478,10 @@
   // ===== ตั้งค่า =====
   const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
-  // ปฏิทินนับเป็น 2 พูลอิสระ: งานใหญ่ (จองยาว >=3 วัน) รับพร้อมกันได้ 1 คิว
-  // งานเล็ก (<=2 วัน) รับได้ 2 คิว/วัน ไม่แย่งกันเพราะเป็นคนละช่างในทางปฏิบัติ
-  const BIG_CAP = 1;
-  const SMALL_CAP = 2;
+  // Cap เดียว: รับได้ DAILY_CAP คิวพร้อมกันไม่ว่างานใหญ่/เล็ก เมื่อเหลือช่องไม่เกิน
+  // DENSE_THRESHOLD ถือว่าคิวแน่น (ใช้เลือกสี/label แสดงในปฏิทินเท่านั้น)
+  const DAILY_CAP = 3;
+  const DENSE_THRESHOLD = 1;
   // ===================
 
   let currentYear  = new Date().getFullYear();
@@ -501,8 +501,7 @@
   }
 
   function buildPoolUsage(bookings) {
-    const bigUsage = {};
-    const smallUsage = {};
+    const usage = {};
 
     bookings
       .filter(b => b.queue_status !== 'ยกเลิก')
@@ -511,14 +510,7 @@
         const end = parseDateStr(b.pickup_date);
         if (end < start) return; // ponytail: กันข้อมูลผิดพลาด (pickup ก่อน appointment)
 
-        // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
-        // (เพื่อจัดงานใหญ่/เล็ก) และไม่ถือว่าใช้คิวในวันนั้น
-        let spanDays = 0;
-        for (const c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
-          if (c.getDay() !== 2) spanDays++;
-        }
-        const usage = spanDays >= 3 ? bigUsage : smallUsage;
-
+        // วันอังคารเป็นวันหยุดร้าน ไม่ถือว่าใช้คิวในวันนั้น
         const cursor = new Date(start);
         while (cursor <= end) {
           if (cursor.getDay() !== 2) {
@@ -529,7 +521,7 @@
         }
       });
 
-    return { bigUsage, smallUsage };
+    return usage;
   }
 
   // ===== โหลด holidays จาก Supabase =====
@@ -634,11 +626,10 @@
       const isTue   = isTuesday(date);
       const isHol   = isHoliday(dateStr);
       const isToday = dateStr === todayStr;
-      const bigUsage = bookingData.bigUsage || {};
-      const smallUsage = bookingData.smallUsage || {};
-      const bigFull = (bigUsage[dateStr] || 0) >= BIG_CAP;
-      const smallFull = (smallUsage[dateStr] || 0) >= SMALL_CAP;
-      const isFullyClosed = bigFull && smallFull;
+      const used = (bookingData || {})[dateStr] || 0;
+      const remaining = DAILY_CAP - used;
+      const isFullyClosed = remaining <= 0;
+      const isDense = remaining <= DENSE_THRESHOLD;
 
       const el = document.createElement('div');
       el.className = 'cal-day';
@@ -654,12 +645,12 @@
         statusClass = 'status-full';
         el.classList.add('disabled');
         statusText = 'ปิดรับคิว';
-      } else if (bigFull) {
+      } else if (isDense) {
         statusClass = 'status-low';
-        statusText = 'ว่างเฉพาะงานเล็ก';
+        statusText = `ว่าง ${remaining} คิว`;
       } else {
         statusClass = 'status-open';
-        statusText = 'ว่าง';
+        statusText = `ว่าง ${remaining} คิว`;
       }
 
       if (statusClass) el.classList.add(statusClass);
