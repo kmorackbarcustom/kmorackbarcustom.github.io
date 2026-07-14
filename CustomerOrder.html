@@ -170,12 +170,16 @@ function prefillFromQueryParams(){
     const params=new URLSearchParams(window.location.search);
     const products=params.get('products');
     const otherText=params.get('other_text');
+    const brand=params.get('brand');
+    const model=params.get('model');
     const cartMeta=decodeCartMeta(params.get('cart_meta'));
     if(cartMeta){
       S.cartMeta=cartMeta;
       S.estimatedTotal=Number.isFinite(Number(cartMeta.estimated_total))?Number(cartMeta.estimated_total):null;
       S.sourcePage=cartMeta.source_page||null;
     }
+    if(brand)S.brand=brand;
+    if(model)S.model=model;
     if(products){
       const allowedIds=new Set(PRODUCTS.map(p=>p.id));
       products.split(',').map(id=>id.trim()).filter(id=>allowedIds.has(id)).forEach(id=>{S.selected[id]=true;});

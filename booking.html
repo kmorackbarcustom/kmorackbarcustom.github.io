@@ -1030,10 +1030,20 @@
       const params = new URLSearchParams(window.location.search);
       const servicesParam = params.get('services');
       const noteParam = params.get('note');
+      const brandParam = params.get('brand');
+      const modelParam = params.get('model');
       cartMeta = decodeCartMeta(params.get('cart_meta'));
 
       if (servicesParam) {
         document.getElementById('services').value = servicesParam;
+      }
+
+      if (brandParam) {
+        document.getElementById('brand').value = brandParam;
+      }
+
+      if (modelParam) {
+        document.getElementById('model').value = modelParam;
       }
 
       if (noteParam) {
