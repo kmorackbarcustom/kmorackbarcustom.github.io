@@ -58,7 +58,7 @@ const CHANNELS = ["Line","Facebook","Instagram","มาเอง","อื่น�
 const CH_ICONS = {Line:"💬",Facebook:"📘",Instagram:"📸","มาเอง":"🏍️","อื่นๆ":"📦"};
 const STEP_LABELS = ["ติดต่อ","รถ","รายการ","ชำระ","ยืนยัน"];
 
-let S = {step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:"",contact:"",channel:"",brand:"",model:"",selected:{},otherText:"",colorText:"",paymentType:"",deliveryType:"",deliveryAddress:"",startDate:null,dueDate:null,prefillNoteText:""};
+let S = {step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:"",contact:"",channel:"",brand:"",model:"",selected:{},otherText:"",colorText:"",paymentType:"",deliveryType:"",deliveryAddress:"",startDate:null,dueDate:null,prefillNoteText:"",cartMeta:null,estimatedTotal:null,sourcePage:null};
 
 function set(patch){Object.assign(S,patch);render();}
 // อัปเดต state โดยไม่ re-render (ใช้กับ freetext input เพื่อไม่ให้ focus หลุด)
@@ -83,6 +83,15 @@ function canNext(){
   return true;
 }
 function e(s){if(!s&&s!==0)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+function decodeCartMeta(value){
+  if(!value)return null;
+  try{
+    const parsed=JSON.parse(decodeURIComponent(escape(atob(value))));
+    if(!parsed||parsed.version!==1||!Array.isArray(parsed.items))return null;
+    return parsed;
+  }catch(err){return null;}
+}
 
 async function rpc(name, payload){
   const res=await fetch(`${SUPA_URL}/rest/v1/rpc/${name}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`},body:JSON.stringify(payload)});
@@ -143,7 +152,7 @@ function bind(){
   const sb=q('btn-submit');if(sb)sb.addEventListener('click',async()=>{
     set({loading:true,error:null});
     try{
-      const saved=await rpc('create_customer_order',{p_payload:{customer_name:S.name,contact:S.contact,channel:S.channel,brand:S.brand,model:S.model,items:selLabels(),color:S.colorText,unit:totalUnits(),payment_type:S.paymentType,delivery_type:S.deliveryType,delivery_address:S.deliveryType==='delivery'?S.deliveryAddress:null}});
+      const saved=await rpc('create_customer_order',{p_payload:{customer_name:S.name,contact:S.contact,channel:S.channel,brand:S.brand,model:S.model,items:selLabels(),color:S.colorText,unit:totalUnits(),payment_type:S.paymentType,delivery_type:S.deliveryType,delivery_address:S.deliveryType==='delivery'?S.deliveryAddress:null,cart_meta:S.cartMeta,estimated_total:S.estimatedTotal,source_page:S.sourcePage}});
       if(!saved?.order_id)throw new Error("บันทึกแล้วแต่ยังไม่ได้เลข Order ID กรุณาเปิด Dashboard ตรวจสอบก่อนส่ง LINE");
       set({orderId:saved.order_id,startDate:saved.start_date||null,dueDate:saved.due_date||null,submitted:true,loading:false});
     }catch(err){set({error:err.message||'เกิดข้อผิดพลาด กรุณาลองใหม่',loading:false});}
@@ -153,7 +162,7 @@ function bind(){
     const dLabel=S.deliveryType==="pickup"?"ติดตั้งที่ร้าน":`จัดส่ง: ${S.deliveryAddress}`;const pLabel=S.paymentType==="deposit500"?"มัดจำ 500 บาท":S.paymentType==="deposit1000"?"มัดจำ 1,000 บาท":"เต็มจำนวน";const msg=`📋 ยืนยันออเดอร์ KMO Rackbar Custom\n\nOrder ID: ${S.orderId}\nชื่อ: ${S.name}\nติดต่อ: ${S.contact}\nรถ: ${S.brand} ${S.model}\nรายการ: ${labels.join(", ")}\nสี: ${S.colorText}\nจำนวน: ${totalUnits()} units\nการรับ: ${dLabel}\nการชำระ: ${pLabel}\n\n📎 (แนบสลิปในข้อความนี้ด้วยนะครับ)`;
     navigator.clipboard.writeText(msg).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2500);});
   });
-  const nw=q('btn-new');if(nw)nw.addEventListener('click',()=>{S={step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:'',contact:'',channel:'',brand:'',model:'',selected:{},otherText:'',colorText:'',paymentType:'',deliveryType:'',deliveryAddress:'',startDate:null,dueDate:null,prefillNoteText:''};render();});
+  const nw=q('btn-new');if(nw)nw.addEventListener('click',()=>{S={step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:'',contact:'',channel:'',brand:'',model:'',selected:{},otherText:'',colorText:'',paymentType:'',deliveryType:'',deliveryAddress:'',startDate:null,dueDate:null,prefillNoteText:'',cartMeta:null,estimatedTotal:null,sourcePage:null};render();});
 }
 
 function prefillFromQueryParams(){
@@ -161,6 +170,12 @@ function prefillFromQueryParams(){
     const params=new URLSearchParams(window.location.search);
     const products=params.get('products');
     const otherText=params.get('other_text');
+    const cartMeta=decodeCartMeta(params.get('cart_meta'));
+    if(cartMeta){
+      S.cartMeta=cartMeta;
+      S.estimatedTotal=Number.isFinite(Number(cartMeta.estimated_total))?Number(cartMeta.estimated_total):null;
+      S.sourcePage=cartMeta.source_page||null;
+    }
     if(products){
       const allowedIds=new Set(PRODUCTS.map(p=>p.id));
       products.split(',').map(id=>id.trim()).filter(id=>allowedIds.has(id)).forEach(id=>{S.selected[id]=true;});

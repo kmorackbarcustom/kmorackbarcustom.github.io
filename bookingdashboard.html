@@ -915,6 +915,43 @@
       });
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatMoney(value) {
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount.toLocaleString('th-TH') : '-';
+    }
+
+    function renderCartMeta(meta, total) {
+      const items = meta && Array.isArray(meta.items) ? meta.items : [];
+      if (items.length === 0) return '';
+
+      const rows = items.map(item => `
+        <div style="display:flex;justify-content:space-between;gap:0.75rem;padding:0.35rem 0;border-top:1px solid var(--border);">
+          <span>${escapeHtml(item.name || item.id || '-')} × ${escapeHtml(item.quantity || 1)}</span>
+          <span style="font-family:'Space Mono',monospace;color:var(--accent);white-space:nowrap;">${formatMoney(item.subtotal)} บาท</span>
+        </div>
+      `).join('');
+
+      return `
+        <div style="margin:0.25rem 0 1rem;padding:0.875rem;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:8px;">
+          <div style="font-size:11px;color:var(--text-dim);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.35rem;">Landing Cart</div>
+          ${rows}
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;padding-top:0.5rem;margin-top:0.35rem;border-top:1px solid rgba(251,191,36,0.25);font-weight:600;">
+            <span>ยอดอ้างอิงจากหน้า Landing</span>
+            <span style="font-family:'Space Mono',monospace;color:var(--accent);white-space:nowrap;">${formatMoney(total || meta.estimated_total)} บาท</span>
+          </div>
+        </div>
+      `;
+    }
+
     // Fetch Bookings
     async function fetchBookings() {
       try {
@@ -1017,6 +1054,7 @@
               <div class="info-value">${formatDate(booking.pickup_date)}</div>
             </div>
           </div>
+          ${renderCartMeta(booking.cart_meta, booking.estimated_total)}
           ${booking.images && booking.images.length > 0 ? `
             <div class="booking-images">
               ${booking.images.map((url, idx) => `

@@ -30,6 +30,16 @@ create index if not exists production_allocations_order_id_idx
 
 alter table public.production_allocations enable row level security;
 
+alter table public.orders
+  add column if not exists cart_meta jsonb,
+  add column if not exists estimated_total numeric,
+  add column if not exists source_page text;
+
+alter table public.bookings
+  add column if not exists cart_meta jsonb,
+  add column if not exists estimated_total numeric,
+  add column if not exists source_page text;
+
 create or replace function public.kmo_order_effective_due(p_order public.orders)
 returns date
 language sql
@@ -345,7 +355,8 @@ begin
     insert into public.orders (
       customer_name, contact, channel, brand, model, items, color, unit,
       payment_type, delivery_type, delivery_address, status, priority,
-      shopee_order_id, shopee_deadline, due_date, order_id
+      shopee_order_id, shopee_deadline, due_date, order_id,
+      cart_meta, estimated_total, source_page
     )
     values (
       coalesce(p_payload->>'customer_name', case when p_is_shopee then 'Shopee' else null end),
@@ -364,14 +375,18 @@ begin
       nullif(p_payload->>'shopee_order_id', ''),
       nullif(p_payload->>'shopee_deadline', '')::date,
       case when p_is_shopee then nullif(p_payload->>'shopee_deadline', '')::date else null end,
-      v_order_id
+      v_order_id,
+      p_payload->'cart_meta',
+      nullif(p_payload->>'estimated_total', '')::numeric,
+      nullif(p_payload->>'source_page', '')
     )
     returning id into v_id;
   else
     insert into public.orders (
       customer_name, contact, channel, brand, model, items, color, unit,
       payment_type, delivery_type, delivery_address, status, priority,
-      shopee_order_id, shopee_deadline, due_date, order_id
+      shopee_order_id, shopee_deadline, due_date, order_id,
+      cart_meta, estimated_total, source_page
     )
     values (
       coalesce(p_payload->>'customer_name', case when p_is_shopee then 'Shopee' else null end),
@@ -390,7 +405,10 @@ begin
       nullif(p_payload->>'shopee_order_id', ''),
       nullif(p_payload->>'shopee_deadline', '')::date,
       case when p_is_shopee then nullif(p_payload->>'shopee_deadline', '')::date else null end,
-      v_order_id
+      v_order_id,
+      p_payload->'cart_meta',
+      nullif(p_payload->>'estimated_total', '')::numeric,
+      nullif(p_payload->>'source_page', '')
     )
     returning id into v_id;
   end if;

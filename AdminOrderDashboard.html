@@ -144,6 +144,11 @@ function sortOrdersForQueue(list) {
 }
 const fmt = (d) => d ? new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—";
 const fmtTime = (d) => d ? new Date(d).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+const formatMoney = (n) => Number.isFinite(Number(n)) ? Number(n).toLocaleString("th-TH") : "—";
+
+function getCartItems(meta) {
+  return meta && Array.isArray(meta.items) ? meta.items : [];
+}
 
 // ── BADGE ─────────────────────────────────────────────────────
 function Badge({ status }) {
@@ -189,6 +194,7 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, scheduleHealth }) 
   };
 
   const items = Array.isArray(order.items) ? order.items : [];
+  const cartItems = getCartItems(order.cart_meta);
   const dueDate = effectiveDueDate(order);
   const dayHealth = scheduleHealth?.[dueDate];
   const e = React.createElement;
@@ -254,6 +260,21 @@ function OrderCard({ order, onStatusChange, onShopeeOverride, scheduleHealth }) 
             e("div", { style: { fontSize: 9, color: "#4a6080", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 } }, k),
             e("div", { style: { fontSize: 11, color: k === "LINE UID" && !order.line_user_id ? "#ef4444" : "#94a3b8", wordBreak: "break-all" } }, v || "—")
           )
+        )
+      ),
+      cartItems.length > 0 && e("div", {
+        style: { background: "#151f2e", border: "1px solid #f9731430", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }
+      },
+        e("div", { style: { fontSize: 10, color: "#f97316", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 } }, "Landing Cart"),
+        ...cartItems.map((item, idx) =>
+          e("div", { key: `${item.id || idx}-${idx}`, style: { display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", borderTop: idx ? "1px solid #1e2d3d" : "none", fontSize: 11 } },
+            e("span", { style: { color: "#e2e8f0" } }, `${item.name || item.id || "รายการ"} x${item.quantity || 1}`),
+            e("span", { style: { color: "#94a3b8", fontFamily: "'IBM Plex Mono', monospace" } }, `${formatMoney(item.subtotal)} บาท`)
+          )
+        ),
+        e("div", { style: { display: "flex", justifyContent: "space-between", borderTop: "1px solid #334155", marginTop: 6, paddingTop: 8, fontSize: 11, fontWeight: 800 } },
+          e("span", { style: { color: "#94a3b8" } }, "ยอดอ้างอิง"),
+          e("span", { style: { color: "#f97316" } }, `${formatMoney(order.estimated_total)} บาท`)
         )
       ),
 

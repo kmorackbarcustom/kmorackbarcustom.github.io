@@ -763,6 +763,7 @@
     let availabilityData = {};
     let holidays = new Set();
     let latestSlipMessage = '';
+    let cartMeta = null;
 
     // Cap เดียว: รับรถเข้าใหม่ได้ DAILY_CAP คัน/วัน นับแค่วันรับรถเข้า (appointment_date)
     // เท่านั้น — งานที่ค้างอยู่ในร้านนานถึง pickup_date ไม่ไปบล็อกคิวรับรถใหม่วันอื่น
@@ -1029,6 +1030,7 @@
       const params = new URLSearchParams(window.location.search);
       const servicesParam = params.get('services');
       const noteParam = params.get('note');
+      cartMeta = decodeCartMeta(params.get('cart_meta'));
 
       if (servicesParam) {
         document.getElementById('services').value = servicesParam;
@@ -1038,6 +1040,17 @@
         const noteEl = document.getElementById('servicesPrefillNote');
         noteEl.textContent = noteParam;
         noteEl.hidden = false;
+      }
+    }
+
+    function decodeCartMeta(value) {
+      if (!value) return null;
+      try {
+        const parsed = JSON.parse(decodeURIComponent(escape(atob(value))));
+        if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.items)) return null;
+        return parsed;
+      } catch (error) {
+        return null;
       }
     }
 
@@ -1061,7 +1074,10 @@
           appointment_date: document.getElementById('appointDate').value,
           pickup_date: document.getElementById('pickupDate').value,
           queue_status: 'ยืนยัน',
-          production_status: 'รอเริ่มงาน'
+          production_status: 'รอเริ่มงาน',
+          cart_meta: cartMeta,
+          estimated_total: cartMeta && Number.isFinite(Number(cartMeta.estimated_total)) ? Number(cartMeta.estimated_total) : null,
+          source_page: cartMeta?.source_page || null
         };
 
         // ปฏิทินเช็คได้แค่ตอนโหลดเดือน ต้อง re-check วันรับรถเข้าจริงก่อนบันทึก
