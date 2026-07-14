@@ -58,7 +58,7 @@ const CHANNELS = ["Line","Facebook","Instagram","มาเอง","อื่น�
 const CH_ICONS = {Line:"💬",Facebook:"📘",Instagram:"📸","มาเอง":"🏍️","อื่นๆ":"📦"};
 const STEP_LABELS = ["ติดต่อ","รถ","รายการ","ชำระ","ยืนยัน"];
 
-let S = {step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:"",contact:"",channel:"",brand:"",model:"",selected:{},otherText:"",colorText:"",paymentType:"",deliveryType:"",deliveryAddress:"",startDate:null,dueDate:null};
+let S = {step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:"",contact:"",channel:"",brand:"",model:"",selected:{},otherText:"",colorText:"",paymentType:"",deliveryType:"",deliveryAddress:"",startDate:null,dueDate:null,prefillNoteText:""};
 
 function set(patch){Object.assign(S,patch);render();}
 // อัปเดต state โดยไม่ re-render (ใช้กับ freetext input เพื่อไม่ให้ focus หลุด)
@@ -70,7 +70,11 @@ function setQuiet(patch){
 }
 
 function totalUnits(){return PRODUCTS.reduce((s,p)=>S.selected[p.id]?s+p.unit:s,0);}
-function selLabels(){return PRODUCTS.filter(p=>S.selected[p.id]).map(p=>p.id==="other"?`อื่นๆ (${S.otherText})`:p.label);}
+function selLabels(){
+  const labels=PRODUCTS.filter(p=>S.selected[p.id]).map(p=>p.id==="other"?`อื่นๆ (${S.otherText})`:p.label);
+  if(S.prefillNoteText&&!S.selected.other)labels.push(`โน้ตเพิ่มเติม (${S.prefillNoteText})`);
+  return labels;
+}
 function canNext(){
   if(S.step===1)return S.name&&S.contact&&S.channel&&S.deliveryType&&(S.deliveryType==='pickup'||S.deliveryAddress.trim());
   if(S.step===2)return S.brand&&S.model;
@@ -149,9 +153,26 @@ function bind(){
     const dLabel=S.deliveryType==="pickup"?"ติดตั้งที่ร้าน":`จัดส่ง: ${S.deliveryAddress}`;const pLabel=S.paymentType==="deposit500"?"มัดจำ 500 บาท":S.paymentType==="deposit1000"?"มัดจำ 1,000 บาท":"เต็มจำนวน";const msg=`📋 ยืนยันออเดอร์ KMO Rackbar Custom\n\nOrder ID: ${S.orderId}\nชื่อ: ${S.name}\nติดต่อ: ${S.contact}\nรถ: ${S.brand} ${S.model}\nรายการ: ${labels.join(", ")}\nสี: ${S.colorText}\nจำนวน: ${totalUnits()} units\nการรับ: ${dLabel}\nการชำระ: ${pLabel}\n\n📎 (แนบสลิปในข้อความนี้ด้วยนะครับ)`;
     navigator.clipboard.writeText(msg).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2500);});
   });
-  const nw=q('btn-new');if(nw)nw.addEventListener('click',()=>{S={step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:'',contact:'',channel:'',brand:'',model:'',selected:{},otherText:'',colorText:'',paymentType:'',deliveryType:'',deliveryAddress:'',startDate:null,dueDate:null};render();});
+  const nw=q('btn-new');if(nw)nw.addEventListener('click',()=>{S={step:1,orderId:null,copied:false,loading:false,error:null,submitted:false,name:'',contact:'',channel:'',brand:'',model:'',selected:{},otherText:'',colorText:'',paymentType:'',deliveryType:'',deliveryAddress:'',startDate:null,dueDate:null,prefillNoteText:''};render();});
 }
 
+function prefillFromQueryParams(){
+  try{
+    const params=new URLSearchParams(window.location.search);
+    const products=params.get('products');
+    const otherText=params.get('other_text');
+    if(products){
+      const allowedIds=new Set(PRODUCTS.map(p=>p.id));
+      products.split(',').map(id=>id.trim()).filter(id=>allowedIds.has(id)).forEach(id=>{S.selected[id]=true;});
+    }
+    if(otherText){
+      if(S.selected.other)S.otherText=otherText;
+      else S.prefillNoteText=otherText;
+    }
+  }catch(err){}
+}
+
+prefillFromQueryParams();
 render();
 </script>
 </body>
