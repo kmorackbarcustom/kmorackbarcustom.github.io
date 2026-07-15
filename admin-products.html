@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMO Product Admin</title>
+  <style>
+    :root {
+      --bg: #101214;
+      --panel: #181b1f;
+      --border: #30343a;
+      --text: #f5f5f5;
+      --muted: #a8adb5;
+      --accent: #ffcf07;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    h1, h2 {
+      margin: 0 0 12px;
+      line-height: 1.25;
+    }
+
+    .muted { color: var(--muted); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .full { grid-column: 1 / -1; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0c0e10;
+      color: var(--text);
+      padding: 9px 10px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    .checks {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .checks label {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin: 0;
+      color: var(--text);
+    }
+
+    .checks input {
+      width: auto;
+      min-height: auto;
+    }
+
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #050505;
+      font-weight: 700;
+      padding: 0 18px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #0c0e10;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    .status.error {
+      border-color: var(--danger);
+      color: #fecaca;
+    }
+
+    .status.success {
+      border-color: var(--success);
+      color: #bbf7d0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>KMO Product Admin</h1>
+    <p class="muted">เพิ่มสินค้าใหม่เข้า Supabase table <code>products</code>. รอบนี้เป็น create-only ไม่มี edit/delete.</p>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div>
+          <h2>Staff passcode</h2>
+          <p class="muted">ใช้ header <code>x-staff-key</code> เพื่อยิงผ่าน products-proxy.</p>
+        </div>
+        <button type="button" id="clearPasscodeBtn">ล้าง passcode</button>
+      </div>
+      <label for="staffPasscode">รหัสพนักงาน</label>
+      <input id="staffPasscode" type="password" autocomplete="current-password" placeholder="กรอกรหัสร้านก่อนเพิ่มสินค้า">
+    </section>
+
+    <section class="panel">
+      <h2>เพิ่มสินค้า</h2>
+      <form id="productForm" class="grid">
+        <div>
+          <label for="brand">brand</label>
+          <input id="brand" name="brand" autocomplete="off">
+        </div>
+        <div>
+          <label for="model">model</label>
+          <input id="model" name="model" autocomplete="off">
+        </div>
+        <div class="full">
+          <label for="name">name *</label>
+          <input id="name" name="name" required autocomplete="off">
+        </div>
+        <div>
+          <label for="price">price</label>
+          <input id="price" name="price" type="number" inputmode="numeric" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label for="category">category</label>
+          <select id="category" name="category" required>
+            <option value="rear">rear</option>
+            <option value="side">side</option>
+            <option value="crashbar">crashbar</option>
+            <option value="accessory">accessory</option>
+            <option value="gear">gear</option>
+            <option value="service">service</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="description">description</label>
+          <textarea id="description" name="description"></textarea>
+        </div>
+        <div>
+          <label for="image_url">image_url</label>
+          <input id="image_url" name="image_url" autocomplete="off" placeholder="assets/images/service.jpg">
+        </div>
+        <div>
+          <label for="shopee_url">shopee_url</label>
+          <input id="shopee_url" name="shopee_url" autocomplete="off">
+        </div>
+        <div class="full checks">
+          <label><input id="allow_booking" name="allow_booking" type="checkbox" checked> allow_booking</label>
+          <label><input id="allow_order" name="allow_order" type="checkbox" checked> allow_order</label>
+          <label><input id="featured" name="featured" type="checkbox"> featured</label>
+        </div>
+        <div class="full">
+          <button type="submit" id="submitBtn">เพิ่มสินค้า</button>
+          <div id="formStatus" class="status" hidden></div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div>
+          <h2>สินค้าที่มีอยู่</h2>
+          <p class="muted">อ่านตรงจาก Supabase ด้วย anon key. แสดงอย่างเดียว.</p>
+        </div>
+        <button type="button" id="reloadBtn">โหลดใหม่</button>
+      </div>
+      <div id="listStatus" class="status">กำลังโหลด...</div>
+      <div id="productList"></div>
+    </section>
+  </main>
+
+  <script>
+    const SUPA_URL = 'https://ybyseaenceyswjnwdmdf.supabase.co';
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlieXNlYWVuY2V5c3dqbndkbWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3OTk3MTgsImV4cCI6MjA4OTM3NTcxOH0.NpaB7XrM0MzTknMvFLKkN57WG7_GkCb9zxZQUROz9Ug';
+    const PRODUCTS_PROXY_URL = `${SUPA_URL}/functions/v1/products-proxy/products`;
+    const PASSCODE_KEY = 'kmo_products_staff_key';
+
+    const form = document.getElementById('productForm');
+    const passcodeInput = document.getElementById('staffPasscode');
+    const formStatus = document.getElementById('formStatus');
+    const listStatus = document.getElementById('listStatus');
+    const productList = document.getElementById('productList');
+    const submitBtn = document.getElementById('submitBtn');
+
+    passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
+
+    document.getElementById('clearPasscodeBtn').addEventListener('click', () => {
+      sessionStorage.removeItem(PASSCODE_KEY);
+      localStorage.removeItem(PASSCODE_KEY);
+      passcodeInput.value = '';
+      setStatus(formStatus, 'ล้าง passcode แล้ว', 'success');
+    });
+
+    document.getElementById('reloadBtn').addEventListener('click', loadProducts);
+
+    passcodeInput.addEventListener('change', () => {
+      const value = passcodeInput.value.trim();
+      if (value) {
+        sessionStorage.setItem(PASSCODE_KEY, value);
+        localStorage.setItem(PASSCODE_KEY, value);
+      }
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const staffKey = passcodeInput.value.trim();
+      if (!staffKey) {
+        setStatus(formStatus, 'กรุณากรอก staff passcode ก่อนเพิ่มสินค้า', 'error');
+        passcodeInput.focus();
+        return;
+      }
+
+      const payload = buildPayload(new FormData(form));
+      submitBtn.disabled = true;
+      setStatus(formStatus, 'กำลังเพิ่มสินค้า...', '');
+
+      try {
+        const res = await fetch(PRODUCTS_PROXY_URL, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': `Bearer ${SUPA_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+            'x-staff-key': staffKey,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.status === 401) {
+          sessionStorage.removeItem(PASSCODE_KEY);
+          localStorage.removeItem(PASSCODE_KEY);
+          throw new Error('รหัสพนักงานไม่ถูกต้อง');
+        }
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        sessionStorage.setItem(PASSCODE_KEY, staffKey);
+        localStorage.setItem(PASSCODE_KEY, staffKey);
+        form.reset();
+        document.getElementById('price').value = '0';
+        document.getElementById('allow_booking').checked = true;
+        document.getElementById('allow_order').checked = true;
+        setStatus(formStatus, `เพิ่มสินค้าแล้ว: ${payload.id}`, 'success');
+        await loadProducts();
+      } catch (error) {
+        setStatus(formStatus, `เพิ่มสินค้าไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    function buildPayload(formData) {
+      const brand = clean(formData.get('brand'));
+      const model = clean(formData.get('model'));
+      const name = clean(formData.get('name'));
+      const category = clean(formData.get('category')) || 'accessory';
+      if (!name) throw new Error('ต้องกรอก name');
+
+      return {
+        id: createProductId(brand, model, name),
+        brand,
+        model,
+        name,
+        price: Math.max(0, Number.parseInt(formData.get('price'), 10) || 0),
+        category,
+        description: clean(formData.get('description')),
+        image_url: clean(formData.get('image_url')),
+        shopee_url: clean(formData.get('shopee_url')),
+        allow_booking: formData.has('allow_booking'),
+        allow_order: formData.has('allow_order'),
+        featured: formData.has('featured'),
+      };
+    }
+
+    function createProductId(...parts) {
+      const base = parts
+        .join(' ')
+        .normalize('NFKD')
+        .toLowerCase()
+        .replace(/[^a-z0-9ก-๙]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 64) || 'product';
+      return `web-${Date.now()}-${base}`;
+    }
+
+    function clean(value) {
+      return String(value || '').trim();
+    }
+
+    async function loadProducts() {
+      setStatus(listStatus, 'กำลังโหลด...', '');
+      try {
+        const res = await fetch(`${SUPA_URL}/rest/v1/products?select=*&order=created_at.desc,id.asc`, {
+          headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': `Bearer ${SUPA_KEY}`,
+          },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const products = await res.json();
+        renderProductList(products);
+        setStatus(listStatus, `โหลดสินค้า ${products.length.toLocaleString('th-TH')} รายการ`, 'success');
+      } catch (error) {
+        productList.replaceChildren();
+        setStatus(listStatus, `โหลดสินค้าไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    function renderProductList(products) {
+      productList.replaceChildren();
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr><th>ID</th><th>ชื่อ</th><th>รถ</th><th>หมวด</th><th>ราคา</th><th>flags</th></tr>';
+      const tbody = document.createElement('tbody');
+
+      products.forEach(product => {
+        const tr = document.createElement('tr');
+        tr.append(
+          cell(product.id),
+          cell(product.name),
+          cell([product.brand, product.model].filter(Boolean).join(' ')),
+          cell(product.category),
+          cell(product.price ? Number(product.price).toLocaleString('th-TH') : 'สอบถาม'),
+          cell([
+            product.allow_booking ? 'booking' : '',
+            product.allow_order ? 'order' : '',
+            product.featured ? 'featured' : '',
+          ].filter(Boolean).join(', ')),
+        );
+        tbody.appendChild(tr);
+      });
+
+      table.append(thead, tbody);
+      productList.appendChild(table);
+    }
+
+    function cell(value) {
+      const td = document.createElement('td');
+      td.textContent = value || '-';
+      return td;
+    }
+
+    function setStatus(el, message, type) {
+      el.hidden = false;
+      el.className = `status${type ? ` ${type}` : ''}`;
+      el.textContent = message;
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>
+
