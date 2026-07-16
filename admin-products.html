@@ -122,6 +122,58 @@
       flex-wrap: wrap;
     }
 
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .secondary-btn {
+      background: #2a2f36;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .danger-btn {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .small-btn {
+      min-height: 34px;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .product-thumb {
+      width: 64px;
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0c0e10;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb-placeholder {
+      width: 64px;
+      aspect-ratio: 1;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      background: #0c0e10;
+    }
+
+    tr.recent-row {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      background: rgba(255, 207, 7, 0.08);
+    }
+
     .status {
       margin-top: 12px;
       padding: 10px 12px;
@@ -170,7 +222,7 @@
 <body>
   <main>
     <h1>KMO Product Admin</h1>
-    <p class="muted">เพิ่มสินค้าใหม่เข้า Supabase table <code>products</code>. รอบนี้เป็น create-only ไม่มี edit/delete.</p>
+    <p class="muted">เพิ่ม แก้ไข และลบสินค้าใน Supabase table <code>products</code> ผ่าน products-proxy.</p>
 
     <section class="panel">
       <div class="toolbar">
@@ -185,8 +237,12 @@
     </section>
 
     <section class="panel">
-      <h2>เพิ่มสินค้า</h2>
+      <h2 id="formTitle">เพิ่มสินค้า</h2>
       <form id="productForm" class="grid">
+        <div class="full">
+          <label for="productId">id</label>
+          <input id="productId" autocomplete="off" disabled placeholder="ระบบจะสร้างอัตโนมัติตอนเพิ่มสินค้า">
+        </div>
         <div>
           <label for="brand">brand</label>
           <input id="brand" name="brand" autocomplete="off">
@@ -232,7 +288,10 @@
           <label><input id="featured" name="featured" type="checkbox"> featured</label>
         </div>
         <div class="full">
-          <button type="submit" id="submitBtn">เพิ่มสินค้า</button>
+          <div class="button-row">
+            <button type="submit" id="submitBtn">เพิ่มสินค้า</button>
+            <button type="button" id="cancelEditBtn" class="secondary-btn" hidden>ยกเลิกแก้ไข</button>
+          </div>
           <div id="formStatus" class="status" hidden></div>
         </div>
       </form>
@@ -242,7 +301,7 @@
       <div class="toolbar">
         <div>
           <h2>สินค้าที่มีอยู่</h2>
-          <p class="muted">อ่านตรงจาก Supabase ด้วย anon key. แสดงอย่างเดียว.</p>
+          <p class="muted">อ่านตรงจาก Supabase ด้วย anon key. แก้ไข/ลบผ่าน products-proxy.</p>
         </div>
         <button type="button" id="reloadBtn">โหลดใหม่</button>
       </div>
@@ -263,6 +322,12 @@
     const listStatus = document.getElementById('listStatus');
     const productList = document.getElementById('productList');
     const submitBtn = document.getElementById('submitBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const formTitle = document.getElementById('formTitle');
+    const productIdInput = document.getElementById('productId');
+    let productsCache = [];
+    let editingProductId = null;
+    let recentProductId = null;
 
     passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
 
@@ -274,6 +339,7 @@
     });
 
     document.getElementById('reloadBtn').addEventListener('click', loadProducts);
+    cancelEditBtn.addEventListener('click', resetFormMode);
 
     passcodeInput.addEventListener('change', () => {
       const value = passcodeInput.value.trim();
@@ -287,18 +353,28 @@
       event.preventDefault();
       const staffKey = passcodeInput.value.trim();
       if (!staffKey) {
-        setStatus(formStatus, 'กรุณากรอก staff passcode ก่อนเพิ่มสินค้า', 'error');
+        setStatus(formStatus, `กรุณากรอก staff passcode ก่อน${editingProductId ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}`, 'error');
         passcodeInput.focus();
         return;
       }
 
-      const payload = buildPayload(new FormData(form));
+      let payload;
+      try {
+        payload = buildPayload(new FormData(form), editingProductId);
+      } catch (error) {
+        setStatus(formStatus, error.message, 'error');
+        return;
+      }
+
+      const isEditing = Boolean(editingProductId);
+      const requestUrl = isEditing ? `${PRODUCTS_PROXY_URL}?id=eq.${encodeURIComponent(editingProductId)}` : PRODUCTS_PROXY_URL;
       submitBtn.disabled = true;
-      setStatus(formStatus, 'กำลังเพิ่มสินค้า...', '');
+      cancelEditBtn.disabled = true;
+      setStatus(formStatus, isEditing ? 'กำลังบันทึกการแก้ไข...' : 'กำลังเพิ่มสินค้า...', '');
 
       try {
-        const res = await fetch(PRODUCTS_PROXY_URL, {
-          method: 'POST',
+        const res = await fetch(requestUrl, {
+          method: isEditing ? 'PATCH' : 'POST',
           headers: {
             'apikey': SUPA_KEY,
             'Authorization': `Bearer ${SUPA_KEY}`,
@@ -321,28 +397,33 @@
 
         sessionStorage.setItem(PASSCODE_KEY, staffKey);
         localStorage.setItem(PASSCODE_KEY, staffKey);
-        form.reset();
-        document.getElementById('price').value = '0';
-        document.getElementById('allow_booking').checked = true;
-        document.getElementById('allow_order').checked = true;
-        setStatus(formStatus, `เพิ่มสินค้าแล้ว: ${payload.id}`, 'success');
-        await loadProducts();
+        const savedId = editingProductId || payload.id;
+        resetFormMode({ keepStatus: true });
+        recentProductId = savedId;
+        setStatusWithAction(
+          formStatus,
+          isEditing ? `บันทึกการแก้ไขแล้ว: ${savedId}` : `เพิ่มสินค้าแล้ว: ${savedId}`,
+          'success',
+          'แก้ไขรายการนี้',
+          () => startEdit(savedId),
+        );
+        await loadProducts({ focusProductId: savedId });
       } catch (error) {
-        setStatus(formStatus, `เพิ่มสินค้าไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(formStatus, `${isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}ไม่สำเร็จ: ${error.message}`, 'error');
       } finally {
         submitBtn.disabled = false;
+        cancelEditBtn.disabled = false;
       }
     });
 
-    function buildPayload(formData) {
+    function buildPayload(formData, existingId = null) {
       const brand = clean(formData.get('brand'));
       const model = clean(formData.get('model'));
       const name = clean(formData.get('name'));
       const category = clean(formData.get('category')) || 'accessory';
       if (!name) throw new Error('ต้องกรอก name');
 
-      return {
-        id: createProductId(brand, model, name),
+      const payload = {
         brand,
         model,
         name,
@@ -355,6 +436,12 @@
         allow_order: formData.has('allow_order'),
         featured: formData.has('featured'),
       };
+
+      if (!existingId) {
+        payload.id = createProductId(brand, model, name);
+      }
+
+      return payload;
     }
 
     function createProductId(...parts) {
@@ -372,7 +459,7 @@
       return String(value || '').trim();
     }
 
-    async function loadProducts() {
+    async function loadProducts(options = {}) {
       setStatus(listStatus, 'กำลังโหลด...', '');
       try {
         const res = await fetch(`${SUPA_URL}/rest/v1/products?select=*&order=created_at.desc,id.asc`, {
@@ -383,8 +470,12 @@
         });
         if (!res.ok) throw new Error(await res.text());
         const products = await res.json();
+        productsCache = Array.isArray(products) ? products : [];
         renderProductList(products);
         setStatus(listStatus, `โหลดสินค้า ${products.length.toLocaleString('th-TH')} รายการ`, 'success');
+        if (options.focusProductId) {
+          focusProductRow(options.focusProductId);
+        }
       } catch (error) {
         productList.replaceChildren();
         setStatus(listStatus, `โหลดสินค้าไม่สำเร็จ: ${error.message}`, 'error');
@@ -395,12 +486,17 @@
       productList.replaceChildren();
       const table = document.createElement('table');
       const thead = document.createElement('thead');
-      thead.innerHTML = '<tr><th>ID</th><th>ชื่อ</th><th>รถ</th><th>หมวด</th><th>ราคา</th><th>flags</th></tr>';
+      thead.innerHTML = '<tr><th>รูป</th><th>ID</th><th>ชื่อ</th><th>รถ</th><th>หมวด</th><th>ราคา</th><th>flags</th><th>จัดการ</th></tr>';
       const tbody = document.createElement('tbody');
 
       products.forEach(product => {
         const tr = document.createElement('tr');
+        tr.dataset.productId = product.id || '';
+        if (product.id && product.id === recentProductId) {
+          tr.classList.add('recent-row');
+        }
         tr.append(
+          imageCell(product.image_url, product.name),
           cell(product.id),
           cell(product.name),
           cell([product.brand, product.model].filter(Boolean).join(' ')),
@@ -411,12 +507,150 @@
             product.allow_order ? 'order' : '',
             product.featured ? 'featured' : '',
           ].filter(Boolean).join(', ')),
+          actionCell(product),
         );
         tbody.appendChild(tr);
       });
 
       table.append(thead, tbody);
       productList.appendChild(table);
+    }
+
+    function imageCell(src, alt) {
+      const td = document.createElement('td');
+      const cleanSrc = clean(src);
+      if (!cleanSrc) {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'thumb-placeholder';
+        placeholder.textContent = 'ไม่มีรูป';
+        td.appendChild(placeholder);
+        return td;
+      }
+
+      const img = document.createElement('img');
+      img.className = 'product-thumb';
+      img.src = cleanSrc;
+      img.alt = alt || 'product image';
+      img.loading = 'lazy';
+      img.addEventListener('error', () => {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'thumb-placeholder';
+        placeholder.textContent = 'รูปเสีย';
+        td.replaceChildren(placeholder);
+      });
+      td.appendChild(img);
+      return td;
+    }
+
+    function actionCell(product) {
+      const td = document.createElement('td');
+      const wrap = document.createElement('div');
+      wrap.className = 'button-row';
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'secondary-btn small-btn';
+      editBtn.textContent = 'แก้ไข';
+      editBtn.addEventListener('click', () => startEdit(product.id));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'danger-btn small-btn';
+      deleteBtn.textContent = 'ลบ';
+      deleteBtn.addEventListener('click', () => deleteProduct(product.id, product.name));
+
+      wrap.append(editBtn, deleteBtn);
+      td.appendChild(wrap);
+      return td;
+    }
+
+    function startEdit(productId) {
+      const product = productsCache.find(item => item.id === productId);
+      if (!product) {
+        setStatus(formStatus, `ไม่พบสินค้า id: ${productId}`, 'error');
+        return;
+      }
+
+      editingProductId = product.id;
+      productIdInput.value = product.id;
+      formTitle.textContent = 'แก้ไขสินค้า';
+      submitBtn.textContent = 'บันทึกการแก้ไข';
+      cancelEditBtn.hidden = false;
+
+      form.elements.brand.value = product.brand || '';
+      form.elements.model.value = product.model || '';
+      form.elements.name.value = product.name || '';
+      form.elements.price.value = Number.isFinite(Number(product.price)) ? String(product.price) : '0';
+      form.elements.category.value = product.category || 'accessory';
+      form.elements.description.value = product.description || '';
+      form.elements.image_url.value = product.image_url || '';
+      form.elements.shopee_url.value = product.shopee_url || '';
+      form.elements.allow_booking.checked = Boolean(product.allow_booking);
+      form.elements.allow_order.checked = Boolean(product.allow_order);
+      form.elements.featured.checked = Boolean(product.featured);
+      setStatus(formStatus, `กำลังแก้ไข: ${product.id}`, '');
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function deleteProduct(productId, productName) {
+      const staffKey = passcodeInput.value.trim();
+      if (!staffKey) {
+        setStatus(formStatus, 'กรุณากรอก staff passcode ก่อนลบสินค้า', 'error');
+        passcodeInput.focus();
+        return;
+      }
+
+      if (!confirm(`ลบสินค้า "${productName || productId}"?\n\nการลบนี้ย้อนกลับจากหน้านี้ไม่ได้`)) {
+        return;
+      }
+
+      setStatus(formStatus, `กำลังลบสินค้า: ${productId}`, '');
+      try {
+        const res = await fetch(`${PRODUCTS_PROXY_URL}?id=eq.${encodeURIComponent(productId)}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': `Bearer ${SUPA_KEY}`,
+            'Prefer': 'return=representation',
+            'x-staff-key': staffKey,
+          },
+        });
+
+        if (res.status === 401) {
+          sessionStorage.removeItem(PASSCODE_KEY);
+          localStorage.removeItem(PASSCODE_KEY);
+          throw new Error('รหัสพนักงานไม่ถูกต้อง');
+        }
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        sessionStorage.setItem(PASSCODE_KEY, staffKey);
+        localStorage.setItem(PASSCODE_KEY, staffKey);
+        if (editingProductId === productId) resetFormMode({ keepStatus: true });
+        if (recentProductId === productId) recentProductId = null;
+        setStatus(formStatus, `ลบสินค้าแล้ว: ${productId}`, 'success');
+        await loadProducts();
+      } catch (error) {
+        setStatus(formStatus, `ลบสินค้าไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    function resetFormMode(options = {}) {
+      editingProductId = null;
+      productIdInput.value = '';
+      formTitle.textContent = 'เพิ่มสินค้า';
+      submitBtn.textContent = 'เพิ่มสินค้า';
+      cancelEditBtn.hidden = true;
+      form.reset();
+      document.getElementById('price').value = '0';
+      document.getElementById('allow_booking').checked = true;
+      document.getElementById('allow_order').checked = true;
+      document.getElementById('featured').checked = false;
+      if (!options.keepStatus) {
+        formStatus.hidden = true;
+      }
     }
 
     function cell(value) {
@@ -429,6 +663,28 @@
       el.hidden = false;
       el.className = `status${type ? ` ${type}` : ''}`;
       el.textContent = message;
+    }
+
+    function setStatusWithAction(el, message, type, actionLabel, actionHandler) {
+      setStatus(el, message, type);
+      const actionWrap = document.createElement('div');
+      actionWrap.className = 'button-row';
+      actionWrap.style.marginTop = '10px';
+
+      const actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'secondary-btn small-btn';
+      actionBtn.textContent = actionLabel;
+      actionBtn.addEventListener('click', actionHandler);
+
+      actionWrap.appendChild(actionBtn);
+      el.appendChild(actionWrap);
+    }
+
+    function focusProductRow(productId) {
+      const row = productList.querySelector(`tr[data-product-id="${CSS.escape(productId)}"]`);
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     loadProducts();

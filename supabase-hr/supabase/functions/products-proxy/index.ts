@@ -8,10 +8,11 @@ const ALLOWED_ORIGIN = "https://kmorackbarcustom.github.io";
 const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-staff-key, prefer, accept",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, PATCH, DELETE, OPTIONS",
 };
 
 const allowedPaths = ["products"];
+const allowedMethods = ["POST", "PATCH", "DELETE"];
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name);
@@ -30,7 +31,7 @@ serve(async (req) => {
   }
 
   try {
-    if (req.method !== "POST") {
+    if (!allowedMethods.includes(req.method)) {
       return new Response(
         JSON.stringify({ error: "Method not allowed" }),
         { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -73,7 +74,7 @@ serve(async (req) => {
     const backendRes = await fetch(targetUrl, {
       method: req.method,
       headers,
-      body: await req.blob(),
+      body: req.method === "DELETE" ? undefined : await req.blob(),
     });
 
     const responseBody = await backendRes.blob();
