@@ -764,6 +764,9 @@
     let holidays = new Set();
     let latestSlipMessage = '';
     let cartMeta = null;
+    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+    const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
     // Cap เดียว: รับรถเข้าใหม่ได้ DAILY_CAP คัน/วัน นับแค่วันรับรถเข้า (appointment_date)
     // เท่านั้น — งานที่ค้างอยู่ในร้านนานถึง pickup_date ไม่ไปบล็อกคิวรับรถใหม่วันอื่น
@@ -843,6 +846,16 @@
     function parseDateStr(dateStr) {
       const [y, m, d] = dateStr.split('-').map(Number);
       return new Date(y, m - 1, d);
+    }
+
+    function getFileExtension(fileName) {
+      const parts = String(fileName || '').toLowerCase().split('.');
+      return parts.length > 1 ? parts.pop() : '';
+    }
+
+    function isAllowedImageFile(file) {
+      const ext = getFileExtension(file.name);
+      return ALLOWED_IMAGE_EXTENSIONS.includes(ext) && ALLOWED_IMAGE_MIME_TYPES.includes(file.type);
     }
 
     // โหลด holidays จาก Supabase
@@ -1287,14 +1300,22 @@
     });
 
     function handleFiles(newFiles) {
-      const imageFiles = newFiles.filter(f => f.type.startsWith('image/'));
+      const imageFiles = [];
+      newFiles.forEach(file => {
+        if (!isAllowedImageFile(file)) {
+          showError(`ไฟล์ ${file.name} ไม่รองรับ กรุณาใช้ JPG, PNG, WEBP, HEIC หรือ HEIF เท่านั้น`);
+          return;
+        }
+        imageFiles.push(file);
+      });
+
       const remaining = 5 - selectedFiles.length;
       if (remaining <= 0) {
         showError('เลือกรูปได้สูงสุด 5 รูปเท่านั้น');
         return;
       }
       imageFiles.slice(0, remaining).forEach(file => {
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > MAX_UPLOAD_BYTES) {
           showError(`รูป ${file.name} ใหญ่เกิน 5MB`);
           return;
         }
@@ -1333,7 +1354,7 @@
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         progress.textContent = `กำลังอัปโหลดรูป ${i + 1}/${selectedFiles.length}...`;
-        const ext = file.name.split('.').pop();
+        const ext = getFileExtension(file.name);
         const fileName = `${jobId}/${Date.now()}-${i}.${ext}`;
         const res = await fetch(
           `${SUPABASE_URL}/storage/v1/object/booking-images/${fileName}`,
@@ -1350,6 +1371,9 @@
         );
         if (res.ok) {
           urls.push(`${SUPABASE_URL}/storage/v1/object/public/booking-images/${fileName}`);
+        } else {
+          const errText = await res.text();
+          throw new Error(`อัปโหลดรูป ${file.name} ไม่สำเร็จ: ${errText}`);
         }
       }
       progress.textContent = '';

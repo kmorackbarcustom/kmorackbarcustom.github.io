@@ -14,6 +14,9 @@ let lastSavedData = null;
 
 const IMAGE_PROCESS_TIMEOUT_MS = 15000;
 const HEIC_EXTENSIONS = ['.heic', '.heif'];
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 function withTimeout(promise, ms, message) {
     let timeoutId;
@@ -32,7 +35,10 @@ imageInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
 
     for (const file of files) {
-        if (!isSupportedImage(file)) continue;
+        if (!isSupportedImage(file)) {
+            alert(`ไฟล์ ${file.name} ไม่รองรับ กรุณาใช้ JPG, PNG, WEBP, HEIC หรือ HEIF เท่านั้น`);
+            continue;
+        }
 
         try {
             const normalizedFile = await normalizeImageFile(file);
@@ -80,7 +86,10 @@ function isHeicFile(file) {
 }
 
 function isSupportedImage(file) {
-    return file.type.startsWith('image/') || isHeicFile(file);
+    const ext = file.name.toLowerCase().split('.').pop() || '';
+    if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) return false;
+    if (ALLOWED_IMAGE_MIME_TYPES.includes(file.type)) return true;
+    return isHeicFile(file) && !file.type;
 }
 
 async function normalizeImageFile(file) {
@@ -173,6 +182,9 @@ form.onsubmit = async (e) => {
         try {
             const uploadPromises = selectedFiles.map(async (item) => {
                 const compressed = await compressImage(item.file);
+                if (compressed.size > MAX_UPLOAD_BYTES) {
+                    throw new Error(`รูป ${item.originalName} ใหญ่เกิน 5MB หลังบีบอัด กรุณาใช้รูปที่เล็กลง`);
+                }
                 return uploadImage(compressed, data.license_plate);
             });
 

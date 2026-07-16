@@ -433,7 +433,7 @@
           </label>
           <div id="certUploadArea" style="display:none">
             <div class="upload-cert" id="certDropArea">
-              <input type="file" id="certFile" accept="image/*,.pdf" onchange="onCertFileChange()">
+              <input type="file" id="certFile" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" onchange="onCertFileChange()">
               <div class="upload-cert-icon">📄</div>
               <div class="upload-cert-text">แตะเพื่อถ่ายรูป/เลือกไฟล์ใบแพทย์<br><span style="font-size:11px">JPG, PNG, PDF ไม่เกิน 5MB</span></div>
             </div>
@@ -479,6 +479,19 @@ const HEADERS = {
 
 let currentEmployee = null;
 let certFile = null;
+const MAX_CERT_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ALLOWED_CERT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'pdf'];
+const ALLOWED_CERT_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+
+function getFileExtension(fileName) {
+  const parts = String(fileName || '').toLowerCase().split('.');
+  return parts.length > 1 ? parts.pop() : '';
+}
+
+function isAllowedCertFile(file) {
+  const ext = getFileExtension(file.name);
+  return ALLOWED_CERT_EXTENSIONS.includes(ext) && ALLOWED_CERT_MIME_TYPES.includes(file.type);
+}
 async function doLogin() {
   const phone = document.getElementById('loginPhone').value.trim();
   const btn = document.getElementById('loginBtn');
@@ -618,7 +631,16 @@ function onMedCertChange() {
 function onCertFileChange() {
   const file = document.getElementById('certFile').files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { showAlert('ไฟล์ใหญ่เกิน 5MB', 'error'); return; }
+  if (!isAllowedCertFile(file)) {
+    showAlert('ไฟล์ใบแพทย์ต้องเป็น JPG, PNG หรือ PDF เท่านั้น', 'error');
+    removeCert();
+    return;
+  }
+  if (file.size > MAX_CERT_UPLOAD_BYTES) {
+    showAlert('ไฟล์ใหญ่เกิน 5MB', 'error');
+    removeCert();
+    return;
+  }
   certFile = file;
   if (file.type.startsWith('image/')) {
     const reader = new FileReader();
@@ -645,7 +667,7 @@ async function uploadCert(employeeId) {
   if (!certFile) return null;
   const progress = document.getElementById('certUploadProgress');
   progress.textContent = 'กำลังอัปโหลดใบแพทย์...';
-  const ext = certFile.name.split('.').pop();
+  const ext = getFileExtension(certFile.name);
   const fileName = `${employeeId}/${Date.now()}.${ext}`;
   try {
     const res = await fetch(
@@ -662,11 +684,14 @@ async function uploadCert(employeeId) {
       }
     );
     progress.textContent = '';
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`อัปโหลดใบแพทย์ไม่สำเร็จ: ${errText}`);
+    }
     return `${SUPA_URL}/storage/v1/object/public/medical-certs/${fileName}`;
   } catch(e) {
     progress.textContent = '';
-    return null;
+    throw e;
   }
 }
 
