@@ -277,6 +277,8 @@
         <div>
           <label for="image_url">image_url</label>
           <input id="image_url" name="image_url" autocomplete="off" placeholder="assets/images/service.jpg">
+          <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" style="margin-top:6px">
+          <div id="imageUploadStatus" class="status" hidden></div>
         </div>
         <div>
           <label for="shopee_url">shopee_url</label>
@@ -325,6 +327,8 @@
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     const formTitle = document.getElementById('formTitle');
     const productIdInput = document.getElementById('productId');
+    const imageFileInput = document.getElementById('imageFile');
+    const imageUploadStatus = document.getElementById('imageUploadStatus');
     let productsCache = [];
     let editingProductId = null;
     let recentProductId = null;
@@ -340,6 +344,7 @@
 
     document.getElementById('reloadBtn').addEventListener('click', loadProducts);
     cancelEditBtn.addEventListener('click', resetFormMode);
+    imageFileInput.addEventListener('change', handleImageFileSelect);
 
     passcodeInput.addEventListener('change', () => {
       const value = passcodeInput.value.trim();
@@ -415,6 +420,58 @@
         cancelEditBtn.disabled = false;
       }
     });
+
+    async function handleImageFileSelect() {
+      const file = imageFileInput.files[0];
+      if (!file) return;
+
+      const staffKey = passcodeInput.value.trim();
+      if (!staffKey) {
+        setStatus(imageUploadStatus, 'กรุณากรอก staff passcode ก่อนอัปโหลดรูป', 'error');
+        imageFileInput.value = '';
+        return;
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setStatus(imageUploadStatus, `ไฟล์ต้องเป็น jpeg/png/webp (ไฟล์นี้คือ ${file.type || 'ไม่ทราบชนิด'})`, 'error');
+        imageFileInput.value = '';
+        return;
+      }
+
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const objectPath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const uploadUrl = `${SUPA_URL}/functions/v1/products-proxy/storage/product-images/${objectPath}`;
+
+      setStatus(imageUploadStatus, 'กำลังอัปโหลดรูป...', '');
+      try {
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': `Bearer ${SUPA_KEY}`,
+            'Content-Type': file.type,
+            'x-staff-key': staffKey,
+          },
+          body: file,
+        });
+
+        if (res.status === 401) {
+          sessionStorage.removeItem(PASSCODE_KEY);
+          localStorage.removeItem(PASSCODE_KEY);
+          throw new Error('รหัสพนักงานไม่ถูกต้อง');
+        }
+        if (!res.ok) throw new Error(await res.text());
+
+        const publicUrl = `${SUPA_URL}/storage/v1/object/public/product-images/${objectPath}`;
+        form.elements.image_url.value = publicUrl;
+        setStatus(imageUploadStatus, 'อัปโหลดรูปสำเร็จ — เติม image_url ให้แล้ว', 'success');
+      } catch (error) {
+        setStatus(imageUploadStatus, `อัปโหลดไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        imageFileInput.value = '';
+      }
+    }
 
     function buildPayload(formData, existingId = null) {
       const brand = clean(formData.get('brand'));

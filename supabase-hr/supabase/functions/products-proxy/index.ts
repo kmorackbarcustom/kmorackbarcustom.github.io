@@ -8,11 +8,13 @@ const ALLOWED_ORIGIN = "https://kmorackbarcustom.github.io";
 const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-staff-key, prefer, accept",
-  "Access-Control-Allow-Methods": "POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, PATCH, DELETE, PUT, OPTIONS",
 };
 
 const allowedPaths = ["products"];
-const allowedMethods = ["POST", "PATCH", "DELETE"];
+const allowedStorageBucket = "product-images";
+const allowedStorageMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+const allowedMethods = ["POST", "PATCH", "DELETE", "PUT"];
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name);
@@ -23,6 +25,19 @@ function requiredEnv(name: string): string {
 function isPathAllowed(path: string): boolean {
   const cleanPath = path.split("?")[0].replace(/\/$/, "");
   return allowedPaths.includes(cleanPath);
+}
+
+// Storage uploads use their own path shape: storage/<bucket>/<object path>.
+// Kept separate from isPathAllowed/allowedPaths (REST table names) since the
+// target URL and method rules differ (PUT to Storage's object endpoint, not
+// POST/PATCH/DELETE to PostgREST).
+function parseStorageRequest(path: string): { objectPath: string } | null {
+  const cleanPath = path.split("?")[0].replace(/\/$/, "");
+  const prefix = `storage/${allowedStorageBucket}/`;
+  if (!cleanPath.startsWith(prefix)) return null;
+  const objectPath = cleanPath.slice(prefix.length);
+  if (!objectPath || objectPath.includes("..")) return null;
+  return { objectPath };
 }
 
 serve(async (req) => {
@@ -50,15 +65,53 @@ serve(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/(functions\/v1\/)?products-proxy\//, "");
 
-    if (!isPathAllowed(path)) {
+    const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
+    const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+    const storageRequest = parseStorageRequest(path);
+    if (storageRequest) {
+      if (req.method !== "PUT") {
+        return new Response(
+          JSON.stringify({ error: "Storage uploads must use PUT" }),
+          { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const contentType = req.headers.get("content-type") || "";
+      if (!allowedStorageMimeTypes.includes(contentType)) {
+        return new Response(
+          JSON.stringify({ error: `Forbidden content-type '${contentType}'. Allowed: ${allowedStorageMimeTypes.join(", ")}` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const targetUrl = `${supabaseUrl}/storage/v1/object/${allowedStorageBucket}/${storageRequest.objectPath}`;
+      const backendRes = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "Content-Type": contentType,
+          "x-upsert": "true",
+        },
+        body: await req.blob(),
+      });
+
+      const responseBody = await backendRes.blob();
+      return new Response(responseBody, {
+        status: backendRes.status,
+        statusText: backendRes.statusText,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (req.method === "PUT" || !isPathAllowed(path)) {
       return new Response(
         JSON.stringify({ error: `Forbidden: Path '${path}' is not allowed by policy` }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
-    const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
     const targetUrl = `${supabaseUrl}/rest/v1/${path}${url.search}`;
 
     const headers = new Headers();
