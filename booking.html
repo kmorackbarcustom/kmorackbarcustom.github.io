@@ -531,6 +531,70 @@
       text-align: center;
     }
 
+    .line-gate-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .line-gate-panel {
+      width: min(100%, 440px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+    }
+    .line-gate-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .line-gate-text {
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .line-gate-actions {
+      display: grid;
+      gap: 12px;
+    }
+    .line-gate-primary,
+    .line-gate-secondary {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      font-family: 'Kanit', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .line-gate-primary {
+      background: var(--accent);
+      color: var(--bg);
+      border: 1px solid var(--accent);
+    }
+    .line-gate-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .line-gate-note {
+      color: var(--red);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 14px;
+    }
+
     /* Hidden */
     .hidden {
       display: none;
@@ -538,6 +602,18 @@
   </style>
 </head>
 <body>
+  <div id="lineGateOverlay" class="line-gate-overlay">
+    <div class="line-gate-panel">
+      <h1 class="line-gate-title">เพิ่มเพื่อน LINE OA ก่อนทำการจอง</h1>
+      <p class="line-gate-text">ลูกค้าต้องเพิ่มเพื่อน LINE OA ของร้านก่อน เพื่อรับการยืนยันการจองและแจ้งเตือนนัดหมายจาก KMO Rack Bar Custom</p>
+      <div class="line-gate-actions">
+        <a class="line-gate-primary" href="https://lin.ee/Hm91L7m" target="_self">Add Friend</a>
+        <button class="line-gate-secondary" type="button" id="lineGateRecheckBtn">ตรวจสอบอีกครั้ง</button>
+      </div>
+      <p id="lineGateErrorNote" class="line-gate-note" hidden>โหลดระบบ LINE ไม่สำเร็จ กรุณาลองใหม่ หรือโทรติดต่อร้านโดยตรง</p>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="header">
     <div class="header-logo">KMO</div>
@@ -752,10 +828,33 @@
     </form>
   </div>
 
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     // Supabase Config
     const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+    const LIFF_ID = '2011076704-ESBn0cYe';
+    let lineGate = { friendFlag: false, userId: null, error: false };
+
+    async function initLineGate() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const [profile, friendship] = await Promise.all([liff.getProfile(), liff.getFriendship()]);
+        lineGate = { friendFlag: friendship.friendFlag === true, userId: profile.userId, error: false };
+      } catch (err) {
+        console.error('LIFF init failed', err);
+        lineGate = { friendFlag: false, userId: null, error: true };
+      }
+      renderGateState();
+    }
+
+    function renderGateState() {
+      const overlay = document.getElementById('lineGateOverlay');
+      if (overlay) overlay.classList.toggle('hidden', lineGate.friendFlag && !!lineGate.userId);
+      const errorNote = document.getElementById('lineGateErrorNote');
+      if (errorNote) errorNote.hidden = !lineGate.error;
+    }
 
     let selectedFiles = [];
     let currentMonth = new Date();
@@ -801,6 +900,16 @@
       if (dateParam) selectDate(dateParam);
       applyCartPrefillFromQuery();
       document.getElementById('pickupDate').addEventListener('change', checkQueueDensity);
+      document.getElementById('lineGateRecheckBtn').addEventListener('click', async () => {
+        try {
+          lineGate.friendFlag = (await liff.getFriendship()).friendFlag === true;
+        } catch (err) {
+          console.error('LIFF getFriendship failed', err);
+          lineGate.error = true;
+        }
+        renderGateState();
+      });
+      initLineGate();
     });
 
     // เตือนลูกค้าล่วงหน้าถ้าวันรับรถเข้าที่เลือกคิวเหลือน้อย (ไม่บล็อกการจอง แค่แจ้งเตือน)
@@ -1080,6 +1189,10 @@
     // Form Submit
     document.getElementById('bookingForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!lineGate.friendFlag || !lineGate.userId) {
+        showError('กรุณาเพิ่มเพื่อน LINE OA ก่อนทำการจอง');
+        return;
+      }
       
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
@@ -1090,6 +1203,7 @@
           customer_name: document.getElementById('customerName').value,
           phone: document.getElementById('phone').value,
           source: document.getElementById('platform').value,
+          line_uid: lineGate.userId,
           brand: document.getElementById('brand').value,
           model: document.getElementById('model').value || null,
           product: document.getElementById('services').value,
