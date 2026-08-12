@@ -11,6 +11,7 @@ type Booking = {
   appointment_date: string | null;
   pickup_date: string | null;
   production_status: string | null;
+  line_uid?: string | null;
   assigned_mechanic_username?: string | null;
   followup_count?: number | null;
 };
@@ -131,5 +132,32 @@ export function formatPickupReminder(booking: Booking, reminderDate: string): st
     `👷 ช่าง: ${mechanicMention(booking.assigned_mechanic_username)}`,
     "",
     "✅ อย่าลืมเตรียมรถให้พร้อม!",
+  ].join("\n");
+}
+
+export function formatAppointmentReminderLine(booking: Booking): string {
+  return [
+    "แจ้งเตือนจาก KMO Rack Bar Custom",
+    `พรุ่งนี้มีนัดเข้าร้านวันที่ ${formatDateThai(booking.appointment_date)} ครับ`,
+    `รถ: ${escapeHtml(booking.brand)} ${escapeHtml(booking.model)}`,
+    `งาน: ${escapeHtml(booking.product)}`,
+    "ถ้าต้องเลื่อนนัด รบกวนทัก LINE หรือโทรแจ้งร้านล่วงหน้าครับ",
+  ].join("\n");
+}
+
+export function formatAppointmentReminderStaffTelegram(booking: Booking, reminderDate: string): string {
+  return [
+    `📢 <b>แจ้งเตือนนัดเข้าร้านพรุ่งนี้</b> (${formatDateThai(reminderDate)})`,
+    "",
+    `📋 งาน: ${escapeHtml(booking.job_id)}`,
+    `👤 ลูกค้า: ${escapeHtml(booking.customer_name)}`,
+    `📞 เบอร์: ${escapeHtml(booking.phone)}`,
+    `🏍️ รถ: ${escapeHtml(booking.brand)} ${escapeHtml(booking.model)}`,
+    `📦 งาน: ${escapeHtml(booking.product)}`,
+    `🔧 สถานะ: ${escapeHtml(booking.production_status)}`,
+    `👷 ช่าง: ${mechanicMention(booking.assigned_mechanic_username)}`,
+    booking.line_uid ? "🟢 มี LINE UID" : "⚪ ยังไม่มี LINE UID",
+    "",
+    "☎️ โทรยืนยันคิวกับลูกค้าก่อนเข้าร้านพรุ่งนี้",
   ].join("\n");
 }
