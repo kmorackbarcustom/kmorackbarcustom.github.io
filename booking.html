@@ -599,9 +599,55 @@
     .hidden {
       display: none;
     }
+
+    .fb-browser-banner {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .fb-browser-panel {
+      width: min(100%, 440px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+    }
+    .fb-browser-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .fb-browser-text {
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.7;
+      text-align: left;
+    }
+    .fb-browser-text b {
+      color: var(--accent2);
+    }
   </style>
 </head>
 <body>
+  <div id="fbBrowserBanner" class="fb-browser-banner hidden">
+    <div class="fb-browser-panel">
+      <h1 class="fb-browser-title">กรุณาเปิดในเบราว์เซอร์ปกติ</h1>
+      <p class="fb-browser-text">
+        ตอนนี้เปิดผ่านเบราว์เซอร์ในแอป Facebook/Instagram ซึ่งใช้จองคิวไม่ได้ครับ<br><br>
+        📱 <b>Android:</b> กดปุ่ม "⋮" มุมขวาบน แล้วเลือก "เปิดใน Chrome"<br><br>
+        📱 <b>iPhone:</b> กดปุ่ม "•••" มุมขวาล่าง แล้วเลือก "เปิดใน Safari"
+      </p>
+    </div>
+  </div>
+
   <div id="lineGateOverlay" class="line-gate-overlay">
     <div class="line-gate-panel">
       <h1 class="line-gate-title">เพิ่มเพื่อน LINE OA ก่อนทำการจอง</h1>
@@ -836,7 +882,16 @@
     const LIFF_ID = '2011076704-ESBn0cYe';
     let lineGate = { friendFlag: false, userId: null, error: false };
 
+    function isUnsupportedInAppBrowser() {
+      return /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent);
+    }
+
     async function initLineGate() {
+      if (isUnsupportedInAppBrowser()) {
+        const banner = document.getElementById('fbBrowserBanner');
+        if (banner) banner.classList.remove('hidden');
+        return; // don't attempt liff.init() here - it fails and throws its own native alert
+      }
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
