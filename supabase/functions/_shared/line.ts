@@ -37,3 +37,17 @@ export const replyMessage = (replyToken: string, messages: LineMessage[]) =>
   callLineApi("/message/reply", { replyToken, messages });
 export const pushMessage = (to: string, messages: LineMessage[]) =>
   callLineApi("/message/push", { to, messages });
+
+export async function getProfile(userId: string): Promise<{ displayName?: string } | null> {
+  try {
+    const res = await createHttpClient({ defaultTimeoutMs: 8000 }).request<{ displayName?: string }>({
+      url: `${LINE_API_BASE}/profile/${userId}`,
+      method: "GET",
+      headers: { Authorization: `Bearer ${requiredEnv("LINE_CHANNEL_ACCESS_TOKEN")}` },
+    });
+    return res.data ?? null;
+  } catch (error) {
+    console.error("[line] getProfile failed", error);
+    return null;
+  }
+}

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createServiceClient, jsonResponse } from "../_shared/database.ts";
-import { verifyLineSignature, replyMessage } from "../_shared/line.ts";
+import { verifyLineSignature, replyMessage, getProfile } from "../_shared/line.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
 
@@ -19,8 +19,9 @@ serve(async (req) => {
       const userId = event.source?.userId;
       if (!userId) continue;
 
+      const profile = await getProfile(userId);
       const { error } = await supabase.from("customers").upsert(
-        { line_uid: userId, platform: "line" },
+        { line_uid: userId, platform: "line", name: profile?.displayName ?? "LINE User", phone: "" },
         { onConflict: "line_uid" },
       );
       if (error) console.error("[line-webhook] customers upsert failed", error);
