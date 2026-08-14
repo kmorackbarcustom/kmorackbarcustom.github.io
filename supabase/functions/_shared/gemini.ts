@@ -41,6 +41,35 @@ export function hasGeminiKey(): boolean {
   return Boolean(optionalEnv("GEMINI_API_KEY"));
 }
 
+export async function generateLineReplyGemini(input: {
+  userMessage: string;
+  history: Array<{ role: string; content: string }>;
+  systemPrompt: string;
+}): Promise<string> {
+  const apiKey = requiredEnv("GEMINI_API_KEY");
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: input.systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: input.userMessage }] }],
+        generationConfig: { temperature: 0.75, maxOutputTokens: 200 },
+      }),
+    },
+  );
+
+  const json = await response.json();
+  if (!response.ok) throw new Error(`Gemini error: ${json.error?.message ?? response.statusText}`);
+  const text = json.candidates?.[0]?.content?.parts
+    ?.map((p: { text?: string }) => p.text ?? "")
+    .join("")
+    .trim();
+  if (!text) throw new Error("Gemini returned no content");
+  return text;
+}
+
 export async function generateFridayReply(input: FridayChatInput): Promise<string> {
   const apiKey = requiredEnv("GEMINI_API_KEY");
   const response = await fetch(
