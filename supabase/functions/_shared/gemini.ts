@@ -47,6 +47,13 @@ export async function generateLineReplyGemini(input: {
   systemPrompt: string;
 }): Promise<string> {
   const apiKey = requiredEnv("GEMINI_API_KEY");
+  const contents = [
+    ...input.history.map((h) => ({
+      role: h.role === "assistant" ? "model" : "user",
+      parts: [{ text: h.content }],
+    })),
+    { role: "user", parts: [{ text: input.userMessage }] },
+  ];
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
     {
@@ -54,7 +61,7 @@ export async function generateLineReplyGemini(input: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: input.systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: input.userMessage }] }],
+        contents,
         generationConfig: { temperature: 0.75, maxOutputTokens: 200 },
       }),
     },
