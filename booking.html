@@ -595,9 +595,14 @@
       margin-top: 14px;
     }
 
-    /* Hidden */
+    /* Hidden - !important so this always wins regardless of source order vs
+       any other .display-setting class (e.g. .fb-browser-banner, .line-gate-overlay
+       both set display:flex; without !important, whichever rule is declared later
+       in this stylesheet wins on equal specificity, independent of which classes
+       are actually applied on the element - this was the real bug behind the
+       "banner always shows" report, nothing to do with user-agent detection at all) */
     .hidden {
-      display: none;
+      display: none !important;
     }
 
     .fb-browser-banner {
@@ -645,7 +650,6 @@
         📱 <b>Android:</b> กดปุ่ม "⋮" มุมขวาบน แล้วเลือก "เปิดใน Chrome"<br><br>
         📱 <b>iPhone:</b> กดปุ่ม "•••" มุมขวาล่าง แล้วเลือก "เปิดใน Safari"
       </p>
-      <p id="fbBrowserDebugUa" style="margin-top:16px;font-size:11px;color:var(--text-dim);word-break:break-all;text-align:left;"></p>
     </div>
   </div>
 
@@ -898,8 +902,6 @@
       if (isUnsupportedInAppBrowser()) {
         const banner = document.getElementById('fbBrowserBanner');
         if (banner) banner.classList.remove('hidden');
-        const debugUa = document.getElementById('fbBrowserDebugUa');
-        if (debugUa) debugUa.textContent = 'UA (สำหรับแจ้งแอดมิน): ' + navigator.userAgent;
         return; // don't attempt liff.init() here - it fails and throws its own native alert
       }
       try {
