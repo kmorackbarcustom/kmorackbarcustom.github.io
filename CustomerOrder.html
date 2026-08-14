@@ -6,6 +6,7 @@
   <title>สั่งผลิตอุปกรณ์รถ — KMO Rackbar Custom</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; background: radial-gradient(ellipse at 20% 40%, #1a0800 0%, #0a0f1a 55%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; color: #e2e8f0; }
@@ -39,13 +40,94 @@
     .slabel.on { color:#f97316; }
     .nav { display:flex; gap:10px; margin-top:14px; }
     .box { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:14px; }
+    .hidden { display: none !important; }
+    .gate-overlay { position: fixed; inset: 0; z-index: 9999; background: #0a0f1a; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+    .gate-panel { width: min(100%, 420px); background: #1a2236; border: 1px solid #2d3748; border-radius: 24px; padding: 28px; text-align: center; box-shadow: 0 40px 80px #00000090; }
+    .gate-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #f97316; margin-bottom: 12px; }
+    .gate-text { color: #e2e8f0; font-size: 14px; line-height: 1.7; margin-bottom: 18px; }
+    .gate-actions { display: grid; gap: 10px; }
+    .gate-primary, .gate-secondary { width: 100%; padding: 13px 16px; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; border: none; }
+    .gate-primary { background: #06C755; color: #fff; }
+    .gate-secondary { background: transparent; border: 1px solid #2d3748; color: #94a3b8; }
+    .gate-note { color: #ef4444; font-size: 12px; line-height: 1.5; margin-top: 14px; }
   </style>
 </head>
 <body>
+<div id="fbBrowserBanner" class="gate-overlay hidden">
+  <div class="gate-panel">
+    <h1 class="gate-title">กรุณาเปิดในเบราว์เซอร์ปกติ</h1>
+    <p class="gate-text">
+      ตอนนี้เปิดผ่านเบราว์เซอร์ในแอป Facebook/Instagram ซึ่งใช้สั่งออเดอร์ไม่ได้ครับ<br><br>
+      📱 <b>Android:</b> กดปุ่ม "⋮" มุมขวาบน แล้วเลือก "เปิดใน Chrome"<br><br>
+      📱 <b>iPhone:</b> กดปุ่ม "•••" มุมขวาล่าง แล้วเลือก "เปิดใน Safari"
+    </p>
+  </div>
+</div>
+<div id="lineGateOverlay" class="gate-overlay hidden">
+  <div class="gate-panel">
+    <h1 class="gate-title">เพิ่มเพื่อน LINE OA ก่อนสั่งออเดอร์</h1>
+    <p class="gate-text">ลูกค้าต้องเพิ่มเพื่อน LINE OA ของร้านก่อน เพื่อให้ทีมงานติดต่อกลับและแจ้งความคืบหน้าออเดอร์ได้</p>
+    <div class="gate-actions">
+      <a class="gate-primary" href="https://lin.ee/K8K85Bb" target="_self">Add Friend</a>
+      <button class="gate-secondary" type="button" id="lineGateRecheckBtn">ตรวจสอบอีกครั้ง</button>
+    </div>
+    <p id="lineGateErrorNote" class="gate-note" hidden>โหลดระบบ LINE ไม่สำเร็จ กรุณาลองใหม่ หรือโทรติดต่อร้านโดยตรง</p>
+  </div>
+</div>
 <div class="card" id="app"></div>
 <script>
 const SUPA_URL = "https://xfhpwxjywqgqefbncumm.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is";
+
+const LIFF_ID = '2011076704-ESBn0cYe';
+let lineGate = { friendFlag: false, userId: null, error: false };
+
+function isUnsupportedInAppBrowser() {
+  const ua = navigator.userAgent;
+  if (/Line/i.test(ua)) return false; // LINE's own browser must always be allowed
+  return /FBAN|FBAV|FB_IAB|Instagram/i.test(ua);
+}
+
+function renderGateState() {
+  const overlay = document.getElementById('lineGateOverlay');
+  if (overlay) overlay.classList.toggle('hidden', lineGate.friendFlag && !!lineGate.userId);
+  const errorNote = document.getElementById('lineGateErrorNote');
+  if (errorNote) errorNote.hidden = !lineGate.error;
+}
+
+async function initLineGate() {
+  if (isUnsupportedInAppBrowser()) {
+    const banner = document.getElementById('fbBrowserBanner');
+    if (banner) banner.classList.remove('hidden');
+    return;
+  }
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    const [profile, friendship] = await Promise.all([liff.getProfile(), liff.getFriendship()]);
+    lineGate = { friendFlag: friendship.friendFlag === true, userId: profile.userId, error: false };
+  } catch (err) {
+    console.error('LIFF init failed', err);
+    lineGate = { friendFlag: false, userId: null, error: true };
+  }
+  renderGateState();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const recheckBtn = document.getElementById('lineGateRecheckBtn');
+  if (recheckBtn) {
+    recheckBtn.addEventListener('click', async () => {
+      try {
+        lineGate.friendFlag = (await liff.getFriendship()).friendFlag === true;
+      } catch (err) {
+        console.error('LIFF getFriendship failed', err);
+        lineGate.error = true;
+      }
+      renderGateState();
+    });
+  }
+  initLineGate();
+});
 const BRANDS = ["Honda","Yamaha","Kawasaki","Suzuki","BMW","KTM","Ducati","Royal Enfield","Triumph","อื่นๆ"];
 const PRODUCTS = [
   {id:"crash_bar",label:"แคชบาร์",emoji:"🛡️",unit:1,size:"งานใหญ่"},
@@ -150,9 +232,10 @@ function bind(){
   const nb=q('btn-next');if(nb)nb.addEventListener('click',()=>{if(canNext())set({step:S.step+1});});
   const bb=q('btn-back');if(bb)bb.addEventListener('click',()=>set({step:S.step-1}));
   const sb=q('btn-submit');if(sb)sb.addEventListener('click',async()=>{
+    if(!lineGate.friendFlag||!lineGate.userId){set({error:'กรุณาเพิ่มเพื่อน LINE OA ก่อนสั่งออเดอร์'});return;}
     set({loading:true,error:null});
     try{
-      const saved=await rpc('create_customer_order',{p_payload:{customer_name:S.name,contact:S.contact,channel:S.channel,brand:S.brand,model:S.model,items:selLabels(),color:S.colorText,unit:totalUnits(),payment_type:S.paymentType,delivery_type:S.deliveryType,delivery_address:S.deliveryType==='delivery'?S.deliveryAddress:null,cart_meta:S.cartMeta,estimated_total:S.estimatedTotal,source_page:S.sourcePage}});
+      const saved=await rpc('create_customer_order',{p_payload:{customer_name:S.name,contact:S.contact,channel:S.channel,brand:S.brand,model:S.model,items:selLabels(),color:S.colorText,unit:totalUnits(),payment_type:S.paymentType,delivery_type:S.deliveryType,delivery_address:S.deliveryType==='delivery'?S.deliveryAddress:null,cart_meta:S.cartMeta,estimated_total:S.estimatedTotal,source_page:S.sourcePage,line_user_id:lineGate.userId}});
       if(!saved?.order_id)throw new Error("บันทึกแล้วแต่ยังไม่ได้เลข Order ID กรุณาเปิด Dashboard ตรวจสอบก่อนส่ง LINE");
       set({orderId:saved.order_id,startDate:saved.start_date||null,dueDate:saved.due_date||null,submitted:true,loading:false});
     }catch(err){set({error:err.message||'เกิดข้อผิดพลาด กรุณาลองใหม่',loading:false});}
