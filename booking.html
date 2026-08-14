@@ -883,7 +883,14 @@
     let lineGate = { friendFlag: false, userId: null, error: false };
 
     function isUnsupportedInAppBrowser() {
-      return /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent);
+      const ua = navigator.userAgent;
+      if (/Line/i.test(ua)) {
+        console.log('[browser-check] LINE in-app browser detected, not blocking. UA:', ua);
+        return false; // LINE's own browser must always be allowed - this is the primary customer path
+      }
+      const blocked = /FBAN|FBAV|FB_IAB|Instagram/i.test(ua);
+      if (blocked) console.log('[browser-check] blocked as FB/IG in-app browser. UA:', ua);
+      return blocked;
     }
 
     async function initLineGate() {
