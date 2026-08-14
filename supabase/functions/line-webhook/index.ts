@@ -68,10 +68,18 @@ serve(async (req) => {
             {
               stateStore: new PostgresSessionStore(supabase),
               aiAdapter: new PromptBasedAiAdapter(async ({ userMessage, session, history }) => {
-                const customerContext = await getCustomerContext(supabase, session.userId);
-                const systemPrompt = `${LINE_AI_SYSTEM_PROMPT}\n\n${customerContext}`;
-                const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
-                return { reply };
+                try {
+                  const customerContext = await getCustomerContext(supabase, session.userId);
+                  const systemPrompt = `${LINE_AI_SYSTEM_PROMPT}\n\n${customerContext}`;
+                  const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
+                  return { reply };
+                } catch (error) {
+                  // AI generation totally failed (primary + fallback, or context lookup) - never let the
+                  // customer get silence. The vendored module swallows exceptions thrown from here
+                  // internally with no reply sent, so this must return a normal reply, not re-throw.
+                  console.error("[line-ai] generation failed, sending fallback reply", error);
+                  return { reply: "ขอโทษครับ ระบบขัดข้องชั่วคราว รบกวนลองพิมพ์ใหม่อีกครั้ง หรือรอทีมงานติดต่อกลับครับ" };
+                }
               }, LINE_AI_SYSTEM_PROMPT),
               businessAdapter: {
                 async onIntent(intent, data, session) {
