@@ -8,7 +8,7 @@ import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.
 import { getCustomerContext } from "../_shared/customer-context.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
-const CUSTOMER_ORDER_URL = "https://kmorackbarcustom.github.io/CustomerOrder.html";
+const CUSTOMER_ORDER_URL = "https://liff.line.me/2011076704-yZQMM5Wb";
 const LINE_AI_SYSTEM_PROMPT = [
   "คุณคือผู้ช่วยตอบแชทของร้าน KMO Rack Bar Custom (ร้านทำแร็ค/บาร์/แคชบาร์แต่งมอเตอร์ไซค์)",
   "ตอบสั้น กระชับ สุภาพ เป็นภาษาไทย",
