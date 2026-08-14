@@ -5,6 +5,7 @@ import { generateLineReply } from "../_shared/ai-providers.ts";
 import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
+import { getCustomerContext } from "../_shared/customer-context.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
 const LINE_AI_SYSTEM_PROMPT = [
@@ -12,7 +13,8 @@ const LINE_AI_SYSTEM_PROMPT = [
   "ตอบสั้น กระชับ สุภาพ เป็นภาษาไทย",
   "ถ้าลูกค้าสนใจจองคิว ให้แนะนำลิงก์จองคิว: " + LIFF_BOOKING_URL,
   "ห้ามยืนยันว่าจองคิวสำเร็จ ห้ามอ้างว่าเช็ควันว่างให้ได้ - บอกให้กดลิงก์จองคิวเพื่อเช็ค/จองเองเท่านั้น",
-  "ถ้าไม่แน่ใจคำตอบ ให้บอกว่าจะให้ทีมงานติดต่อกลับ",
+  "ถ้าลูกค้าถามสถานะงาน/ออเดอร์ ให้ตอบจากข้อมูลในระบบด้านล่างเท่านั้น ห้ามเดาวันที่หรือสถานะเอง",
+  "ถ้าไม่แน่ใจคำตอบ หรือไม่มีข้อมูลในระบบ ให้บอกว่าจะให้ทีมงานติดต่อกลับ",
 ].join("\n");
 
 serve(async (req) => {
@@ -60,8 +62,10 @@ serve(async (req) => {
             },
             {
               stateStore: new PostgresSessionStore(supabase),
-              aiAdapter: new PromptBasedAiAdapter(async ({ userMessage, history }) => {
-                const { reply } = await generateLineReply({ userMessage, history, systemPrompt: LINE_AI_SYSTEM_PROMPT });
+              aiAdapter: new PromptBasedAiAdapter(async ({ userMessage, session, history }) => {
+                const customerContext = await getCustomerContext(supabase, session.userId);
+                const systemPrompt = `${LINE_AI_SYSTEM_PROMPT}\n\n${customerContext}`;
+                const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
                 return { reply };
               }, LINE_AI_SYSTEM_PROMPT),
               businessAdapter: {
