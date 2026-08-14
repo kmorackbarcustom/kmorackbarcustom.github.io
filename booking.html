@@ -645,6 +645,7 @@
         📱 <b>Android:</b> กดปุ่ม "⋮" มุมขวาบน แล้วเลือก "เปิดใน Chrome"<br><br>
         📱 <b>iPhone:</b> กดปุ่ม "•••" มุมขวาล่าง แล้วเลือก "เปิดใน Safari"
       </p>
+      <p id="fbBrowserDebugUa" style="margin-top:16px;font-size:11px;color:var(--text-dim);word-break:break-all;text-align:left;"></p>
     </div>
   </div>
 
@@ -897,6 +898,8 @@
       if (isUnsupportedInAppBrowser()) {
         const banner = document.getElementById('fbBrowserBanner');
         if (banner) banner.classList.remove('hidden');
+        const debugUa = document.getElementById('fbBrowserDebugUa');
+        if (debugUa) debugUa.textContent = 'UA (สำหรับแจ้งแอดมิน): ' + navigator.userAgent;
         return; // don't attempt liff.init() here - it fails and throws its own native alert
       }
       try {
