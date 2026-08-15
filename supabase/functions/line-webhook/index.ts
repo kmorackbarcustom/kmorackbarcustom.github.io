@@ -7,6 +7,7 @@ import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
 import { getCustomerContext } from "../_shared/customer-context.ts";
+import { dateOnlyInBangkok } from "../_shared/constants.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
 const CUSTOMER_ORDER_URL = "https://liff.line.me/2011076704-yZQMM5Wb";
@@ -28,11 +29,26 @@ const LINE_AI_SAFETY_RULES = [
 
 type ShopFaq = { question: string; answer: string };
 type MatchedProduct = { brand: string | null; model: string | null; name: string; price: number; category: string };
+type QueueDay = { work_date: string; units: number; is_over_capacity: boolean };
+
+function formatQueueDensity(queueDays: QueueDay[]): string {
+  const overCount = queueDays.filter((d) => d.is_over_capacity).length;
+  const lines = queueDays.map((d) => {
+    const label = new Date(`${d.work_date}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+    return `- ${label}: ${d.is_over_capacity ? "งานเกินกำลังผลิตปกติ (คิวแน่น)" : "งานยังไม่เกินกำลังผลิตปกติ"}`;
+  });
+  return [
+    `สถานะคิวช่วง ${queueDays.length} วันข้างหน้า (ใช้ตอบถ้าลูกค้าถามว่าคิว/ออเดอร์ตอนนี้แน่นไหม รับงานเพิ่มได้ไหม):`,
+    ...lines,
+    `สรุป: ${overCount} จาก ${queueDays.length} วันงานเกินกำลังผลิตปกติ`,
+  ].join("\n");
+}
 
 function buildSystemPrompt(
   settings: Record<string, string>,
   faqs: ShopFaq[],
   products: MatchedProduct[],
+  queueDays: QueueDay[],
 ): string {
   const shopName = settings.shop_name || "ร้าน";
   const parts = [
@@ -58,6 +74,7 @@ function buildSystemPrompt(
       ].join("\n"),
     );
   }
+  if (queueDays.length > 0) parts.push(formatQueueDensity(queueDays));
   return parts.join("\n\n");
 }
 
@@ -149,14 +166,18 @@ serve(async (req) => {
                 };
 
                 try {
-                  const [customerContext, matchedProducts] = await Promise.all([
+                  const [customerContext, matchedProducts, queueDays] = await Promise.all([
                     getCustomerContext(supabase, session.userId),
                     supabase.rpc("search_products", { customer_message: userMessage }).then(({ data, error }) => {
                       if (error) console.error("[line-ai] search_products failed", error);
                       return data ?? [];
                     }),
+                    supabase.rpc("get_upcoming_queue_density", { from_date: dateOnlyInBangkok(), days: 7 }).then(({ data, error }) => {
+                      if (error) console.error("[line-ai] get_upcoming_queue_density failed", error);
+                      return data ?? [];
+                    }),
                   ]);
-                  const systemPrompt = `${buildSystemPrompt(settings ?? {}, faqs ?? [], matchedProducts)}\n\n${customerContext}`;
+                  const systemPrompt = `${buildSystemPrompt(settings ?? {}, faqs ?? [], matchedProducts, queueDays)}\n\n${customerContext}`;
                   const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
                   await notifyIfNeeded(reply);
                   return { reply };
