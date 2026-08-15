@@ -27,8 +27,13 @@ const LINE_AI_SAFETY_RULES = [
 ].join("\n");
 
 type ShopFaq = { question: string; answer: string };
+type MatchedProduct = { brand: string | null; model: string | null; name: string; price: number; category: string };
 
-function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): string {
+function buildSystemPrompt(
+  settings: Record<string, string>,
+  faqs: ShopFaq[],
+  products: MatchedProduct[],
+): string {
   const shopName = settings.shop_name || "ร้าน";
   const parts = [
     `คุณคือผู้ช่วยตอบแชทของ${shopName}${settings.shop_description ? ` (${settings.shop_description})` : ""}`,
@@ -43,6 +48,14 @@ function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): s
       ["คำถามที่พบบ่อยและคำตอบมาตรฐาน (ใช้ตอบถ้าลูกค้าถามตรงกับเรื่องนี้):", ...faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`)].join(
         "\n",
       ),
+    );
+  }
+  if (products.length > 0) {
+    parts.push(
+      [
+        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้):",
+        ...products.map((p) => `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท`),
+      ].join("\n"),
     );
   }
   return parts.join("\n\n");
@@ -136,8 +149,14 @@ serve(async (req) => {
                 };
 
                 try {
-                  const customerContext = await getCustomerContext(supabase, session.userId);
-                  const systemPrompt = `${buildSystemPrompt(settings ?? {}, faqs ?? [])}\n\n${customerContext}`;
+                  const [customerContext, matchedProducts] = await Promise.all([
+                    getCustomerContext(supabase, session.userId),
+                    supabase.rpc("search_products", { customer_message: userMessage }).then(({ data, error }) => {
+                      if (error) console.error("[line-ai] search_products failed", error);
+                      return data ?? [];
+                    }),
+                  ]);
+                  const systemPrompt = `${buildSystemPrompt(settings ?? {}, faqs ?? [], matchedProducts)}\n\n${customerContext}`;
                   const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
                   await notifyIfNeeded(reply);
                   return { reply };
