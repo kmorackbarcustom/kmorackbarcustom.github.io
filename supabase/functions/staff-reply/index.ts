@@ -1,0 +1,108 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createServiceClient } from "../_shared/database.ts";
+import { pushMessage } from "../_shared/line.ts";
+
+// ponytail: LINE gives zero signal when staff reply via LINE Official Account
+// Manager - no webhook, no queryable state. This function is the workaround
+// every omnichannel-inbox vendor uses: route staff replies through our own
+// API call so pausing the bot is synchronous with sending, not detected.
+
+const ALLOWED_ORIGIN = "https://kmorackbarcustom.github.io";
+const PAUSE_MS = 2 * 60 * 60 * 1000;
+const MAX_MESSAGE_LENGTH = 1000;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-staff-key",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+async function handleSearch(supabase: ReturnType<typeof createServiceClient>, body: { query?: string }) {
+  const query = (body.query ?? "").trim();
+  if (!query) return jsonResponse({ ok: false, error: "query is required" }, 400);
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, name, phone, paused_until")
+    .not("line_uid", "is", null)
+    .ilike("name", `%${query}%`)
+    .limit(8);
+  if (error) return jsonResponse({ ok: false, error: error.message }, 500);
+
+  return jsonResponse({ ok: true, matches: data ?? [] });
+}
+
+async function handleSend(supabase: ReturnType<typeof createServiceClient>, body: { customerId?: string; message?: string }) {
+  const customerId = body.customerId ?? "";
+  const message = (body.message ?? "").trim();
+  if (!customerId || !message) return jsonResponse({ ok: false, error: "customerId and message are required" }, 400);
+  if (message.length > MAX_MESSAGE_LENGTH) return jsonResponse({ ok: false, error: "message too long" }, 400);
+
+  const { data: customer, error: fetchError } = await supabase
+    .from("customers")
+    .select("id, line_uid")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 500);
+  if (!customer?.line_uid) return jsonResponse({ ok: false, error: "customer not found or has no line_uid" }, 404);
+
+  const sent = await pushMessage(customer.line_uid, [{ type: "text", text: message }]);
+  if (!sent) return jsonResponse({ ok: false, error: "line_push_failed" }, 502);
+
+  const pausedUntil = new Date(Date.now() + PAUSE_MS).toISOString();
+  const { error: updateError } = await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customerId);
+  if (updateError) return jsonResponse({ ok: false, error: updateError.message }, 500);
+
+  return jsonResponse({ ok: true, pausedUntil });
+}
+
+async function handleResume(supabase: ReturnType<typeof createServiceClient>, body: { customerId?: string }) {
+  const customerId = body.customerId ?? "";
+  if (!customerId) return jsonResponse({ ok: false, error: "customerId is required" }, 400);
+
+  const { error } = await supabase.from("customers").update({ paused_until: null }).eq("id", customerId);
+  if (error) return jsonResponse({ ok: false, error: error.message }, 500);
+
+  return jsonResponse({ ok: true });
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    if (req.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+
+    const staffPasscode = Deno.env.get("STAFF_PASSCODE");
+    if (!staffPasscode) {
+      return jsonResponse({ error: "STAFF_PASSCODE is not configured on the server secrets." }, 500);
+    }
+    if (req.headers.get("x-staff-key") !== staffPasscode) {
+      return jsonResponse({ error: "Unauthorized: Invalid x-staff-key" }, 401);
+    }
+
+    const url = new URL(req.url);
+    const action = url.pathname.replace(/^\/(functions\/v1\/)?staff-reply\//, "");
+    const body = await req.json().catch(() => ({}));
+    const supabase = createServiceClient();
+
+    if (action === "search") return await handleSearch(supabase, body);
+    if (action === "send") return await handleSend(supabase, body);
+    if (action === "resume") return await handleResume(supabase, body);
+
+    return jsonResponse({ error: `Unknown action: ${action}` }, 404);
+  } catch (error) {
+    console.error("[staff-reply] failure:", error);
+    return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});
