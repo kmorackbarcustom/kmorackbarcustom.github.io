@@ -183,7 +183,15 @@ serve(async (req) => {
         settings ??= await getSettings(supabase);
         const rollout = settings.line_ai_rollout ?? "off";
         const isOwner = event.source?.userId === settings.line_ai_owner_uid;
-        if (rollout === "all" || (rollout === "owner_only" && isOwner)) {
+
+        const { data: pauseRow } = await supabase
+          .from("customers")
+          .select("paused_until")
+          .eq("line_uid", event.source?.userId)
+          .maybeSingle();
+        const isPaused = pauseRow?.paused_until && new Date(pauseRow.paused_until).getTime() > Date.now();
+
+        if (!isPaused && (rollout === "all" || (rollout === "owner_only" && isOwner))) {
           if (faqs === null) {
             const { data, error } = await supabase.from("shop_faqs").select("question, answer").order("sort_order");
             if (error) console.error("[line-webhook] shop_faqs lookup failed", error);

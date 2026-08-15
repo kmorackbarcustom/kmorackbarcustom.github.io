@@ -761,6 +761,47 @@ async function handleFridayMessage(update: TelegramUpdate): Promise<Response | n
   return jsonResponse({ ok: true, handled: "friday_message", intent, is_owner: isOwner });
 }
 
+// Staff reply to customers directly through LINE Official Account Manager, which triggers no
+// webhook event line-webhook can see - there's no way to auto-detect "a human just took over".
+// This lets staff explicitly pause/resume the AI for a customer by (partial) LINE display name,
+// the same name they already see in their own OA Manager conversation list.
+async function handlePauseCommand(
+  supabase: ReturnType<typeof createServiceClient>,
+  chatId: number,
+  action: "pause" | "resume",
+  nameQuery: string,
+): Promise<void> {
+  const { data: matches, error } = await supabase
+    .from("customers")
+    .select("id, name, paused_until")
+    .not("line_uid", "is", null)
+    .ilike("name", `%${nameQuery}%`)
+    .limit(6);
+
+  if (error) {
+    await sendTelegramMessage(String(chatId), `⚠️ ค้นหาลูกค้าไม่สำเร็จ: ${escapeHtml(error.message)}`);
+    return;
+  }
+  if (!matches || matches.length === 0) {
+    await sendTelegramMessage(String(chatId), `❌ ไม่พบลูกค้าที่ชื่อมี "${escapeHtml(nameQuery)}"`);
+    return;
+  }
+  if (matches.length > 1) {
+    const names = matches.map((m) => `- ${escapeHtml(m.name)}`).join("\n");
+    await sendTelegramMessage(String(chatId), `เจอหลายรายการ พิมพ์ชื่อให้เจาะจงกว่านี้:\n${names}`);
+    return;
+  }
+
+  const customer = matches[0];
+  const pausedUntil = action === "pause" ? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() : null;
+  await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customer.id);
+
+  const reply = pausedUntil
+    ? `🔇 หยุด AI ตอบ ${escapeHtml(customer.name)} แล้ว 2 ชม. (ถึง ${formatDateTimeThai(new Date(pausedUntil))}) — พิมพ์ /pause ${escapeHtml(nameQuery)} ซ้ำเพื่อขยายเวลา หรือ /resume ${escapeHtml(nameQuery)} เพื่อเปิดกลับก่อนกำหนด`
+    : `🔊 เปิด AI ตอบ ${escapeHtml(customer.name)} กลับมาแล้ว`;
+  await sendTelegramMessage(String(chatId), reply);
+}
+
 serve(async (req) => {
   const functionName = "telegram-webhook";
   console.log(`[${functionName}] Starting...`);
@@ -774,6 +815,14 @@ serve(async (req) => {
     const update = await req.json() as TelegramUpdate;
     // Friday chat replies disabled 2026-07-03 — OpenClaw handles chat in the group now.
     // handleFridayMessage() left intact below in case this needs to flip back on.
+
+    const pauseMatch = update.message?.text?.match(/^\/(pause|resume)\s+(.+)/i);
+    if (pauseMatch && update.message) {
+      const [, action, nameQuery] = pauseMatch;
+      const supabase = createServiceClient();
+      await handlePauseCommand(supabase, update.message.chat.id, action.toLowerCase() as "pause" | "resume", nameQuery.trim());
+      return jsonResponse({ ok: true, handled: "pause_command" });
+    }
 
     const callback = update.callback_query;
     callbackForError = callback;
