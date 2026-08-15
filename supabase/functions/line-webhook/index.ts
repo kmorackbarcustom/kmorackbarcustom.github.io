@@ -76,21 +76,26 @@ function buildSystemPrompt(
     );
   }
   if (products.length > 0) {
+    const line = (p: MatchedProduct) => `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท`;
+    const bookingOnly = products.filter((p) => p.allow_booking && !p.allow_order);
+    const orderOnly = products.filter((p) => p.allow_order && !p.allow_booking);
+    const either = products.filter((p) => p.allow_booking && p.allow_order);
+    const groups: string[] = [];
+    if (bookingOnly.length > 0) {
+      groups.push([`กลุ่ม "ต้องเอารถเข้าร้าน" (ใช้ลิงก์นี้: ${LIFF_BOOKING_URL}):`, ...bookingOnly.map(line)].join("\n"));
+    }
+    if (orderOnly.length > 0) {
+      groups.push([`กลุ่ม "สั่งผลิตได้เลยไม่ต้องเข้าร้าน" (ใช้ลิงก์นี้: ${CUSTOMER_ORDER_URL}):`, ...orderOnly.map(line)].join("\n"));
+    }
+    if (either.length > 0) {
+      groups.push(["กลุ่ม \"จองคิวหรือสั่งผลิตก็ได้\":", ...either.map(line)].join("\n"));
+    }
     parts.push(
       [
-        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้ " +
-          "แต่ละชิ้นระบุไว้แล้วว่าต้องใช้ลิงก์ไหน - ห้ามใช้ลิงก์ผิดประเภทกับสินค้า ถ้าลูกค้าถามหลายชิ้นที่ใช้ลิงก์ต่างกัน ให้แยกอธิบายให้ชัดว่าชิ้นไหนใช้ลิงก์ไหน):",
-        ...products.map((p) => {
-          const link = p.allow_order && p.allow_booking
-            ? "จองคิวหรือสั่งผลิตก็ได้"
-            : p.allow_order
-            ? "สั่งผลิตได้เลย (ใช้ลิงก์สั่งผลิต)"
-            : p.allow_booking
-            ? "ต้องเอารถเข้าร้าน (ใช้ลิงก์จองคิว)"
-            : "สอบถามทีมงาน";
-          return `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท — ${link}`;
-        }),
-      ].join("\n"),
+        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า แบ่งเป็นกลุ่มตามลิงก์ที่ต้องใช้ (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้):",
+        ...groups,
+        "ถ้าลูกค้าถามสินค้าหลายชิ้นที่อยู่คนละกลุ่มในข้อความเดียว ต้องตอบแยกทีละกลุ่มพร้อมลิงก์ของกลุ่มนั้นให้ครบทุกกลุ่มที่เกี่ยวข้อง ห้ามส่งลิงก์เดียวเหมารวมทุกชิ้น",
+      ].join("\n\n"),
     );
   }
   if (queueDays.length > 0) parts.push(formatQueueDensity(queueDays));
