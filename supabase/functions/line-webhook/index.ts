@@ -53,6 +53,17 @@ function formatQueueDensity(queueDays: QueueDay[]): string {
   ].join("\n");
 }
 
+// ponytail: search_products only sees this string, not the full conversation - without recent user
+// turns folded in, a follow-up like "แล้วแร็คท้ายล่ะ" (no brand/model) matches nothing.
+function buildProductSearchMessage(userMessage: string, history: Array<{ role: string; content: string }>): string {
+  const recentUserTurns = history
+    .filter((h) => h.role === "user")
+    .slice(-4)
+    .map((h) => h.content)
+    .join("\n");
+  return [recentUserTurns, userMessage].filter(Boolean).join("\n");
+}
+
 function buildSystemPrompt(
   settings: Record<string, string>,
   faqs: ShopFaq[],
@@ -96,6 +107,12 @@ function buildSystemPrompt(
         ...groups,
         "ถ้าลูกค้าถามสินค้าหลายชิ้นที่อยู่คนละกลุ่มในข้อความเดียว ต้องตอบแยกทีละกลุ่มพร้อมลิงก์ของกลุ่มนั้นให้ครบทุกกลุ่มที่เกี่ยวข้อง ห้ามส่งลิงก์เดียวเหมารวมทุกชิ้น",
       ].join("\n\n"),
+    );
+  } else {
+    // ponytail: when search_products finds nothing, don't let the model guess a link from
+    // conversation history — that's exactly the failure mode this whole block exists to prevent.
+    parts.push(
+      "ไม่พบสินค้าที่ตรงกับข้อความล่าสุด: ถ้าลูกค้าถามว่าจะจอง/สั่งยังไง ห้ามเดาลิงก์เองจากบทสนทนาก่อนหน้า ให้ถามกลับว่าหมายถึงรุ่นรถ/สินค้าอะไร หรือให้ลูกค้าพิมพ์ชื่อสินค้าซ้ำอีกครั้ง",
     );
   }
   if (queueDays.length > 0) parts.push(formatQueueDensity(queueDays));
@@ -190,9 +207,10 @@ serve(async (req) => {
                 };
 
                 try {
+                  const productSearchMessage = buildProductSearchMessage(userMessage, history);
                   const [customerContext, matchedProducts, queueDays] = await Promise.all([
                     getCustomerContext(supabase, session.userId),
-                    supabase.rpc("search_products", { customer_message: userMessage }).then(({ data, error }) => {
+                    supabase.rpc("search_products", { customer_message: productSearchMessage }).then(({ data, error }) => {
                       if (error) console.error("[line-ai] search_products failed", error);
                       return data ?? [];
                     }),
