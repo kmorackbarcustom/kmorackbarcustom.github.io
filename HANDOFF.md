@@ -49,9 +49,11 @@
 
 ---
 
-## ต้องเช็คกับ CEO ก่อนทำอะไรต่อ (ยังไม่เปลี่ยนจากเดิม)
+## Rollout — เปิดให้ลูกค้าจริงทุกคนแล้ว (2026-08-15 13:29 UTC)
 
-- **จะเปิด AI chat ให้ลูกค้าจริงทุกคนหรือยัง?** (`UPDATE system_settings SET value='all' WHERE key='line_ai_rollout'` บน project `xfhpwxjywqgqefbncumm` — ง่าย ไม่ต้อง redeploy) ตอนนี้ข้อมูลสินค้า/ราคาพร้อมแล้ว (340 รายการ มีราคาจริง) พร้อมทดสอบเพิ่มก่อนเปิดจริงได้
+`line_ai_rollout` = `all` แล้ว (เดิม `owner_only`) — CEO สั่งเปิดเองหลังทดสอบ/แก้บั๊ก link routing จนพอใจ AI ตอบแชทลูกค้าจริงทุกคนที่ทักเข้ามาตอนนี้ ไม่ใช่แค่ CEO อีกต่อไป
+
+ถ้าต้องปิดกลับเป็นเฉพาะ CEO: `UPDATE system_settings SET value='owner_only' WHERE key='line_ai_rollout'` บน project `xfhpwxjywqgqefbncumm` (ไม่ต้อง redeploy, มีผลทันที)
 
 ## ของค้างไม่เร่งด่วน
 
