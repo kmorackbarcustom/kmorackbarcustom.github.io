@@ -222,13 +222,13 @@
 <body>
   <main>
     <h1>KMO Product Admin</h1>
-    <p class="muted">เพิ่ม แก้ไข และลบสินค้าใน Supabase table <code>products</code> ผ่าน products-proxy.</p>
+    <p class="muted">เพิ่ม แก้ไข และลบสินค้าใน Supabase table <code>products</code> ผ่าน internal-proxy.</p>
 
     <section class="panel">
       <div class="toolbar">
         <div>
           <h2>Staff passcode</h2>
-          <p class="muted">ใช้ header <code>x-staff-key</code> เพื่อยิงผ่าน products-proxy.</p>
+          <p class="muted">ใช้ header <code>x-staff-key</code> เพื่อยิงผ่าน internal-proxy.</p>
         </div>
         <button type="button" id="clearPasscodeBtn">ล้าง passcode</button>
       </div>
@@ -303,7 +303,7 @@
       <div class="toolbar">
         <div>
           <h2>สินค้าที่มีอยู่</h2>
-          <p class="muted">อ่านตรงจาก Supabase ด้วย anon key. แก้ไข/ลบผ่าน products-proxy.</p>
+          <p class="muted">อ่านตรงจาก Supabase ด้วย anon key. แก้ไข/ลบผ่าน internal-proxy.</p>
         </div>
         <button type="button" id="reloadBtn">โหลดใหม่</button>
       </div>
@@ -313,9 +313,9 @@
   </main>
 
   <script>
-    const SUPA_URL = 'https://ybyseaenceyswjnwdmdf.supabase.co';
-    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlieXNlYWVuY2V5c3dqbndkbWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3OTk3MTgsImV4cCI6MjA4OTM3NTcxOH0.NpaB7XrM0MzTknMvFLKkN57WG7_GkCb9zxZQUROz9Ug';
-    const PRODUCTS_PROXY_URL = `${SUPA_URL}/functions/v1/products-proxy/products`;
+    const SUPA_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+    const PRODUCTS_PROXY_URL = `${SUPA_URL}/functions/v1/internal-proxy/products`;
     const PASSCODE_KEY = 'kmo_products_staff_key';
 
     const form = document.getElementById('productForm');
@@ -441,7 +441,7 @@
 
       const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
       const objectPath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const uploadUrl = `${SUPA_URL}/functions/v1/products-proxy/storage/product-images/${objectPath}`;
+      const uploadUrl = `${SUPA_URL}/functions/v1/internal-proxy/storage/v1/object/product-images/${objectPath}`;
 
       setStatus(imageUploadStatus, 'กำลังอัปโหลดรูป...', '');
       try {

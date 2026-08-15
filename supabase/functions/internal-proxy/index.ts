@@ -21,6 +21,7 @@ const allowedPaths = [
   "bookings",
   "vehicle_intake_forms",
   "shop_faqs",
+  "products",
   "rpc/update_order_status",
   "rpc/update_shopee_deadline",
   "rpc/get_schedule_health",
@@ -37,6 +38,11 @@ function isPathAllowed(path: string): boolean {
 
   // vehicle-intake tool อัปโหลด/ลบ/ดูรูปผ่าน proxy เพราะ bucket เป็น private
   if (cleanPath.startsWith("storage/v1/object/vehicle-intake-images")) {
+    return true;
+  }
+
+  // admin-products.html อัปโหลดรูปสินค้าผ่าน proxy เหมือนกัน (bucket public แต่ upload ต้อง service role)
+  if (cleanPath.startsWith("storage/v1/object/product-images")) {
     return true;
   }
 
