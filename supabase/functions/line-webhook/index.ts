@@ -29,7 +29,15 @@ const LINE_AI_SAFETY_RULES = [
 ].join("\n");
 
 type ShopFaq = { question: string; answer: string };
-type MatchedProduct = { brand: string | null; model: string | null; name: string; price: number; category: string };
+type MatchedProduct = {
+  brand: string | null;
+  model: string | null;
+  name: string;
+  price: number;
+  category: string;
+  allow_booking: boolean;
+  allow_order: boolean;
+};
 type QueueDay = { work_date: string; units: number; is_over_capacity: boolean };
 
 function formatQueueDensity(queueDays: QueueDay[]): string {
@@ -70,8 +78,18 @@ function buildSystemPrompt(
   if (products.length > 0) {
     parts.push(
       [
-        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้):",
-        ...products.map((p) => `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท`),
+        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้ " +
+          "แต่ละชิ้นระบุไว้แล้วว่าต้องใช้ลิงก์ไหน - ห้ามใช้ลิงก์ผิดประเภทกับสินค้า ถ้าลูกค้าถามหลายชิ้นที่ใช้ลิงก์ต่างกัน ให้แยกอธิบายให้ชัดว่าชิ้นไหนใช้ลิงก์ไหน):",
+        ...products.map((p) => {
+          const link = p.allow_order && p.allow_booking
+            ? "จองคิวหรือสั่งผลิตก็ได้"
+            : p.allow_order
+            ? "สั่งผลิตได้เลย (ใช้ลิงก์สั่งผลิต)"
+            : p.allow_booking
+            ? "ต้องเอารถเข้าร้าน (ใช้ลิงก์จองคิว)"
+            : "สอบถามทีมงาน";
+          return `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท — ${link}`;
+        }),
       ].join("\n"),
     );
   }
