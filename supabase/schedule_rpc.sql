@@ -1,5 +1,11 @@
 -- KMO production scheduling RPCs
 -- Run this in the Supabase SQL editor for project xfhpwxjywqgqefbncumm.
+--
+-- ⚠️ Before re-running this whole file: functions here are also edited piecemeal
+-- via supabase/migrations/*.sql. Diff each function below against its latest
+-- migration first, or a re-run will silently revert those changes (no error —
+-- CREATE OR REPLACE just overwrites). Last synced: 2026-08-15 (line_user_id /
+-- line_linked_at from 20260814130000_order_capture_line_uid.sql).
 
 create extension if not exists pgcrypto;
 
@@ -356,7 +362,8 @@ begin
       customer_name, contact, channel, brand, model, items, color, unit,
       payment_type, delivery_type, delivery_address, status, priority,
       shopee_order_id, shopee_deadline, due_date, order_id,
-      cart_meta, estimated_total, source_page
+      cart_meta, estimated_total, source_page,
+      line_user_id, line_linked_at
     )
     values (
       coalesce(p_payload->>'customer_name', case when p_is_shopee then 'Shopee' else null end),
@@ -378,7 +385,9 @@ begin
       v_order_id,
       p_payload->'cart_meta',
       nullif(p_payload->>'estimated_total', '')::numeric,
-      nullif(p_payload->>'source_page', '')
+      nullif(p_payload->>'source_page', ''),
+      nullif(p_payload->>'line_user_id', ''),
+      case when nullif(p_payload->>'line_user_id', '') is not null then now() else null end
     )
     returning id into v_id;
   else
@@ -386,7 +395,8 @@ begin
       customer_name, contact, channel, brand, model, items, color, unit,
       payment_type, delivery_type, delivery_address, status, priority,
       shopee_order_id, shopee_deadline, due_date, order_id,
-      cart_meta, estimated_total, source_page
+      cart_meta, estimated_total, source_page,
+      line_user_id, line_linked_at
     )
     values (
       coalesce(p_payload->>'customer_name', case when p_is_shopee then 'Shopee' else null end),
@@ -408,7 +418,9 @@ begin
       v_order_id,
       p_payload->'cart_meta',
       nullif(p_payload->>'estimated_total', '')::numeric,
-      nullif(p_payload->>'source_page', '')
+      nullif(p_payload->>'source_page', ''),
+      nullif(p_payload->>'line_user_id', ''),
+      case when nullif(p_payload->>'line_user_id', '') is not null then now() else null end
     )
     returning id into v_id;
   end if;
