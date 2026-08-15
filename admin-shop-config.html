@@ -211,6 +211,10 @@
           <label for="shop_hours">เวลาเปิด-ปิด/วันหยุด</label>
           <input id="shop_hours" name="shop_hours" autocomplete="off">
         </div>
+        <div>
+          <label for="session_ttl_hours">AI จำบทสนทนาได้กี่ชั่วโมง (ลูกค้าเงียบเกินนี้ = เริ่มใหม่)</label>
+          <input id="session_ttl_hours" name="session_ttl_hours" type="number" min="1" step="1" value="6">
+        </div>
         <div class="full">
           <div class="button-row">
             <button type="submit" id="shopInfoSubmitBtn">บันทึกข้อมูลร้าน</button>
@@ -273,7 +277,7 @@
     const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
     const PROXY_URL = `${SUPA_URL}/functions/v1/internal-proxy`;
     const PASSCODE_KEY = 'kmo_shop_config_staff_key';
-    const SHOP_INFO_KEYS = ['shop_name', 'shop_description', 'shop_address', 'shop_contact', 'shop_hours'];
+    const SHOP_INFO_KEYS = ['shop_name', 'shop_description', 'shop_address', 'shop_contact', 'shop_hours', 'session_ttl_hours'];
 
     const passcodeInput = document.getElementById('staffPasscode');
     const shopInfoForm = document.getElementById('shopInfoForm');

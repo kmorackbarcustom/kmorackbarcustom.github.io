@@ -4,7 +4,7 @@ import type { SessionStore, UserSession } from "./vendor/line-oa-ai-module/core/
 export class PostgresSessionStore implements SessionStore {
   constructor(
     private supabase: ReturnType<typeof createServiceClient>,
-    // ponytail: mirrors StateManager's in-memory default so Postgres sessions expire the same way; bump if 30min is too short for real conversations
+    // ponytail: fallback only - line-webhook normally passes settings.session_ttl_hours (admin-editable) explicitly
     private ttlMs = 1000 * 60 * 30
   ) {}
 

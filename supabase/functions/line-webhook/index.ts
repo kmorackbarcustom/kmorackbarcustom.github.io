@@ -56,12 +56,13 @@ function formatQueueDensity(queueDays: QueueDay[]): string {
 // ponytail: search_products only sees this string, not the full conversation - without recent user
 // turns folded in, a follow-up like "แล้วแร็คท้ายล่ะ" (no brand/model) matches nothing.
 function buildProductSearchMessage(userMessage: string, history: Array<{ role: string; content: string }>): string {
-  const recentUserTurns = history
+  // no extra cap here - `history` is already bounded to 20 messages total by StateManager.appendHistory,
+  // so this covers everything the model itself can still "remember" in the session, not just recent turns.
+  const allUserTurns = history
     .filter((h) => h.role === "user")
-    .slice(-4)
     .map((h) => h.content)
     .join("\n");
-  return [recentUserTurns, userMessage].filter(Boolean).join("\n");
+  return [allUserTurns, userMessage].filter(Boolean).join("\n");
 }
 
 function buildSystemPrompt(
@@ -194,7 +195,10 @@ serve(async (req) => {
               channelSecret: Deno.env.get("LINE_CHANNEL_SECRET") ?? "",
             },
             {
-              stateStore: new PostgresSessionStore(supabase),
+              stateStore: new PostgresSessionStore(
+                supabase,
+                (Number(settings?.session_ttl_hours) || 6) * 60 * 60 * 1000,
+              ),
               aiAdapter: new PromptBasedAiAdapter(async ({ userMessage, session, history }) => {
                 const notifyIfNeeded = async (replyText: string) => {
                   const chatId = settings?.telegram_group_chat_id;
