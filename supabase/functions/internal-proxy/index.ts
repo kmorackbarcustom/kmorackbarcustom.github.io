@@ -20,10 +20,12 @@ const allowedPaths = [
   "orders",
   "bookings",
   "vehicle_intake_forms",
+  "shop_faqs",
   "rpc/update_order_status",
   "rpc/update_shopee_deadline",
   "rpc/get_schedule_health",
   "rpc/match_and_link_uid",
+  "rpc/update_shop_config_setting",
 ];
 
 function isPathAllowed(path: string): boolean {

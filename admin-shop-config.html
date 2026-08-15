@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMO Shop Config Admin</title>
+  <style>
+    :root {
+      --bg: #101214;
+      --panel: #181b1f;
+      --border: #30343a;
+      --text: #f5f5f5;
+      --muted: #a8adb5;
+      --accent: #ffcf07;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(900px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    h1, h2 {
+      margin: 0 0 12px;
+      line-height: 1.25;
+    }
+
+    .muted { color: var(--muted); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .full { grid-column: 1 / -1; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, textarea {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0c0e10;
+      color: var(--text);
+      padding: 9px 10px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #050505;
+      font-weight: 700;
+      padding: 0 18px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .secondary-btn {
+      background: #2a2f36;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .danger-btn {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .small-btn {
+      min-height: 34px;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #0c0e10;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    .status.error {
+      border-color: var(--danger);
+      color: #fecaca;
+    }
+
+    .status.success {
+      border-color: var(--success);
+      color: #bbf7d0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>KMO Shop Config Admin</h1>
+    <p class="muted">แก้ข้อมูลร้าน / โทน AI / FAQ ที่ AI chat ใช้ตอบลูกค้า ผ่าน internal-proxy</p>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div>
+          <h2>Staff passcode</h2>
+          <p class="muted">ใช้ header <code>x-staff-key</code> เพื่อยิงผ่าน internal-proxy</p>
+        </div>
+        <button type="button" id="clearPasscodeBtn">ล้าง passcode</button>
+      </div>
+      <label for="staffPasscode">รหัสพนักงาน</label>
+      <input id="staffPasscode" type="password" autocomplete="current-password" placeholder="กรอกรหัสร้านก่อนแก้ข้อมูล">
+    </section>
+
+    <section class="panel">
+      <h2>ข้อมูลร้าน</h2>
+      <form id="shopInfoForm" class="grid">
+        <div class="full">
+          <label for="shop_name">ชื่อร้าน</label>
+          <input id="shop_name" name="shop_name" autocomplete="off">
+        </div>
+        <div class="full">
+          <label for="shop_description">คำอธิบายร้าน</label>
+          <input id="shop_description" name="shop_description" autocomplete="off">
+        </div>
+        <div class="full">
+          <label for="shop_address">ที่อยู่/พื้นที่ให้บริการ</label>
+          <input id="shop_address" name="shop_address" autocomplete="off">
+        </div>
+        <div>
+          <label for="shop_contact">เบอร์/ช่องทางติดต่อ</label>
+          <input id="shop_contact" name="shop_contact" autocomplete="off">
+        </div>
+        <div>
+          <label for="shop_hours">เวลาเปิด-ปิด/วันหยุด</label>
+          <input id="shop_hours" name="shop_hours" autocomplete="off">
+        </div>
+        <div class="full">
+          <div class="button-row">
+            <button type="submit" id="shopInfoSubmitBtn">บันทึกข้อมูลร้าน</button>
+            <button type="button" id="shopInfoReloadBtn" class="secondary-btn">โหลดใหม่</button>
+          </div>
+          <div id="shopInfoStatus" class="status" hidden></div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>โทนการตอบของ AI</h2>
+      <p class="muted">เช่น เรียกลูกค้าว่าอะไร, ห้ามตอบเรื่องอะไรเพิ่มเติม, กฎเฉพาะร้าน (กฎความปลอดภัยหลัก เช่น ห้ามยืนยันจองคิวสำเร็จ ถูกล็อกไว้ในโค้ดแล้ว ไม่ต้องใส่ซ้ำ)</p>
+      <form id="personaForm">
+        <textarea id="ai_persona_prompt" name="ai_persona_prompt" rows="6"></textarea>
+        <div class="button-row" style="margin-top: 10px;">
+          <button type="submit" id="personaSubmitBtn">บันทึกโทนการตอบ</button>
+        </div>
+        <div id="personaStatus" class="status" hidden></div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2 id="faqFormTitle">เพิ่ม FAQ</h2>
+      <form id="faqForm" class="grid">
+        <div class="full">
+          <label for="faqQuestion">คำถาม *</label>
+          <input id="faqQuestion" name="question" required autocomplete="off">
+        </div>
+        <div class="full">
+          <label for="faqAnswer">คำตอบมาตรฐาน *</label>
+          <textarea id="faqAnswer" name="answer" required></textarea>
+        </div>
+        <div>
+          <label for="faqSortOrder">ลำดับ (ตัวเลขน้อยขึ้นก่อน)</label>
+          <input id="faqSortOrder" name="sort_order" type="number" value="0">
+        </div>
+        <div class="full">
+          <div class="button-row">
+            <button type="submit" id="faqSubmitBtn">เพิ่ม FAQ</button>
+            <button type="button" id="faqCancelEditBtn" class="secondary-btn" hidden>ยกเลิกแก้ไข</button>
+          </div>
+          <div id="faqFormStatus" class="status" hidden></div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <h2>FAQ ที่มีอยู่</h2>
+        <button type="button" id="faqReloadBtn">โหลดใหม่</button>
+      </div>
+      <div id="faqListStatus" class="status">กำลังโหลด...</div>
+      <div id="faqList"></div>
+    </section>
+  </main>
+
+  <script>
+    const SUPA_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
+    const PROXY_URL = `${SUPA_URL}/functions/v1/internal-proxy`;
+    const PASSCODE_KEY = 'kmo_shop_config_staff_key';
+    const SHOP_INFO_KEYS = ['shop_name', 'shop_description', 'shop_address', 'shop_contact', 'shop_hours'];
+
+    const passcodeInput = document.getElementById('staffPasscode');
+    const shopInfoForm = document.getElementById('shopInfoForm');
+    const shopInfoStatus = document.getElementById('shopInfoStatus');
+    const personaForm = document.getElementById('personaForm');
+    const personaStatus = document.getElementById('personaStatus');
+    const faqForm = document.getElementById('faqForm');
+    const faqFormStatus = document.getElementById('faqFormStatus');
+    const faqFormTitle = document.getElementById('faqFormTitle');
+    const faqSubmitBtn = document.getElementById('faqSubmitBtn');
+    const faqCancelEditBtn = document.getElementById('faqCancelEditBtn');
+    const faqListStatus = document.getElementById('faqListStatus');
+    const faqList = document.getElementById('faqList');
+    let editingFaqId = null;
+
+    passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
+
+    document.getElementById('clearPasscodeBtn').addEventListener('click', () => {
+      sessionStorage.removeItem(PASSCODE_KEY);
+      localStorage.removeItem(PASSCODE_KEY);
+      passcodeInput.value = '';
+      setStatus(shopInfoStatus, 'ล้าง passcode แล้ว', 'success');
+    });
+
+    passcodeInput.addEventListener('change', () => {
+      const value = passcodeInput.value.trim();
+      if (value) {
+        sessionStorage.setItem(PASSCODE_KEY, value);
+        localStorage.setItem(PASSCODE_KEY, value);
+      }
+    });
+
+    function requireStaffKey(statusEl) {
+      const staffKey = passcodeInput.value.trim();
+      if (!staffKey) {
+        setStatus(statusEl, 'กรุณากรอก staff passcode ก่อน', 'error');
+        passcodeInput.focus();
+        return null;
+      }
+      return staffKey;
+    }
+
+    async function proxyFetch(path, options, staffKey) {
+      const res = await fetch(`${PROXY_URL}/${path}`, {
+        ...options,
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Content-Type': 'application/json',
+          'x-staff-key': staffKey,
+          ...(options.headers || {}),
+        },
+      });
+      if (res.status === 401) {
+        sessionStorage.removeItem(PASSCODE_KEY);
+        localStorage.removeItem(PASSCODE_KEY);
+        throw new Error('รหัสพนักงานไม่ถูกต้อง');
+      }
+      if (!res.ok) throw new Error(await res.text());
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    async function loadShopInfo() {
+      setStatus(shopInfoStatus, 'กำลังโหลด...', '');
+      try {
+        const keys = SHOP_INFO_KEYS.join(',');
+        const res = await fetch(`${PROXY_URL}/system_settings?select=key,value&key=in.(${keys})`, {
+          headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'x-staff-key': passcodeInput.value.trim() || 'x' },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        for (const row of rows) {
+          const el = shopInfoForm.elements[row.key];
+          if (el) el.value = row.value || '';
+        }
+        setStatus(shopInfoStatus, 'โหลดข้อมูลร้านแล้ว', 'success');
+
+        const personaRes = await fetch(`${PROXY_URL}/system_settings?select=key,value&key=eq.ai_persona_prompt`, {
+          headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'x-staff-key': passcodeInput.value.trim() || 'x' },
+        });
+        if (personaRes.ok) {
+          const personaRows = await personaRes.json();
+          document.getElementById('ai_persona_prompt').value = personaRows[0]?.value || '';
+        }
+      } catch (error) {
+        setStatus(shopInfoStatus, `โหลดข้อมูลไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    document.getElementById('shopInfoReloadBtn').addEventListener('click', loadShopInfo);
+
+    shopInfoForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const staffKey = requireStaffKey(shopInfoStatus);
+      if (!staffKey) return;
+
+      setStatus(shopInfoStatus, 'กำลังบันทึก...', '');
+      try {
+        await Promise.all(SHOP_INFO_KEYS.map((key) =>
+          proxyFetch('rpc/update_shop_config_setting', {
+            method: 'POST',
+            body: JSON.stringify({ setting_key: key, setting_value: clean(shopInfoForm.elements[key].value) }),
+          }, staffKey)
+        ));
+        setStatus(shopInfoStatus, 'บันทึกข้อมูลร้านแล้ว', 'success');
+      } catch (error) {
+        setStatus(shopInfoStatus, `บันทึกไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    });
+
+    personaForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const staffKey = requireStaffKey(personaStatus);
+      if (!staffKey) return;
+
+      setStatus(personaStatus, 'กำลังบันทึก...', '');
+      try {
+        await proxyFetch('rpc/update_shop_config_setting', {
+          method: 'POST',
+          body: JSON.stringify({ setting_key: 'ai_persona_prompt', setting_value: clean(document.getElementById('ai_persona_prompt').value) }),
+        }, staffKey);
+        setStatus(personaStatus, 'บันทึกโทนการตอบแล้ว', 'success');
+      } catch (error) {
+        setStatus(personaStatus, `บันทึกไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    });
+
+    faqForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const staffKey = requireStaffKey(faqFormStatus);
+      if (!staffKey) return;
+
+      const payload = {
+        question: clean(faqForm.elements.question.value),
+        answer: clean(faqForm.elements.answer.value),
+        sort_order: Number.parseInt(faqForm.elements.sort_order.value, 10) || 0,
+      };
+      if (!payload.question || !payload.answer) {
+        setStatus(faqFormStatus, 'ต้องกรอกคำถามและคำตอบ', 'error');
+        return;
+      }
+
+      const isEditing = Boolean(editingFaqId);
+      setStatus(faqFormStatus, isEditing ? 'กำลังบันทึกการแก้ไข...' : 'กำลังเพิ่ม FAQ...', '');
+      try {
+        await proxyFetch(
+          isEditing ? `shop_faqs?id=eq.${encodeURIComponent(editingFaqId)}` : 'shop_faqs',
+          { method: isEditing ? 'PATCH' : 'POST', headers: { 'Prefer': 'return=representation' }, body: JSON.stringify(payload) },
+          staffKey,
+        );
+        setStatus(faqFormStatus, isEditing ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่ม FAQ แล้ว', 'success');
+        resetFaqForm();
+        await loadFaqs();
+      } catch (error) {
+        setStatus(faqFormStatus, `${isEditing ? 'บันทึกการแก้ไข' : 'เพิ่ม FAQ'}ไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    });
+
+    faqCancelEditBtn.addEventListener('click', resetFaqForm);
+    document.getElementById('faqReloadBtn').addEventListener('click', loadFaqs);
+
+    function resetFaqForm() {
+      editingFaqId = null;
+      faqFormTitle.textContent = 'เพิ่ม FAQ';
+      faqSubmitBtn.textContent = 'เพิ่ม FAQ';
+      faqCancelEditBtn.hidden = true;
+      faqForm.reset();
+      document.getElementById('faqSortOrder').value = '0';
+    }
+
+    async function loadFaqs() {
+      setStatus(faqListStatus, 'กำลังโหลด...', '');
+      try {
+        const res = await fetch(`${PROXY_URL}/shop_faqs?select=*&order=sort_order.asc`, {
+          headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'x-staff-key': passcodeInput.value.trim() || 'x' },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const faqs = await res.json();
+        renderFaqList(faqs);
+        setStatus(faqListStatus, `โหลด FAQ ${faqs.length.toLocaleString('th-TH')} รายการ`, 'success');
+      } catch (error) {
+        faqList.replaceChildren();
+        setStatus(faqListStatus, `โหลด FAQ ไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    function renderFaqList(faqs) {
+      faqList.replaceChildren();
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr><th>ลำดับ</th><th>คำถาม</th><th>คำตอบ</th><th>จัดการ</th></tr>';
+      const tbody = document.createElement('tbody');
+
+      faqs.forEach((faq) => {
+        const tr = document.createElement('tr');
+        tr.append(cell(faq.sort_order), cell(faq.question), cell(faq.answer), actionCell(faq));
+        tbody.appendChild(tr);
+      });
+
+      table.append(thead, tbody);
+      faqList.appendChild(table);
+    }
+
+    function actionCell(faq) {
+      const td = document.createElement('td');
+      const wrap = document.createElement('div');
+      wrap.className = 'button-row';
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'secondary-btn small-btn';
+      editBtn.textContent = 'แก้ไข';
+      editBtn.addEventListener('click', () => startEditFaq(faq));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'danger-btn small-btn';
+      deleteBtn.textContent = 'ลบ';
+      deleteBtn.addEventListener('click', () => deleteFaq(faq.id, faq.question));
+
+      wrap.append(editBtn, deleteBtn);
+      td.appendChild(wrap);
+      return td;
+    }
+
+    function startEditFaq(faq) {
+      editingFaqId = faq.id;
+      faqFormTitle.textContent = 'แก้ไข FAQ';
+      faqSubmitBtn.textContent = 'บันทึกการแก้ไข';
+      faqCancelEditBtn.hidden = false;
+      faqForm.elements.question.value = faq.question || '';
+      faqForm.elements.answer.value = faq.answer || '';
+      faqForm.elements.sort_order.value = faq.sort_order ?? 0;
+      faqForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function deleteFaq(faqId, question) {
+      const staffKey = requireStaffKey(faqFormStatus);
+      if (!staffKey) return;
+      if (!confirm(`ลบ FAQ "${question}"?\n\nการลบนี้ย้อนกลับไม่ได้`)) return;
+
+      setStatus(faqFormStatus, 'กำลังลบ FAQ...', '');
+      try {
+        await proxyFetch(`shop_faqs?id=eq.${encodeURIComponent(faqId)}`, { method: 'DELETE' }, staffKey);
+        if (editingFaqId === faqId) resetFaqForm();
+        setStatus(faqFormStatus, 'ลบ FAQ แล้ว', 'success');
+        await loadFaqs();
+      } catch (error) {
+        setStatus(faqFormStatus, `ลบ FAQ ไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    function clean(value) {
+      return String(value || '').trim();
+    }
+
+    function cell(value) {
+      const td = document.createElement('td');
+      td.textContent = value === 0 ? '0' : (value || '-');
+      return td;
+    }
+
+    function setStatus(el, message, type) {
+      el.hidden = false;
+      el.className = `status${type ? ` ${type}` : ''}`;
+      el.textContent = message;
+    }
+
+    loadShopInfo();
+    loadFaqs();
+  </script>
+</body>
+</html>
