@@ -2,7 +2,11 @@ import { createServiceClient } from "./database.ts";
 import type { SessionStore, UserSession } from "./vendor/line-oa-ai-module/core/types.ts";
 
 export class PostgresSessionStore implements SessionStore {
-  constructor(private supabase: ReturnType<typeof createServiceClient>) {}
+  constructor(
+    private supabase: ReturnType<typeof createServiceClient>,
+    // ponytail: mirrors StateManager's in-memory default so Postgres sessions expire the same way; bump if 30min is too short for real conversations
+    private ttlMs = 1000 * 60 * 30
+  ) {}
 
   async get(userId: string): Promise<UserSession | null> {
     const { data, error } = await this.supabase
@@ -18,17 +22,19 @@ export class PostgresSessionStore implements SessionStore {
 
     if (!data) return null;
 
+    const lastInteraction = new Date(data.last_interaction).getTime();
+    if (Date.now() - lastInteraction > this.ttlMs) return null;
+
     return {
       userId: data.user_id,
       state: data.state,
       contextData: data.context_data ?? {},
       history: data.history ?? [],
-      lastInteraction: new Date(data.last_interaction).getTime(),
+      lastInteraction,
     };
   }
 
   async set(userId: string, session: UserSession, _ttlMs?: number): Promise<void> {
-    // Known v1 simplification: TTL is not enforced server-side for this low-volume session table.
     const { error } = await this.supabase.from("line_chat_sessions").upsert({
       user_id: userId,
       state: session.state,
