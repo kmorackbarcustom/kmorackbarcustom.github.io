@@ -71,7 +71,7 @@ export class StateManager {
   public async appendHistory(
     userId: string,
     message: ChatMessageHistory,
-    maxHistory = 20
+    maxHistory = 40
   ): Promise<UserSession> {
     const session = await this.getSession(userId);
     session.history.push(message);
