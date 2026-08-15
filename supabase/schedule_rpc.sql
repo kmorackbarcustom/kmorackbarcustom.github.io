@@ -5,7 +5,9 @@
 -- via supabase/migrations/*.sql. Diff each function below against its latest
 -- migration first, or a re-run will silently revert those changes (no error —
 -- CREATE OR REPLACE just overwrites). Last synced: 2026-08-15 (line_user_id /
--- line_linked_at from 20260814130000_order_capture_line_uid.sql).
+-- line_linked_at from 20260814130000_order_capture_line_uid.sql; kmo_day_has_capacity
+-- cap + rebuild_production_schedule fair-queue rewrite from
+-- 20260815130000_shopee_fair_queue_cap_increase.sql).
 
 create extension if not exists pgcrypto;
 
@@ -78,7 +80,7 @@ language sql
 stable
 set search_path = public, pg_temp
 as $$
-  select coalesce((select sum(pa.units) from public.production_allocations pa where pa.work_date = p_day), 0) + p_units <= 2.5;
+  select coalesce((select sum(pa.units) from public.production_allocations pa where pa.work_date = p_day), 0) + p_units <= 3.0;
 $$;
 
 create or replace function public.kmo_daily_allocation_units(p_units numeric)
@@ -205,10 +207,11 @@ begin
   -- orders never leave stale capacity behind.
   delete from public.production_allocations where true;
 
+  -- Step 1: in_progress Shopee orders - keep deadline-driven schedule.
   for v_order in
     select o.*
     from public.orders o
-    where o.status in ('pending', 'in_progress')
+    where o.status = 'in_progress'
       and (o.channel = 'Shopee' or o.priority = 'shopee')
     order by public.kmo_order_effective_due(o), o.created_at, o.id
   loop
@@ -251,6 +254,7 @@ begin
     end if;
   end loop;
 
+  -- Step 2: in_progress non-Shopee - keep committed schedule.
   for v_order in
     select *
     from public.orders
@@ -284,12 +288,12 @@ begin
     end if;
   end loop;
 
+  -- Step 3: ALL pending orders, any channel, FIFO by created_at.
+  -- Replaces the old "Shopee always first" phase with fairness by default.
   for v_order in
     select *
     from public.orders
     where status = 'pending'
-      and coalesce(channel, '') <> 'Shopee'
-      and coalesce(priority, '') <> 'shopee'
     order by created_at, id
   loop
     select *
@@ -307,6 +311,52 @@ begin
             due_date = v_alloc.due_date
       where id = v_order.id;
       v_changed_count := v_changed_count + 1;
+    end if;
+  end loop;
+
+  -- Step 4: protection sweep - pull forward any pending Shopee order whose
+  -- FIFO slot would miss its platform deadline. Most urgent first. This is
+  -- the only place Shopee still jumps the queue, and only when necessary.
+  for v_order in
+    select *
+    from public.orders
+    where status = 'pending'
+      and (channel = 'Shopee' or priority = 'shopee')
+      and shopee_deadline is not null
+      and (due_date is null or due_date > shopee_deadline)
+    order by shopee_deadline, created_at, id
+  loop
+    delete from public.production_allocations where order_id = v_order.id;
+
+    if coalesce(v_order.unit, 0) > 0 then
+      begin
+        select *
+          into v_alloc
+        from public.kmo_allocate_backward(v_order.id, v_order.unit, v_order.shopee_deadline, 'shopee');
+
+        update public.orders
+          set start_date = v_alloc.start_date,
+              due_date = v_order.shopee_deadline
+        where id = v_order.id;
+      exception when others then
+        for v_due in
+          select generate_series(
+            greatest(public.kmo_today(), v_order.shopee_deadline - (public.kmo_production_days(v_order.unit) - 1)),
+            v_order.shopee_deadline,
+            interval '1 day'
+          )::date
+        loop
+          insert into public.production_allocations (order_id, work_date, units, source)
+          values (v_order.id, v_due, public.kmo_daily_allocation_units(v_order.unit), 'shopee')
+          on conflict (order_id, work_date)
+          do update set units = excluded.units;
+        end loop;
+
+        update public.orders
+          set start_date = greatest(public.kmo_today(), v_order.shopee_deadline - (public.kmo_production_days(v_order.unit) - 1)),
+              due_date = v_order.shopee_deadline
+        where id = v_order.id;
+      end;
     end if;
   end loop;
 

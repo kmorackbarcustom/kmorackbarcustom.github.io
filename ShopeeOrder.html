@@ -138,8 +138,8 @@ function renderForm() {
 
     ${S.error ? `<div style="background:#ef444418;border:1px solid #ef444440;border-radius:10px;padding:10px 14px;font-size:12px;color:#ef4444;margin-top:12px">❌ ${esc(S.error)}</div>` : ''}
 
-    <button id="btn-submit" class="btn-primary" ${canSubmit()?'':'disabled'} style="background:${canSubmit()?'#06C755':'#1e3d2a'};color:${canSubmit()?'#fff':'#4a6080'}">
-      ✓ บันทึก Shopee Order
+    <button id="btn-submit" class="btn-primary" ${(canSubmit()&&!S.loading)?'':'disabled'} style="background:${(canSubmit()&&!S.loading)?'#06C755':'#1e3d2a'};color:${(canSubmit()&&!S.loading)?'#fff':'#4a6080'}">
+      ${S.loading?'กำลังบันทึก...':'✓ บันทึก Shopee Order'}
     </button>
   `;
 }
