@@ -189,6 +189,19 @@ serve(async (req) => {
           .select("paused_until")
           .eq("line_uid", event.source?.userId)
           .maybeSingle();
+
+        // Existing followers who never re-triggered a "follow" event (only new
+        // followers get upserted above) had no customers row at all, so staff
+        // could never find/pause them by name. Backfill on their first message.
+        if (!pauseRow) {
+          const profile = await getProfile(event.source?.userId);
+          const { error } = await supabase.from("customers").upsert(
+            { line_uid: event.source?.userId, platform: "line", name: profile?.displayName ?? "LINE User", phone: "" },
+            { onConflict: "line_uid" },
+          );
+          if (error) console.error("[line-webhook] customers backfill upsert failed", error);
+        }
+
         const isPaused = pauseRow?.paused_until && new Date(pauseRow.paused_until).getTime() > Date.now();
 
         if (!isPaused && (rollout === "all" || (rollout === "owner_only" && isOwner))) {
