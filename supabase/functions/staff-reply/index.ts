@@ -98,12 +98,25 @@ async function handleResume(
   return jsonResponse({ ok: true });
 }
 
-async function handleAuditHistory(audit: ReturnType<typeof createAuditLog>, body: { customerId?: string }) {
+async function handleAuditHistory(
+  supabase: ReturnType<typeof createServiceClient>,
+  audit: ReturnType<typeof createAuditLog>,
+  body: { customerId?: string },
+) {
   const customerId = body.customerId ?? "";
-  if (!customerId) return jsonResponse({ ok: false, error: "customerId is required" }, 400);
-  const result = await audit.query({ entity: { type: "customer", id: customerId }, limit: 50 });
+  const filters = customerId ? { entity: { type: "customer", id: customerId }, limit: 50 } : { limit: 50 };
+  const result = await audit.query(filters);
   if (!result.success) return jsonResponse({ ok: false, error: result.error?.message ?? "query_failed" }, 500);
-  return jsonResponse({ ok: true, records: result.records, total: result.total });
+
+  const records = result.records ?? [];
+  const ids = [...new Set(records.map((r) => r.entity.id))];
+  const { data: customers } = ids.length
+    ? await supabase.from("customers").select("id, name").in("id", ids)
+    : { data: [] };
+  const nameById = Object.fromEntries((customers ?? []).map((c) => [c.id, c.name]));
+  const withNames = records.map((r) => ({ ...r, customerName: nameById[r.entity.id] ?? null }));
+
+  return jsonResponse({ ok: true, records: withNames, total: result.total });
 }
 
 serve(async (req) => {
@@ -133,7 +146,7 @@ serve(async (req) => {
     if (action === "list") return await handleList(supabase);
     if (action === "send") return await handleSend(supabase, audit, body);
     if (action === "resume") return await handleResume(supabase, audit, body);
-    if (action === "audit-log") return await handleAuditHistory(audit, body);
+    if (action === "audit-log") return await handleAuditHistory(supabase, audit, body);
 
     return jsonResponse({ error: `Unknown action: ${action}` }, 404);
   } catch (error) {
