@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { CALLBACK_STATUS_MAP, addDays, dateOnlyInBangkok, diffDays, isStopStatus, TIME_ZONE } from "../_shared/constants.ts";
 import { createServiceClient, getSettings, jsonResponse } from "../_shared/database.ts";
+import { SupabaseAuditStore } from "../_shared/audit-log-store.ts";
 import { escapeHtml, formatDateThai, formatDateTimeThai, formatItems } from "../_shared/formatters.ts";
 import { fallbackFridayReply, generateFridayReply, hasGeminiKey } from "../_shared/gemini.ts";
 import { answerCallbackQuery, editMessageReplyMarkup, sendTelegramMessage } from "../_shared/telegram.ts";
+import { createAuditLog } from "../_shared/vendor/audit-log/core/index.ts";
 
 type TelegramUpdate = {
   message?: {
@@ -767,6 +769,8 @@ async function handleFridayMessage(update: TelegramUpdate): Promise<Response | n
 // the same name they already see in their own OA Manager conversation list.
 async function handlePauseCommand(
   supabase: ReturnType<typeof createServiceClient>,
+  audit: ReturnType<typeof createAuditLog>,
+  actor: { firstName?: string; username?: string },
   chatId: number,
   action: "pause" | "resume",
   nameQuery: string,
@@ -794,7 +798,20 @@ async function handlePauseCommand(
 
   const customer = matches[0];
   const pausedUntil = action === "pause" ? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() : null;
-  await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customer.id);
+  const { error: updateError } = await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customer.id);
+  if (updateError) {
+    await sendTelegramMessage(String(chatId), `⚠️ อัปเดตสถานะ AI ไม่สำเร็จ: ${escapeHtml(updateError.message)}`);
+    return;
+  }
+
+  const auditResult = await audit.record({
+    actor: { type: "staff", ...(actor.username || actor.firstName ? { id: actor.username ?? actor.firstName } : {}) },
+    action: action === "pause" ? "customer.ai_paused" : "customer.ai_resumed",
+    entity: { type: "customer", id: customer.id },
+    after: { pausedUntil },
+    metadata: { channel: "telegram", nameQuery },
+  });
+  if (!auditResult.success) console.error("[telegram-webhook] audit record failed", auditResult.error);
 
   const reply = pausedUntil
     ? `🔇 หยุด AI ตอบ ${escapeHtml(customer.name)} แล้ว 2 ชม. (ถึง ${formatDateTimeThai(new Date(pausedUntil))}) — พิมพ์ /pause ${escapeHtml(nameQuery)} ซ้ำเพื่อขยายเวลา หรือ /resume ${escapeHtml(nameQuery)} เพื่อเปิดกลับก่อนกำหนด`
@@ -820,7 +837,15 @@ serve(async (req) => {
     if (pauseMatch && update.message) {
       const [, action, nameQuery] = pauseMatch;
       const supabase = createServiceClient();
-      await handlePauseCommand(supabase, update.message.chat.id, action.toLowerCase() as "pause" | "resume", nameQuery.trim());
+      const audit = createAuditLog({ store: new SupabaseAuditStore(supabase) });
+      await handlePauseCommand(
+        supabase,
+        audit,
+        { firstName: update.message.from?.first_name, username: update.message.from?.username },
+        update.message.chat.id,
+        action.toLowerCase() as "pause" | "resume",
+        nameQuery.trim(),
+      );
       return jsonResponse({ ok: true, handled: "pause_command" });
     }
 

@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createServiceClient } from "../_shared/database.ts";
+import { SupabaseAuditStore } from "../_shared/audit-log-store.ts";
 import { pushMessage } from "../_shared/line.ts";
+import { createAuditLog } from "../_shared/vendor/audit-log/core/index.ts";
 
 // ponytail: LINE gives zero signal when staff reply via LINE Official Account
 // Manager - no webhook, no queryable state. This function is the workaround
@@ -36,7 +38,11 @@ async function handleList(supabase: ReturnType<typeof createServiceClient>) {
   return jsonResponse({ ok: true, matches: data ?? [] });
 }
 
-async function handleSend(supabase: ReturnType<typeof createServiceClient>, body: { customerId?: string; message?: string }) {
+async function handleSend(
+  supabase: ReturnType<typeof createServiceClient>,
+  audit: ReturnType<typeof createAuditLog>,
+  body: { customerId?: string; message?: string },
+) {
   const customerId = body.customerId ?? "";
   const message = (body.message ?? "").trim();
   if (!customerId || !message) return jsonResponse({ ok: false, error: "customerId and message are required" }, 400);
@@ -57,17 +63,47 @@ async function handleSend(supabase: ReturnType<typeof createServiceClient>, body
   const { error: updateError } = await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customerId);
   if (updateError) return jsonResponse({ ok: false, error: updateError.message }, 500);
 
+  const auditResult = await audit.record({
+    actor: { type: "staff" },
+    action: "customer.reply_sent",
+    entity: { type: "customer", id: customerId },
+    after: { message, pausedUntil },
+    metadata: { messageLength: message.length, channel: "line" },
+  });
+  if (!auditResult.success) console.error("[staff-reply] audit record failed", auditResult.error);
+
   return jsonResponse({ ok: true, pausedUntil });
 }
 
-async function handleResume(supabase: ReturnType<typeof createServiceClient>, body: { customerId?: string }) {
+async function handleResume(
+  supabase: ReturnType<typeof createServiceClient>,
+  audit: ReturnType<typeof createAuditLog>,
+  body: { customerId?: string },
+) {
   const customerId = body.customerId ?? "";
   if (!customerId) return jsonResponse({ ok: false, error: "customerId is required" }, 400);
 
   const { error } = await supabase.from("customers").update({ paused_until: null }).eq("id", customerId);
   if (error) return jsonResponse({ ok: false, error: error.message }, 500);
 
+  const auditResult = await audit.record({
+    actor: { type: "staff" },
+    action: "customer.ai_resumed",
+    entity: { type: "customer", id: customerId },
+    after: { pausedUntil: null },
+    metadata: { channel: "staff-reply" },
+  });
+  if (!auditResult.success) console.error("[staff-reply] audit record failed", auditResult.error);
+
   return jsonResponse({ ok: true });
+}
+
+async function handleAuditHistory(audit: ReturnType<typeof createAuditLog>, body: { customerId?: string }) {
+  const customerId = body.customerId ?? "";
+  if (!customerId) return jsonResponse({ ok: false, error: "customerId is required" }, 400);
+  const result = await audit.query({ entity: { type: "customer", id: customerId }, limit: 50 });
+  if (!result.success) return jsonResponse({ ok: false, error: result.error?.message ?? "query_failed" }, 500);
+  return jsonResponse({ ok: true, records: result.records, total: result.total });
 }
 
 serve(async (req) => {
@@ -92,10 +128,12 @@ serve(async (req) => {
     const action = url.pathname.replace(/^\/(functions\/v1\/)?staff-reply\//, "");
     const body = await req.json().catch(() => ({}));
     const supabase = createServiceClient();
+    const audit = createAuditLog({ store: new SupabaseAuditStore(supabase) });
 
     if (action === "list") return await handleList(supabase);
-    if (action === "send") return await handleSend(supabase, body);
-    if (action === "resume") return await handleResume(supabase, body);
+    if (action === "send") return await handleSend(supabase, audit, body);
+    if (action === "resume") return await handleResume(supabase, audit, body);
+    if (action === "audit-log") return await handleAuditHistory(audit, body);
 
     return jsonResponse({ error: `Unknown action: ${action}` }, 404);
   } catch (error) {
