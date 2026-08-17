@@ -180,6 +180,11 @@ serve(async (req) => {
       }
 
       if (event.type === "message" && event.message?.type === "text") {
+        // Bot only serves 1-1 customer chat, never group/room chats (e.g. internal
+        // staff work-update groups the OA was added to) - skip entirely, no reply,
+        // no customers upsert. Groups aren't customers and shouldn't get AI replies.
+        if (event.source?.type !== "user") continue;
+
         settings ??= await getSettings(supabase);
         const rollout = settings.line_ai_rollout ?? "off";
         const isOwner = event.source?.userId === settings.line_ai_owner_uid;
