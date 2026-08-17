@@ -56,7 +56,8 @@ function formatQueueDensity(queueDays: QueueDay[]): string {
 // ponytail: search_products only sees this string, not the full conversation - without recent user
 // turns folded in, a follow-up like "แล้วแร็คท้ายล่ะ" (no brand/model) matches nothing.
 function buildProductSearchMessage(userMessage: string, history: Array<{ role: string; content: string }>): string {
-  // no extra cap here - `history` is already bounded to 20 messages total by StateManager.appendHistory,
+  // no extra cap here - `history` is already bounded to 40 messages total by StateManager.appendHistory
+  // (vendored copy raised from the module's default of 20 - CEO wanted longer memory for long chats),
   // so this covers everything the model itself can still "remember" in the session, not just recent turns.
   const allUserTurns = history
     .filter((h) => h.role === "user")
