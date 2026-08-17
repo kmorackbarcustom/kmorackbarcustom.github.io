@@ -24,16 +24,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-async function handleSearch(supabase: ReturnType<typeof createServiceClient>, body: { query?: string }) {
-  const query = (body.query ?? "").trim();
-  if (!query) return jsonResponse({ ok: false, error: "query is required" }, 400);
-
+async function handleList(supabase: ReturnType<typeof createServiceClient>) {
   const { data, error } = await supabase
     .from("customers")
     .select("id, name, phone, paused_until")
     .not("line_uid", "is", null)
-    .ilike("name", `%${query}%`)
-    .limit(8);
+    .order("name")
+    .limit(500);
   if (error) return jsonResponse({ ok: false, error: error.message }, 500);
 
   return jsonResponse({ ok: true, matches: data ?? [] });
@@ -96,7 +93,7 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const supabase = createServiceClient();
 
-    if (action === "search") return await handleSearch(supabase, body);
+    if (action === "list") return await handleList(supabase);
     if (action === "send") return await handleSend(supabase, body);
     if (action === "resume") return await handleResume(supabase, body);
 

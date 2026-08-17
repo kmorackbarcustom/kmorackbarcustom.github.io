@@ -177,11 +177,11 @@
     </section>
 
     <section class="panel">
-      <h2>ค้นหาลูกค้า</h2>
-      <form id="searchForm" class="button-row">
-        <input id="searchQuery" name="query" placeholder="ชื่อลูกค้า (พิมพ์บางส่วนก็ได้)" autocomplete="off" style="flex:1">
-        <button type="submit">ค้นหา</button>
-      </form>
+      <div class="toolbar">
+        <h2>รายชื่อลูกค้า (LINE)</h2>
+        <button type="button" id="reloadBtn" class="secondary-btn">โหลดใหม่</button>
+      </div>
+      <input id="searchQuery" placeholder="พิมพ์เพื่อกรองรายชื่อ" autocomplete="off">
       <div id="searchStatus" class="status" hidden></div>
       <div id="searchResults"></div>
     </section>
@@ -205,7 +205,7 @@
     const PASSCODE_KEY = 'kmo_line_reply_staff_key';
 
     const passcodeInput = document.getElementById('staffPasscode');
-    const searchForm = document.getElementById('searchForm');
+    const searchQuery = document.getElementById('searchQuery');
     const searchStatus = document.getElementById('searchStatus');
     const searchResults = document.getElementById('searchResults');
     const replyPanel = document.getElementById('replyPanel');
@@ -217,6 +217,7 @@
     const resumeBtn = document.getElementById('resumeBtn');
 
     let selectedCustomer = null;
+    let allCustomers = [];
 
     passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
 
@@ -232,6 +233,7 @@
       if (value) {
         sessionStorage.setItem(PASSCODE_KEY, value);
         localStorage.setItem(PASSCODE_KEY, value);
+        loadCustomers();
       }
     });
 
@@ -266,36 +268,42 @@
       return json;
     }
 
-    searchForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
+    async function loadCustomers() {
       const staffKey = requireStaffKey(searchStatus);
       if (!staffKey) return;
-      const query = document.getElementById('searchQuery').value.trim();
-      if (!query) {
-        setStatus(searchStatus, 'พิมพ์ชื่อลูกค้าก่อนค้นหา', 'error');
-        return;
-      }
 
-      setStatus(searchStatus, 'กำลังค้นหา...', '');
-      searchResults.replaceChildren();
-      replyPanel.hidden = true;
-      selectedCustomer = null;
-
+      setStatus(searchStatus, 'กำลังโหลด...', '');
       try {
-        const { matches } = await callFunction('search', { query }, staffKey);
-        if (matches.length === 0) {
-          setStatus(searchStatus, 'ไม่พบลูกค้าที่ตรงกับคำค้นนี้', '');
-          return;
-        }
-        setStatus(searchStatus, `เจอ ${matches.length} รายการ — กดเลือกเพื่อส่งข้อความ`, 'success');
-        renderResults(matches);
+        const { matches } = await callFunction('list', {}, staffKey);
+        allCustomers = matches;
+        setStatus(searchStatus, `โหลดรายชื่อแล้ว ${matches.length} คน`, 'success');
+        applyFilter();
       } catch (error) {
-        setStatus(searchStatus, `ค้นหาไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(searchStatus, `โหลดไม่สำเร็จ: ${error.message}`, 'error');
       }
-    });
+    }
+
+    function applyFilter() {
+      const q = searchQuery.value.trim().toLowerCase();
+      const filtered = q
+        ? allCustomers.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
+        : allCustomers;
+      renderResults(filtered);
+    }
+
+    searchQuery.addEventListener('input', applyFilter);
+    document.getElementById('reloadBtn').addEventListener('click', loadCustomers);
+    if (passcodeInput.value.trim()) loadCustomers();
 
     function renderResults(matches) {
       searchResults.replaceChildren();
+      if (matches.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'ไม่มีรายชื่อที่ตรงกับคำกรอง';
+        searchResults.appendChild(empty);
+        return;
+      }
       for (const customer of matches) {
         const row = document.createElement('div');
         row.className = 'result-row';
