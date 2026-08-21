@@ -5,6 +5,7 @@ type ChatInput = { userMessage: string; history: ChatHistoryItem[]; systemPrompt
 type ChatOutput = { reply: string; provider: "ollama" | "gemini" };
 
 const OLLAMA_MODEL = "gemma4:31b-cloud";
+export const PROVIDER_TIMEOUT_MS = 9000;
 
 async function callOllamaCloud(input: ChatInput): Promise<string> {
   const apiKey = requiredEnv("OLLAMA_API_KEY");
@@ -21,6 +22,7 @@ async function callOllamaCloud(input: ChatInput): Promise<string> {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({ model: OLLAMA_MODEL, messages }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
 
   if (!response.ok) {

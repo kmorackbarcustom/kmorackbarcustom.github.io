@@ -1,4 +1,5 @@
 import { requiredEnv } from "./database.ts";
+import { PROVIDER_TIMEOUT_MS } from "./ai-providers.ts";
 
 type FridayChatInput = {
   text: string;
@@ -64,6 +65,7 @@ export async function generateLineReplyGemini(input: {
         contents,
         generationConfig: { temperature: 0.75, maxOutputTokens: 200 },
       }),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     },
   );
 
