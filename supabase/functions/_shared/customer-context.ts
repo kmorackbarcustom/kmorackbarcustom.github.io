@@ -1,12 +1,14 @@
 import { createServiceClient } from "./database.ts";
 
 type Booking = {
+  id: number;
   job_id: string | null;
   product: string | null;
   queue_status: string | null;
   production_status: string | null;
   appointment_date: string | null;
   pickup_date: string | null;
+  line_uid: string | null;
 };
 
 type Order = {
@@ -15,17 +17,31 @@ type Order = {
   due_date: string | null;
 };
 
+// ponytail: most bookings are entered by staff from a phone call, not the LINE booking flow, so
+// they carry a phone number but no line_uid - matching on line_uid alone misses almost all of them
+// (confirmed against real data: 129/131 bookings had no line_uid). Fall back to phone when the
+// customer types one in chat.
+export function extractThaiPhone(text: string): string | null {
+  const match = text.replace(/[-\s]/g, "").match(/0\d{8,9}/);
+  return match ? match[0] : null;
+}
+
 export async function getCustomerContext(
   supabase: ReturnType<typeof createServiceClient>,
   lineUid: string,
+  customerPhone?: string | null,
 ): Promise<string> {
+  let bookingsQuery = supabase
+    .from("bookings")
+    .select("id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid")
+    .order("created_at", { ascending: false })
+    .limit(3);
+  bookingsQuery = customerPhone
+    ? bookingsQuery.or(`line_uid.eq.${lineUid},phone.eq.${customerPhone}`)
+    : bookingsQuery.eq("line_uid", lineUid);
+
   const [{ data: bookings, error: bookingsError }, { data: orders, error: ordersError }] = await Promise.all([
-    supabase
-      .from("bookings")
-      .select("job_id, product, queue_status, production_status, appointment_date, pickup_date")
-      .eq("line_uid", lineUid)
-      .order("created_at", { ascending: false })
-      .limit(3),
+    bookingsQuery,
     supabase
       .from("orders")
       .select("order_id, status, due_date")
@@ -39,6 +55,19 @@ export async function getCustomerContext(
 
   const bookingRows = (bookings ?? []) as Booking[];
   const orderRows = (orders ?? []) as Order[];
+
+  // Permanently link this phone-matched booking to the LINE account so future lookups don't need
+  // the customer to retype their phone - only the most recent unlinked row, per user's call (old
+  // duplicate bookings under the same phone don't all need backfilling, just the latest one).
+  const latestBooking = bookingRows[0];
+  if (customerPhone && latestBooking && !latestBooking.line_uid) {
+    const { error: backfillError } = await supabase
+      .from("bookings")
+      .update({ line_uid: lineUid })
+      .eq("id", latestBooking.id)
+      .or("line_uid.is.null,line_uid.eq.");
+    if (backfillError) console.error("[customer-context] line_uid backfill failed", backfillError);
+  }
 
   if (bookingRows.length === 0 && orderRows.length === 0) {
     return "ไม่พบข้อมูลงานจองคิว/ออเดอร์ของลูกค้ารายนี้ในระบบ";

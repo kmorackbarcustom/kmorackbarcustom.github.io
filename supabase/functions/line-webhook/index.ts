@@ -6,7 +6,7 @@ import { sendTelegramMessage } from "../_shared/telegram.ts";
 import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
-import { getCustomerContext } from "../_shared/customer-context.ts";
+import { getCustomerContext, extractThaiPhone } from "../_shared/customer-context.ts";
 import { dateOnlyInBangkok } from "../_shared/constants.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
@@ -242,7 +242,7 @@ serve(async (req) => {
                 try {
                   const productSearchMessage = buildProductSearchMessage(userMessage, history);
                   const [customerContext, matchedProducts, queueDays] = await Promise.all([
-                    getCustomerContext(supabase, session.userId),
+                    getCustomerContext(supabase, session.userId, extractThaiPhone(productSearchMessage)),
                     supabase.rpc("search_products", { customer_message: productSearchMessage }).then(({ data, error }) => {
                       if (error) console.error("[line-ai] search_products failed", error);
                       return data ?? [];
