@@ -157,6 +157,45 @@
       font-size: 12px;
       color: var(--danger);
     }
+
+    .chat-thread {
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 4px 2px;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 10px;
+      white-space: pre-wrap;
+    }
+
+    .chat-bubble .chat-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .chat-bubble.customer {
+      align-self: flex-start;
+      background: #23262b;
+    }
+
+    .chat-bubble.ai {
+      align-self: flex-end;
+      background: #1c2b22;
+      border: 1px solid var(--success);
+    }
+
+    .chat-bubble.staff {
+      align-self: flex-end;
+      background: #241d0a;
+      border: 1px solid var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -189,6 +228,12 @@
     <section class="panel" id="replyPanel" hidden>
       <h2>ส่งข้อความถึง <span id="selectedName"></span></h2>
       <p class="muted" id="selectedPauseNote"></p>
+      <div class="toolbar">
+        <h2 style="font-size: 15px;">บทสนทนา</h2>
+        <button type="button" id="reloadHistoryBtn" class="secondary-btn">โหลดแชทใหม่</button>
+      </div>
+      <div id="chatStatus" class="status" hidden></div>
+      <div id="chatThread" class="chat-thread"></div>
       <textarea id="replyMessage" placeholder="พิมพ์ข้อความตอบลูกค้า"></textarea>
       <div class="button-row" style="margin-top: 10px;">
         <button type="button" id="sendBtn">ส่งข้อความ</button>
@@ -215,6 +260,52 @@
     const replyStatus = document.getElementById('replyStatus');
     const sendBtn = document.getElementById('sendBtn');
     const resumeBtn = document.getElementById('resumeBtn');
+    const chatStatus = document.getElementById('chatStatus');
+    const chatThread = document.getElementById('chatThread');
+    const reloadHistoryBtn = document.getElementById('reloadHistoryBtn');
+
+    const ROLE_LABEL = { customer: 'ลูกค้า', ai: 'AI', staff: 'พนักงาน' };
+
+    async function loadHistory() {
+      if (!selectedCustomer) return;
+      const staffKey = requireStaffKey(chatStatus);
+      if (!staffKey) return;
+
+      setStatus(chatStatus, 'กำลังโหลดแชท...', '');
+      try {
+        const { messages } = await callFunction('history', { customerId: selectedCustomer.id }, staffKey);
+        renderChatThread(messages);
+        chatStatus.hidden = true;
+      } catch (error) {
+        setStatus(chatStatus, `โหลดแชทไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    function renderChatThread(messages) {
+      chatThread.replaceChildren();
+      if (!messages || messages.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'ยังไม่มีประวัติแชท';
+        chatThread.appendChild(empty);
+        return;
+      }
+      for (const msg of messages) {
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${msg.role}`;
+        const meta = document.createElement('div');
+        meta.className = 'chat-meta';
+        meta.textContent = `${ROLE_LABEL[msg.role] || msg.role} · ${new Date(msg.timestamp).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
+        const content = document.createElement('div');
+        content.textContent = msg.content;
+        bubble.appendChild(meta);
+        bubble.appendChild(content);
+        chatThread.appendChild(bubble);
+      }
+      chatThread.scrollTop = chatThread.scrollHeight;
+    }
+
+    reloadHistoryBtn.addEventListener('click', loadHistory);
 
     let selectedCustomer = null;
     let allCustomers = [];
@@ -340,6 +431,7 @@
       replyStatus.hidden = true;
       replyPanel.hidden = false;
       replyMessage.focus();
+      loadHistory();
     }
 
     sendBtn.addEventListener('click', async () => {
@@ -358,6 +450,7 @@
         const result = await callFunction('send', { customerId: selectedCustomer.id, message }, staffKey);
         setStatus(replyStatus, `ส่งแล้ว — หยุด AI ถึง ${new Date(result.pausedUntil).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`, 'success');
         replyMessage.value = '';
+        loadHistory();
       } catch (error) {
         setStatus(replyStatus, `ส่งไม่สำเร็จ: ${error.message}`, 'error');
       } finally {

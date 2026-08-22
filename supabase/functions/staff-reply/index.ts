@@ -98,6 +98,46 @@ async function handleResume(
   return jsonResponse({ ok: true });
 }
 
+type ChatMessage = { role: "customer" | "ai" | "staff"; content: string; timestamp: string };
+
+async function handleHistory(
+  supabase: ReturnType<typeof createServiceClient>,
+  audit: ReturnType<typeof createAuditLog>,
+  body: { customerId?: string },
+) {
+  const customerId = body.customerId ?? "";
+  if (!customerId) return jsonResponse({ ok: false, error: "customerId is required" }, 400);
+
+  const { data: customer, error: fetchError } = await supabase
+    .from("customers")
+    .select("line_uid")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 500);
+  if (!customer?.line_uid) return jsonResponse({ ok: false, error: "customer not found or has no line_uid" }, 404);
+
+  const [{ data: session, error: sessionError }, auditResult] = await Promise.all([
+    supabase.from("line_chat_sessions").select("history").eq("user_id", customer.line_uid).maybeSingle(),
+    audit.query({ entity: { type: "customer", id: customerId }, limit: 50 }),
+  ]);
+  if (sessionError) return jsonResponse({ ok: false, error: sessionError.message }, 500);
+  if (!auditResult.success) return jsonResponse({ ok: false, error: auditResult.error?.message ?? "query_failed" }, 500);
+
+  const chatTurns: ChatMessage[] = ((session?.history ?? []) as { role: string; content: string; timestamp: number }[]).map(
+    (h) => ({
+      role: h.role === "assistant" ? "ai" : "customer",
+      content: h.content,
+      timestamp: new Date(h.timestamp).toISOString(),
+    }),
+  );
+  const staffTurns: ChatMessage[] = (auditResult.records ?? [])
+    .filter((r) => r.action === "customer.reply_sent")
+    .map((r) => ({ role: "staff", content: (r.after as { message?: string })?.message ?? "", timestamp: r.timestamp }));
+
+  const messages = [...chatTurns, ...staffTurns].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  return jsonResponse({ ok: true, messages });
+}
+
 async function handleAuditHistory(
   supabase: ReturnType<typeof createServiceClient>,
   audit: ReturnType<typeof createAuditLog>,
@@ -147,6 +187,7 @@ serve(async (req) => {
     if (action === "send") return await handleSend(supabase, audit, body);
     if (action === "resume") return await handleResume(supabase, audit, body);
     if (action === "audit-log") return await handleAuditHistory(supabase, audit, body);
+    if (action === "history") return await handleHistory(supabase, audit, body);
 
     return jsonResponse({ error: `Unknown action: ${action}` }, 404);
   } catch (error) {
