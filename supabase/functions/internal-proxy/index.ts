@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { requiredEnv } from "../_shared/database.ts";
-
-// ponytail: shared shop passcode gate, not per-user auth — proportionate for
-// a small internal tool the shop wants zero-friction. Upgrade to real
-// Supabase Auth if per-staff audit trail is ever needed.
+import { createServiceClient, requiredEnv } from "../_shared/database.ts";
 
 const ALLOWED_ORIGIN = "https://kmorackbarcustom.github.io";
 
@@ -13,9 +9,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE, PATCH",
 };
 
-// เฉพาะ table/rpc ที่ 3 หน้า admin (AdminOrderDashboard, bookingdashboard,
-// vehicle-intake) ใช้จริงเท่านั้น — ถ้า staff key หลุด จะได้จำกัดความเสียหาย
-// ไม่เท่ากับเปิด service_role เต็มระบบ
 const allowedPaths = [
   "orders",
   "bookings",
@@ -29,92 +22,137 @@ const allowedPaths = [
   "rpc/update_shop_config_setting",
 ];
 
-function isPathAllowed(path: string): boolean {
-  const cleanPath = path.split("?")[0].replace(/\/$/, "");
+type StaffPasscodeVerifier = {
+  algorithm: "pbkdf2-sha256";
+  iterations: number;
+  saltHex: string;
+  hashHex: string;
+};
+const VERIFIER_SETTING_KEY = "staff_passcode_verifier";
+const VERIFIER_CACHE_MS = 5 * 60 * 1000;
+let cachedVerifier: StaffPasscodeVerifier | null = null;
+let verifierCachedAt = 0;
 
-  if (allowedPaths.includes(cleanPath)) {
-    return true;
+function hexToBytes(hex: string): Uint8Array {
+  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2 !== 0) {
+    throw new Error("Invalid staff passcode verifier hex");
   }
-
-  // vehicle-intake tool อัปโหลด/ลบ/ดูรูปผ่าน proxy เพราะ bucket เป็น private
-  if (cleanPath.startsWith("storage/v1/object/vehicle-intake-images")) {
-    return true;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
-
-  // admin-products.html อัปโหลดรูปสินค้าผ่าน proxy เหมือนกัน (bucket public แต่ upload ต้อง service role)
-  if (cleanPath.startsWith("storage/v1/object/product-images")) {
-    return true;
-  }
-
-  return false;
+  return out;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+function parseVerifier(raw: unknown): StaffPasscodeVerifier {
+  if (typeof raw !== "string") throw new Error("Staff passcode verifier is missing");
+  const parsed = JSON.parse(raw) as Partial<StaffPasscodeVerifier>;
+  if (
+    parsed.algorithm !== "pbkdf2-sha256" ||
+    !Number.isInteger(parsed.iterations) ||
+    (parsed.iterations ?? 0) < 100000 ||
+    typeof parsed.saltHex !== "string" ||
+    typeof parsed.hashHex !== "string"
+  ) {
+    throw new Error("Staff passcode verifier is invalid");
   }
+  hexToBytes(parsed.saltHex);
+  const expectedHash = hexToBytes(parsed.hashHex);
+  if (expectedHash.length !== 32) throw new Error("Staff passcode verifier hash length is invalid");
+  return parsed as StaffPasscodeVerifier;
+}
+
+async function loadStaffPasscodeVerifier(): Promise<StaffPasscodeVerifier> {
+  const now = Date.now();
+  if (cachedVerifier && now - verifierCachedAt < VERIFIER_CACHE_MS) return cachedVerifier;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", VERIFIER_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load staff passcode verifier: ${error.message}`);
+  cachedVerifier = parseVerifier(data?.value);
+  verifierCachedAt = now;
+  return cachedVerifier;
+}
+
+async function isValidStaffPasscode(input: string | null): Promise<boolean> {
+  if (!input) return false;
+  const verifier = await loadStaffPasscodeVerifier();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(input),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const derived = new Uint8Array(await crypto.subtle.deriveBits({
+    name: "PBKDF2",
+    hash: "SHA-256",
+    salt: hexToBytes(verifier.saltHex),
+    iterations: verifier.iterations,
+  }, keyMaterial, 256));
+  return constantTimeEqual(derived, hexToBytes(verifier.hashHex));
+}
+
+function isPathAllowed(path: string): boolean {
+  const cleanPath = path.split("?")[0].replace(/\/$/, "");
+  if (allowedPaths.includes(cleanPath)) return true;
+  if (cleanPath.startsWith("storage/v1/object/vehicle-intake-images")) return true;
+  if (cleanPath.startsWith("storage/v1/object/product-images")) return true;
+  return false;
+}
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const staffPasscode = Deno.env.get("STAFF_PASSCODE");
-    if (!staffPasscode) {
-      return new Response(
-        JSON.stringify({ error: "STAFF_PASSCODE is not configured on the server secrets." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const clientKey = req.headers.get("x-staff-key");
-    if (clientKey !== staffPasscode) {
+    if (!(await isValidStaffPasscode(clientKey))) {
       return new Response(
         JSON.stringify({ error: "Unauthorized: Invalid x-staff-key" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const url = new URL(req.url);
-    // ponytail: edge runtime เห็น pathname แบบ /internal-proxy/... (ไม่มี /functions/v1 นำหน้า)
-    // ตัด prefix ทั้งสองแบบกันไว้เผื่อ routing เปลี่ยนพฤติกรรมอีก
     const path = url.pathname.replace(/^\/(functions\/v1\/)?internal-proxy\//, "");
-
     if (!isPathAllowed(path)) {
       return new Response(
         JSON.stringify({ error: `Forbidden: Path '${path}' is not allowed by policy` }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
     const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-
     const targetUrl = path.startsWith("storage/")
       ? `${supabaseUrl}/${path}${url.search}`
       : `${supabaseUrl}/rest/v1/${path}${url.search}`;
 
     console.log(`[internal-proxy] ${req.method} -> ${targetUrl}`);
-
     const headers = new Headers();
     for (const [key, value] of req.headers.entries()) {
       const k = key.toLowerCase();
-      if (["content-type", "prefer", "accept", "range"].includes(k)) {
-        headers.set(key, value);
-      }
+      if (["content-type", "prefer", "accept", "range"].includes(k)) headers.set(key, value);
     }
     headers.set("apikey", serviceRoleKey);
     headers.set("Authorization", `Bearer ${serviceRoleKey}`);
 
-    let body: BodyInit | undefined = undefined;
-    if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-      body = await req.blob();
-    }
+    let body: BodyInit | undefined;
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) body = await req.blob();
 
-    const backendRes = await fetch(targetUrl, {
-      method: req.method,
-      headers,
-      body,
-    });
-
+    const backendRes = await fetch(targetUrl, { method: req.method, headers, body });
     const responseBody = await backendRes.blob();
-
     const resHeaders = new Headers(corsHeaders);
     for (const [key, value] of backendRes.headers.entries()) {
       const k = key.toLowerCase();
@@ -131,8 +169,8 @@ serve(async (req) => {
   } catch (error) {
     console.error("[internal-proxy] failure:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "Internal proxy unavailable" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

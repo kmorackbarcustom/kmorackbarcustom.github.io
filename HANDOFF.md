@@ -65,7 +65,7 @@
 
 ## Credential
 
-- `STAFF_PASSCODE` (Supabase secret, project `xfhpwxjywqgqefbncumm`) — ตั้งใหม่รอบนี้ ไม่เก็บค่าจริงไว้ในเอกสาร ถามหน้างานหรือดู password manager ถ้าลืมตั้งใหม่ทับได้เลย (`supabase secrets set STAFF_PASSCODE=<ค่าใหม่> --project-ref xfhpwxjywqgqefbncumm`)
+- **Staff admin passcode is an operational credential — ห้าม rotate/change เองโดย agent.** internal-proxy ตรวจผ่าน PBKDF2 verifier ที่เก็บใน RLS-protected system_settings.staff_passcode_verifier และอ่านด้วย service role เท่านั้น. ห้ามเก็บ passcode หรือ verifier จริงใน public repo; ถ้าจำเป็นต้องเปลี่ยน ต้องได้รับคำสั่งเจ้าของร้าน + วางแผนแจ้งพนักงานก่อนทุกครั้ง.
 - `OLLAMA_API_KEY`, `GEMINI_API_KEY` — ตั้งไว้แล้วบน project `xfhpwxjywqgqefbncumm` ไม่ต้อง set ซ้ำ
 
 ---
