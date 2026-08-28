@@ -45,10 +45,22 @@ function baseMessages(input: ChatInput): OllamaMessage[] {
   ];
 }
 
+// gemma4 (and small models generally) can fall into token-looping on long/complex context and
+// emit "a a a a ..." style garbage that never recovers. Catch it and let the caller fall back.
+// same char x10+ ("aaaaaaaaaa"), or a 2-20 char chunk repeated x6+ ("a a a a a a")
+export function isDegenerateText(text: string): boolean {
+  return /(.)\1{9,}/s.test(text) || /(.{2,20})\1{5,}/s.test(text);
+}
+
+function assertNotDegenerate(text: string): void {
+  if (isDegenerateText(text)) throw new Error("model output looks degenerate (token loop)");
+}
+
 async function callOllamaCloud(input: ChatInput): Promise<string> {
   const message = await ollamaChat(baseMessages(input));
   const reply = message.content;
   if (!reply) throw new Error("Ollama Cloud returned no content");
+  assertNotDegenerate(reply);
   return reply.trim();
 }
 
@@ -89,6 +101,7 @@ export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOut
       if (toolCalls.length === 0) {
         const reply = (message.content ?? "").trim();
         if (!reply) throw new Error("Ollama Cloud returned empty content");
+        assertNotDegenerate(reply);
         return { reply, provider: "ollama" };
       }
 
