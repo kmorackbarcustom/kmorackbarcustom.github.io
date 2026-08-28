@@ -88,11 +88,17 @@ persistent false premise, open greeting) — this is where they split:
 |---|---|
 | **gemma4:31b-cloud** | **clean.** Called `get_order_status({})` with no phone (correct — identity is from LINE). Answered "แร็ค Ranger 8,500 + งานกำลังทำ" from both tools in one turn. On "my slot is the 15th, right?" (tool finds nothing) → "ข้อมูลในระบบเป็นวันที่ 3 ก.ย. ไม่ใช่วันที่ 20" — corrected from real data. Greeting: only real services. |
 | gpt-oss:120b-cloud | Did **not** call `search_products` for the combo price question. Did **not** call `get_order_status` without a phone (asked the customer for one). On the false-premise case invented "3 ก.ย. (วันที่ 20 เมษายน)". Greeting invented services (ไฟ LED, สปอยเลอร์, ปรับสี). Also drifts to "ค่ะ". |
-| deepseek-v4-flash / glm-5.3-flash | weaker grounding (above) + glm-5.3-flash: CEO's direct experience is it hallucinates even in plain chat. |
+| glm-5.3-flash | weak grounding + CEO's direct experience is it hallucinates even in plain chat. |
+| `deepseek-v4-flash:cloud` (bare) | 2/8 single-turn (quoted a Ranger price for a D-Max question; gave links for a phone question). |
+| **`deepseek-v4-flash:0731-cloud`** (dated tag) | **the tag Hermes actually uses.** 0/8 single-turn. Multi-turn clean — no invented prices/dates/services. Only gap: wouldn't call `get_order_status` without a phone until the system prompt was strengthened to say "เรียกทันที ห้ามขอเบอร์ก่อน" — after that nudge it calls it correctly. ~1-2s/call. |
 
-**Verdict: keep `gemma4:31b-cloud`.** It's the only currently-available Ollama Cloud model
-with both clean grounding and correct tool discipline on multi-turn KMO traffic.
+**Verdict: switch to `deepseek-v4-flash:0731-cloud`.** Same clean grounding as gemma4, correct
+tool discipline once nudged, and it carries **no token-loop failure history** (it's the
+workspace default precisely because it's more stable than gemma4). gemma4 stays a valid
+alternative if this dated tag is ever retired.
 
-Mitigation for the token-loop risk: `isDegenerateText()` in `ai-providers.ts` (commit after
-b083cd1) detects "a a a a…" / repeated-chunk garbage and falls through to the Gemini
-fallback instead of sending it to the customer. Test: `ai-providers.test.ts`.
+Backstops kept regardless of model:
+- `isDegenerateText()` in `ai-providers.ts` — detects "a a a a…" / repeated-chunk garbage and
+  falls through to the Gemini fallback instead of sending it to the customer. Test:
+  `ai-providers.test.ts`.
+- Gemini `gemini-2.5-flash` single-shot fallback if the Ollama call fails or loops.
