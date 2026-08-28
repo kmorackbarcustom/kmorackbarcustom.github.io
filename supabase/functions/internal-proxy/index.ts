@@ -109,11 +109,15 @@ async function isValidStaffPasscode(input: string | null): Promise<boolean> {
   return constantTimeEqual(derived, hexToBytes(verifier.hashHex));
 }
 
-function isPathAllowed(path: string): boolean {
+function isPathAllowed(path: string, method: string): boolean {
   const cleanPath = path.split("?")[0].replace(/\/$/, "");
   if (allowedPaths.includes(cleanPath)) return true;
   if (cleanPath.startsWith("storage/v1/object/vehicle-intake-images")) return true;
   if (cleanPath.startsWith("storage/v1/object/product-images")) return true;
+  // ponytail: read-only. system_settings also holds staff_passcode_verifier and other rows this
+  // page has no business touching — writes MUST stay routed through rpc/update_shop_config_setting
+  // (security definer, 6-key allowlist). Do not add PATCH/POST/DELETE here.
+  if (cleanPath === "system_settings" && method === "GET") return true;
   return false;
 }
 serve(async (req) => {
@@ -130,7 +134,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/(functions\/v1\/)?internal-proxy\//, "");
-    if (!isPathAllowed(path)) {
+    if (!isPathAllowed(path, req.method)) {
       return new Response(
         JSON.stringify({ error: `Forbidden: Path '${path}' is not allowed by policy` }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
