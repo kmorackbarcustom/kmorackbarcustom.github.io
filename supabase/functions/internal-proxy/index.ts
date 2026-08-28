@@ -119,6 +119,7 @@ function isPathAllowed(path: string, method: string): boolean {
   if (allowedPaths.includes(cleanPath)) return true;
   if (cleanPath.startsWith("storage/v1/object/vehicle-intake-images")) return true;
   if (cleanPath.startsWith("storage/v1/object/product-images")) return true;
+  if (cleanPath.startsWith("storage/v1/object/booking-images")) return true;
   // ponytail: read-only. system_settings also holds staff_passcode_verifier and other rows this
   // page has no business touching — writes MUST stay routed through rpc/update_shop_config_setting
   // (security definer, 6-key allowlist). Do not add PATCH/POST/DELETE here.
