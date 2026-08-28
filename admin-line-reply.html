@@ -374,10 +374,18 @@
       }
     }
 
+    // Show both identities: real name (from booking form) and LINE display name when they differ.
+    function customerDisplayName(c) {
+      const name = c.name || '';
+      const line = c.line_display_name || '';
+      if (name && line && name !== line) return `${name} — LINE: ${line}`;
+      return name || line || '-';
+    }
+
     function applyFilter() {
       const q = searchQuery.value.trim().toLowerCase();
       const filtered = q
-        ? allCustomers.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
+        ? allCustomers.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.line_display_name || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
         : allCustomers;
       renderResults(filtered);
     }
@@ -401,7 +409,7 @@
         const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
 
         const label = document.createElement('div');
-        label.textContent = `${customer.name || '-'} ${customer.phone ? `(${customer.phone})` : ''}`;
+        label.textContent = `${customerDisplayName(customer)} ${customer.phone ? `(${customer.phone})` : ''}`;
 
         row.appendChild(label);
         if (isPaused) {
@@ -421,7 +429,7 @@
       [...searchResults.children].forEach((el) => el.classList.remove('selected'));
       row.classList.add('selected');
 
-      selectedName.textContent = customer.name || '-';
+      selectedName.textContent = customerDisplayName(customer);
       const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
       selectedPauseNote.textContent = isPaused
         ? `AI หยุดตอบคนนี้อยู่ถึง ${new Date(customer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`

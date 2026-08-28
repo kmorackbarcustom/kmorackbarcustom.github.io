@@ -6,7 +6,7 @@ import { sendTelegramMessage } from "../_shared/telegram.ts";
 import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
-import { getCustomerContext, extractThaiPhone } from "../_shared/customer-context.ts";
+import { getCustomerContext, extractThaiPhone, upsertLineCustomer } from "../_shared/customer-context.ts";
 import { dateOnlyInBangkok } from "../_shared/constants.ts";
 
 const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
@@ -136,11 +136,13 @@ async function notifyStaffOfUnansweredQuestion(
 ): Promise<void> {
   const { data: customer } = await supabase
     .from("customers")
-    .select("name, phone")
+    .select("name, line_display_name, phone")
     .eq("line_uid", lineUid)
     .maybeSingle();
 
-  const who = customer?.name ? `${customer.name}${customer.phone ? ` (${customer.phone})` : ""}` : lineUid;
+  const displayName = [customer?.name, customer?.line_display_name && customer.line_display_name !== customer.name
+    ? `LINE: ${customer.line_display_name}` : null].filter(Boolean).join(" / ");
+  const who = displayName ? `${displayName}${customer?.phone ? ` (${customer.phone})` : ""}` : lineUid;
   await sendTelegramMessage(
     chatId,
     `🔔 AI ตอบลูกค้าไม่ได้ ต้องติดต่อกลับ\nลูกค้า: ${who}\nคำถาม: ${question}`,
@@ -166,11 +168,7 @@ serve(async (req) => {
         if (!userId) continue;
 
         const profile = await getProfile(userId);
-        const { error } = await supabase.from("customers").upsert(
-          { line_uid: userId, platform: "line", name: profile?.displayName ?? "LINE User", phone: "" },
-          { onConflict: "line_uid" },
-        );
-        if (error) console.error("[line-webhook] customers upsert failed", error);
+        await upsertLineCustomer(supabase, userId, profile?.displayName);
 
         if (event.replyToken) {
           settings ??= await getSettings(supabase);
@@ -204,11 +202,7 @@ serve(async (req) => {
         // could never find/pause them by name. Backfill on their first message.
         if (!pauseRow) {
           const profile = await getProfile(event.source?.userId);
-          const { error } = await supabase.from("customers").upsert(
-            { line_uid: event.source?.userId, platform: "line", name: profile?.displayName ?? "LINE User", phone: "" },
-            { onConflict: "line_uid" },
-          );
-          if (error) console.error("[line-webhook] customers backfill upsert failed", error);
+          await upsertLineCustomer(supabase, event.source?.userId, profile?.displayName);
         }
 
         const isPaused = pauseRow?.paused_until && new Date(pauseRow.paused_until).getTime() > Date.now();

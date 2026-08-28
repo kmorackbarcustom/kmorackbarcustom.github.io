@@ -29,7 +29,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 async function handleList(supabase: ReturnType<typeof createServiceClient>) {
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, phone, paused_until")
+    .select("id, name, line_display_name, phone, paused_until")
     .not("line_uid", "is", null)
     .order("name")
     .limit(500);

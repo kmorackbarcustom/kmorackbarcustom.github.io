@@ -26,6 +26,29 @@ export function extractThaiPhone(text: string): string | null {
   return match ? match[0] : null;
 }
 
+// Identity model (bug K.9): `line_display_name` is LINE-owned and always reflects the current
+// LINE profile. `name` is only seeded on the very first insert - after that the booking-form
+// real name owns it via the kmo_sync_customer_from_booking trigger. getProfile() output must
+// never overwrite `name`, or the LINE name and the real name clobber each other again.
+export async function upsertLineCustomer(
+  supabase: ReturnType<typeof createServiceClient>,
+  lineUid: string,
+  displayName?: string | null,
+): Promise<void> {
+  const lineName = displayName ?? "LINE User";
+  const { error: insertError } = await supabase.from("customers").upsert(
+    { line_uid: lineUid, platform: "line", name: lineName, line_display_name: lineName, phone: "" },
+    { onConflict: "line_uid", ignoreDuplicates: true },
+  );
+  if (insertError) console.error("[customer-context] line customer insert failed", insertError);
+
+  const { error: updateError } = await supabase
+    .from("customers")
+    .update({ line_display_name: lineName })
+    .eq("line_uid", lineUid);
+  if (updateError) console.error("[customer-context] line_display_name update failed", updateError);
+}
+
 export async function getCustomerContext(
   supabase: ReturnType<typeof createServiceClient>,
   lineUid: string,
