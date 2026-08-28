@@ -1,9 +1,9 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
-**Last Updated:** 2026-08-28
-**Current Phase:** Phase 0 — Discovery complete, plan drafted, not yet built
-**Progress:** Planning 100% / Implementation 0%
-**Next Session:** เริ่ม Phase 1 ตาม `implementation_plan.md` (รอ CEO อนุมัติแผนก่อน)
+**Last Updated:** 2026-08-28 (session 2 — implementation)
+**Current Phase:** Phase 1–4 built + deployed to production. Awaiting real-customer traffic + CEO review.
+**Progress:** Planning 100% / Implementation 100% (all 4 phases shipped, monitoring next)
+**Next Session:** watch live LINE traffic for agent behaviour; decide gemma vs gemini if rule slips; deferred items (FB Messenger, pgvector, self-pick install date)
 
 ---
 
@@ -26,21 +26,32 @@
 
 **Production data ที่แก้ไม่ได้ครบ:** ระหว่างแก้ crash bug ด้านบน migration รอบแรก (ที่ถูกแทนที่แล้ว) ได้เขียนทับ `start_date`/`due_date` ของ 3 order ที่ยังทำอยู่จริง (`ORD-20260816-F750`, `ORD-20260802-2DF5`, `ORD-20260822-46DE`) กู้คืนได้แค่ 1 ตัว (มีค่าบันทึกไว้ก่อนแก้) — **อีก 2 ตัว (Mei Fern, ช่างเบส) ค่าจริงหายไปแล้ว ไม่มี PITR กู้คืน (free tier)** CEO แจ้งว่าจะใส่ค่าที่ถูกต้องเอง — **ยังไม่ยืนยันว่าทำแล้วหรือยัง**
 
-### ยังไม่ได้ทำ (Pending — scope ของเอกสารนี้)
+### เสร็จแล้ว (Implementation — 2026-08-28 session 2)
 
-| Phase | Tasks | Priority |
-|---|---|---|
-| Phase 1 | Identity model fix (line_display_name แยกจาก name) | High |
-| Phase 1 | กติกาจับคู่ line_uid/เบอร์โทร แบบ exclusive-once-linked | High |
-| Phase 2 | Eval gemma4 vs Gemini/DeepSeek เรื่อง tool-calling + rule-adherence | High (blocker ก่อน build agent) |
-| Phase 3 | Agent tool-calling loop (3 tools, ≤3 รอบ) | High |
-| Phase 4 | Reply-first / Push-fallback message strategy | Medium |
+| Phase | งาน | Commit | Verify |
+|---|---|---|---|
+| 1 | `customers.line_display_name` แยกจาก `name`; helper `upsertLineCustomer`; trigger comment; migration `20260828160000` | 38efad7 | 29 line customers มี line_display_name ครบ; 8 ที่โดนทับ (K.9=บุณยสิทธิ์ ฯลฯ) กู้ชื่อ LINE จริงจาก getProfile() แล้ว |
+| 1 | admin-line-reply + staff-reply แสดง 2 ชื่อ | 38efad7 | staff-reply `list` คืน line_display_name, ทดสอบด้วย anon key ของหน้าจริง — เห็น "บุณยสิทธิ์ วรุตม์พงศ์ / LINE:K.9" |
+| 2 | Eval tool-calling | (docs) `phase2-model-eval.md` | gemma4:31b-cloud ทำ tool-calling ได้ดี → คงไว้ ไม่สลับ Gemini. deepseek-v3.1 retired บน Ollama แล้ว |
+| 3 | Agent loop (`generateLineReplyAgent`, ≤3 รอบ), 3 tools (`search_products`,`get_order_status`,`check_queue`), FAQ inline | b083cd1 | E2E signed webhook → 200, agent เรียก tool + ตอบจริง (4.7s). exclusive-once-linked: stranger เห็น 0 rows, เจ้าของเห็น 1 |
+| 3 | `getCustomerContext` exclusive-once-linked (แยก own vs phone-unlinked query แทน OR) | b083cd1 | SQL proof |
+| 4 | Reply-first → Push-fallback ถ้า reply token ตาย | 9a6e194 | logic only (ยังไม่เจอ token หมดอายุจริง) |
+
+### ⚠️ Incident (session 2) — verify_jwt reset
+
+`supabase functions deploy --use-api` reset `verify_jwt` → `true` (default) ทุกครั้ง เพราะไม่มี `supabase/config.toml` pin ไว้ → LINE/Telegram webhook โดน gateway ตอบ 401 (ไม่มี JWT). line-webhook เป็น `true` อยู่ ~1 ชม. ระหว่าง deploy Phase 1 จนพบและแก้ (ข้อความ LINE ในช่วงนั้น AI ไม่ตอบ — ปริมาณต่ำ, ตรวจ log ไม่ได้เพราะ Supabase logs API ล่มตอนนั้น). แก้: สร้าง `supabase/config.toml` pin `verify_jwt=false` ให้ line-webhook/telegram-webhook/telegram-notify (commit 32dbca7). ยืนยันแล้วว่า deploy รอบถัดไป verify_jwt ยัง false.
 
 ---
 
 ## 📝 Last Session Summary
 
-**Session Date:** 2026-08-28
+**Session 2 — 2026-08-28 (implementation)**
+- ✅ Phase 1–4 ทั้งหมด: build + deploy production + verify (ดูตาราง "เสร็จแล้ว" ด้านบน) commits 38efad7 / b083cd1 / 9a6e194
+- ✅ Phase 2 eval: gemma4:31b-cloud tool-calling ใช้ได้จริง → คงโมเดลเดิม (`phase2-model-eval.md`)
+- ⚠️ Incident: deploy รีเซ็ต verify_jwt → true, LINE webhook เงียบ ~1 ชม. แก้ด้วย `supabase/config.toml` (commit 32dbca7)
+- บทเรียน: ทุก `supabase functions deploy` ต้องเช็ค verify_jwt หลัง deploy จนกว่าจะมั่นใจ config.toml ครอบคลุมทุก fn
+
+**Session 1 — 2026-08-28 (discovery)**
 
 ### ทำอะไรเสร็จไปบ้าง
 - ✅ ไล่ debug + แก้บั๊ก production จริง 8 จุด (ตารางด้านบน)
@@ -64,12 +75,13 @@
 
 ### ต้องทำอะไรต่อ (ลำดับความสำคัญ)
 1. **High Priority:**
-   - [ ] CEO ยืนยัน/แก้ due_date ของ Mei Fern (ORD-20260802-2DF5) และ ช่างเบส (ORD-20260822-46DE) ให้ตรงความจริง
-   - [ ] CEO อนุมัติ `PRD.md` + `implementation_plan.md` ก่อนเริ่มโค้ดจริง
-   - [ ] Eval gemma4:31b-cloud ว่ารองรับ tool-calling จริงไหม (ก่อน build ต่อ)
+   - [ ] CEO ยืนยัน/แก้ due_date ของ Mei Fern (ORD-20260802-2DF5) และ ช่างเบส (ORD-20260822-46DE) ให้ตรงความจริง (ยังค้างจาก session 1)
+   - [ ] เฝ้าดู LINE traffic จริง 2-3 วัน: agent เรียก tool ถูกไหม, หลุดกฎ (ยืนยันจอง/มั่วราคา) ไหม, มี tool loop ค้างไหม
+   - [ ] ถ้าเห็น rule slip จริง → ทำ eval gemma vs gemini เต็มรูป (ชุด LINE_AI_SAFETY_RULES จริง) แล้วตัดสินใจสลับ
 
 2. **Medium Priority:**
-   - [ ] Backfill ชื่อ LINE ของ 7 ลูกค้าที่โดนทับ (K.9 และคนอื่น)
+   - [x] Backfill ชื่อ LINE 7 คน (จริง 8 คน) — เสร็จ session 2
+   - [ ] Push quota tracking — ยังไม่ทำ (usage ต่ำ) แต่ Phase 4 เปิดทาง push fallback แล้ว ควรมี counter ถ้าแชทโต
 
 3. **Low Priority (deferred, ไม่ใช่เฟสนี้):**
    - [ ] Facebook Messenger integration (ต้องมี Facebook App/App Secret ก่อน)
@@ -94,11 +106,14 @@
 |---|---|---|
 | PRD.md | `./PRD.md` | ภาพรวม/ขอบเขต/สถาปัตยกรรม |
 | implementation_plan.md | `./implementation_plan.md` | ขั้นตอนทำจริง + verification |
-| line-webhook | `../../supabase/functions/line-webhook/index.ts` | จุดที่ agent loop จะเข้าไปแทนที่ single-shot prompt |
-| customer-context.ts | `../../supabase/functions/_shared/customer-context.ts` | ฟังก์ชันเดิมที่จะยกระดับเป็น tool เช็คสถานะออเดอร์ |
-| ai-providers.ts | `../../supabase/functions/_shared/ai-providers.ts` | จุดสลับโมเดล (gemma4 ↔ DeepSeek/Gemini) |
+| line-webhook | `../../supabase/functions/line-webhook/index.ts` | agent loop entry + reply/push fallback |
+| line-agent-tools.ts | `../../supabase/functions/_shared/line-agent-tools.ts` | tool schemas + executors (search_products / get_order_status / check_queue) |
+| ai-providers.ts | `../../supabase/functions/_shared/ai-providers.ts` | `generateLineReplyAgent` (tool loop) + `generateLineReply` (single-shot) + Gemini fallback |
+| customer-context.ts | `../../supabase/functions/_shared/customer-context.ts` | `getCustomerContext` (exclusive-once-linked) + `upsertLineCustomer` (identity) |
+| config.toml | `../../supabase/config.toml` | pins verify_jwt=false for webhook fns — DO NOT delete |
+| phase2-model-eval.md | `./phase2-model-eval.md` | tool-calling eval results |
 
 ---
 
 **Template Version:** adapted from project-templates v1.0 (ตัดส่วน Hermes/OpenClaw mailbox ออกเพราะไม่ใช้ในโปรเจกต์นี้)
-**Last Edited By:** Claude (session 2026-08-28)
+**Last Edited By:** Claude (session 2026-08-28 #2 — implementation)
