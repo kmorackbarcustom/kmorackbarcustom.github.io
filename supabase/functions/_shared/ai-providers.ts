@@ -13,7 +13,12 @@ export type ToolDef = {
 export type ToolRunner = (name: string, args: Record<string, unknown>) => Promise<string>;
 type AgentInput = ChatInput & { tools: ToolDef[]; runTool: ToolRunner; maxRounds?: number };
 
-const OLLAMA_MODEL = "gemma4:31b-cloud";
+// deepseek-v4-flash:0731-cloud is Hermes' default across the workspace and beat the other
+// Ollama Cloud tool-calling models on the KMO grounding eval (docs/agent-upgrade/phase2-model-eval.md):
+// clean on hallucination bait, correct tool discipline, and - unlike gemma4 - no token-loop history.
+// If this dated tag is ever retired on Ollama Cloud, the Gemini fallback takes over; swap to a
+// current tag here.
+const OLLAMA_MODEL = "deepseek-v4-flash:0731-cloud";
 const OLLAMA_URL = "https://ollama.com/v1/chat/completions";
 export const PROVIDER_TIMEOUT_MS = 9000;
 // Agent loop can fan out to a few tool calls per round, so give it more headroom than a single shot.

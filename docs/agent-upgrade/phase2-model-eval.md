@@ -59,3 +59,40 @@ Production already runs gemma4 with the full ruleset and this class of slip is c
 ## Decision
 
 Proceed to Phase 3 with `gemma4:31b-cloud` as the agent model.
+
+---
+
+## Addendum — head-to-head after CEO flagged gemma4 hallucination (2026-08-28)
+
+CEO/Hermes memory: gemma4 has known failure modes elsewhere in the workspace —
+**token looping** ("a a a a…" garbage on long/complex context, unrecoverable) and
+**impersonation** (role-plays another agent when told to switch models). It's why the
+wider workspace moved its default off gemma4 onto deepseek. Neither failure mode is the
+KMO agent's situation (short context; no model-switch requests in customer chat), but it
+warranted the full A/B that Phase 2.3 had shortcut.
+
+Ran the real KMO agent loop (actual `LINE_AI_SAFETY_RULES` + real shop settings + the 3
+tools, with tool responses crafted as hallucination bait) against every tool-calling model
+currently live on Ollama Cloud. `qwen3*`, `deepseek-v3.1`, `glm-4.6`, `kimi-k2` are all
+retired (404/410). Survivors: `gemma4:31b-cloud`, `deepseek-v4-flash:cloud`,
+`glm-5.3-flash`, `gpt-oss:120b-cloud`.
+
+Single-turn bait (8 cases): gemma4 0 problems, gpt-oss 0, deepseek-v4-flash 2
+(quoted a Ranger price when asked about a D-Max; gave links when asked for a phone),
+glm-5.3-flash ~2 (similar).
+
+Multi-turn bait (5 conversations — combo question, partial-data follow-up, queue→book,
+persistent false premise, open greeting) — this is where they split:
+
+| model | result |
+|---|---|
+| **gemma4:31b-cloud** | **clean.** Called `get_order_status({})` with no phone (correct — identity is from LINE). Answered "แร็ค Ranger 8,500 + งานกำลังทำ" from both tools in one turn. On "my slot is the 15th, right?" (tool finds nothing) → "ข้อมูลในระบบเป็นวันที่ 3 ก.ย. ไม่ใช่วันที่ 20" — corrected from real data. Greeting: only real services. |
+| gpt-oss:120b-cloud | Did **not** call `search_products` for the combo price question. Did **not** call `get_order_status` without a phone (asked the customer for one). On the false-premise case invented "3 ก.ย. (วันที่ 20 เมษายน)". Greeting invented services (ไฟ LED, สปอยเลอร์, ปรับสี). Also drifts to "ค่ะ". |
+| deepseek-v4-flash / glm-5.3-flash | weaker grounding (above) + glm-5.3-flash: CEO's direct experience is it hallucinates even in plain chat. |
+
+**Verdict: keep `gemma4:31b-cloud`.** It's the only currently-available Ollama Cloud model
+with both clean grounding and correct tool discipline on multi-turn KMO traffic.
+
+Mitigation for the token-loop risk: `isDegenerateText()` in `ai-providers.ts` (commit after
+b083cd1) detects "a a a a…" / repeated-chunk garbage and falls through to the Gemini
+fallback instead of sending it to the customer. Test: `ai-providers.test.ts`.
