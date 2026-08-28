@@ -199,7 +199,15 @@ serve(async (req) => {
               },
             },
           );
-          await aiHandler.processSingleEvent(event);
+          const result = await aiHandler.processSingleEvent(event);
+          // Reply-first: the handler already tried replyMessage (free, no quota). If that failed -
+          // usually an expired/used replyToken because the agent loop ran long - fall back to push
+          // (costs monthly quota) so the customer gets the answer instead of silence.
+          if (result.eventType === "message" && !result.replied && result.replyMessages?.length && event.source?.userId) {
+            console.warn("[line-webhook] reply failed, using push fallback", result.replyResult?.error);
+            const pushResult = await aiHandler.getLineClient().pushMessage(event.source.userId, result.replyMessages);
+            if (!pushResult.success) console.error("[line-webhook] push fallback also failed", pushResult.error);
+          }
         }
         continue;
       }
