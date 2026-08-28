@@ -1,5 +1,9 @@
 export const TIME_ZONE = "Asia/Bangkok";
 
+// LIFF entry points the AI is allowed to hand out. Two distinct flows - do not mix them up:
+export const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe"; // จองคิวเข้าร้าน
+export const CUSTOMER_ORDER_URL = "https://liff.line.me/2011076704-yZQMM5Wb"; // สั่งผลิต/สั่งซื้อ
+
 export const STOP_STATUS_KEYWORDS = [
   "เสร็จ",
   "done",

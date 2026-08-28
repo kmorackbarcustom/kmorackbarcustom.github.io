@@ -49,22 +49,30 @@ export async function upsertLineCustomer(
   if (updateError) console.error("[customer-context] line_display_name update failed", updateError);
 }
 
+const BOOKING_COLS = "id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid";
+
 export async function getCustomerContext(
   supabase: ReturnType<typeof createServiceClient>,
   lineUid: string,
   customerPhone?: string | null,
 ): Promise<string> {
-  let bookingsQuery = supabase
-    .from("bookings")
-    .select("id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid")
-    .order("created_at", { ascending: false })
-    .limit(3);
-  bookingsQuery = customerPhone
-    ? bookingsQuery.or(`line_uid.eq.${lineUid},phone.eq.${customerPhone}`)
-    : bookingsQuery.eq("line_uid", lineUid);
+  // Identity matching rule (PRD 3): a booking that is already linked to a line_uid can ONLY be
+  // seen by that line_uid. A phone number the customer types in chat matches ONLY still-unlinked
+  // rows - otherwise anyone could type a stranger's number and read/claim their booking.
+  const ownQuery = supabase
+    .from("bookings").select(BOOKING_COLS)
+    .eq("line_uid", lineUid)
+    .order("created_at", { ascending: false }).limit(3);
+  const phoneQuery = customerPhone
+    ? supabase
+        .from("bookings").select(BOOKING_COLS)
+        .eq("phone", customerPhone).is("line_uid", null)
+        .order("created_at", { ascending: false }).limit(3)
+    : Promise.resolve({ data: [], error: null });
 
-  const [{ data: bookings, error: bookingsError }, { data: orders, error: ordersError }] = await Promise.all([
-    bookingsQuery,
+  const [ownRes, phoneRes, { data: orders, error: ordersError }] = await Promise.all([
+    ownQuery,
+    phoneQuery,
     supabase
       .from("orders")
       .select("order_id, status, due_date")
@@ -73,22 +81,28 @@ export async function getCustomerContext(
       .limit(3),
   ]);
 
-  if (bookingsError) console.error("[customer-context] bookings lookup failed", bookingsError);
+  if (ownRes.error) console.error("[customer-context] own bookings lookup failed", ownRes.error);
+  if (phoneRes.error) console.error("[customer-context] phone bookings lookup failed", phoneRes.error);
   if (ordersError) console.error("[customer-context] orders lookup failed", ordersError);
 
-  const bookingRows = (bookings ?? []) as Booking[];
+  // Own (linked) rows first, then phone-matched unlinked rows, deduped by id, capped at 3.
+  const seen = new Set<number>();
+  const bookingRows = [...((ownRes.data ?? []) as Booking[]), ...((phoneRes.data ?? []) as Booking[])]
+    .filter((b) => (seen.has(b.id) ? false : seen.add(b.id)))
+    .slice(0, 3);
   const orderRows = (orders ?? []) as Order[];
 
-  // Permanently link this phone-matched booking to the LINE account so future lookups don't need
-  // the customer to retype their phone - only the most recent unlinked row, per user's call (old
-  // duplicate bookings under the same phone don't all need backfilling, just the latest one).
-  const latestBooking = bookingRows[0];
-  if (customerPhone && latestBooking && !latestBooking.line_uid) {
+  // One-time claim: permanently link the most recent phone-matched *unlinked* booking to this LINE
+  // account so future lookups don't need the phone again. Only the latest one (old duplicate
+  // bookings under the same phone don't all need backfilling), and only if still unlinked - the
+  // `.is("line_uid", null)` on the update is the race guard.
+  const claimable = bookingRows.find((b) => !b.line_uid);
+  if (customerPhone && claimable) {
     const { error: backfillError } = await supabase
       .from("bookings")
       .update({ line_uid: lineUid })
-      .eq("id", latestBooking.id)
-      .or("line_uid.is.null,line_uid.eq.");
+      .eq("id", claimable.id)
+      .is("line_uid", null);
     if (backfillError) console.error("[customer-context] line_uid backfill failed", backfillError);
   }
 

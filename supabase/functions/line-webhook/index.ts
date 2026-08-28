@@ -1,16 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createServiceClient, getSettings, jsonResponse } from "../_shared/database.ts";
 import { verifyLineSignature, replyMessage, getProfile } from "../_shared/line.ts";
-import { generateLineReply } from "../_shared/ai-providers.ts";
+import { generateLineReplyAgent } from "../_shared/ai-providers.ts";
 import { sendTelegramMessage } from "../_shared/telegram.ts";
 import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
-import { getCustomerContext, extractThaiPhone, upsertLineCustomer } from "../_shared/customer-context.ts";
-import { dateOnlyInBangkok } from "../_shared/constants.ts";
-
-const LIFF_BOOKING_URL = "https://liff.line.me/2011076704-ESBn0cYe";
-const CUSTOMER_ORDER_URL = "https://liff.line.me/2011076704-yZQMM5Wb";
+import { upsertLineCustomer } from "../_shared/customer-context.ts";
+import { LINE_AGENT_TOOLS, makeLineAgentRunner } from "../_shared/line-agent-tools.ts";
+import { CUSTOMER_ORDER_URL, LIFF_BOOKING_URL } from "../_shared/constants.ts";
 
 // Safety-critical rules that stay hardcoded, not editable from admin-shop-config.html:
 // wrong link or a false "booking confirmed" promise is a real customer-facing failure,
@@ -24,7 +22,7 @@ const LINE_AI_SAFETY_RULES = [
   "ถ้าลูกค้าอยากสั่งผลิต/สั่งซื้อของใหม่ (ยังไม่มีออเดอร์เดิม) ให้แนะนำลิงก์สั่งผลิต",
   "ถ้าลูกค้าแค่ถามข้อมูลทั่วไป (เช่น มีรุ่นอะไรบ้าง, ราคาเท่าไหร่, มีของไหม) ให้ตอบข้อมูลนั้นเฉยๆ ห้ามแนบลิงก์ทันที - แนบลิงก์เฉพาะตอนที่ลูกค้าแสดงเจตนาจะจอง/สั่งซื้อจริงๆ หรือถามเองว่าจะจอง/สั่งยังไงเท่านั้น",
   "ห้ามยืนยันว่าจองคิว/สั่งออเดอร์สำเร็จ ห้ามอ้างว่าเช็ควันว่างให้ได้ - บอกให้กดลิงก์ที่ถูกต้องเพื่อทำเองเท่านั้น",
-  "ถ้าลูกค้าถามสถานะงาน/ออเดอร์ที่มีอยู่แล้ว ให้ตอบจากข้อมูลในระบบด้านล่างเท่านั้น ห้ามเดาวันที่หรือสถานะเอง",
+  "ถ้าลูกค้าถามสถานะงาน/ออเดอร์ที่มีอยู่แล้ว ให้เรียก tool get_order_status แล้วตอบจากผลที่ได้เท่านั้น ห้ามเดาวันที่หรือสถานะเอง",
   "ห้ามแต่ง URL/ลิงก์แผนที่/เบอร์โทรขึ้นเองเด็ดขาด นอกจาก 2 ลิงก์ข้างบนและข้อมูลที่ให้ไว้จริง ถ้าลูกค้าขอแผนที่/โลเคชั่นแต่ไม่มีลิงก์แผนที่จริงในข้อมูล ให้บอกที่อยู่เป็นข้อความ แล้วแนะนำให้ค้นชื่อร้านใน Google Maps ห้ามส่งลิงก์สมมติ",
   "ถ้าลูกค้าบอกว่าเคยโทร/จองไปแล้วแต่ในระบบไม่มีข้อมูลตรงกัน ห้ามตอบราวกับลูกค้ายังไม่เคยจอง (เช่น ห้ามยื่นลิงก์จองคิวให้กดใหม่ทันที) ให้ตอบแบบคนกำลังเช็คให้ก่อน เช่น 'รอแป๊บนะครับ เดี๋ยวเช็คให้ว่ามีคนโทรมาจองไว้ไหม' แล้วแจ้งว่าจะให้ทีมงานยืนยันให้อีกที",
   "ถ้าไม่แน่ใจคำตอบ หรือไม่มีข้อมูลในระบบ ให้บอกว่าจะให้ทีมงานติดต่อกลับ พร้อมขอชื่อ-เบอร์โทรลูกค้าถ้ายังไม่มีในระบบ เพื่อให้ทีมงานตามได้เร็วขึ้น",
@@ -32,49 +30,10 @@ const LINE_AI_SAFETY_RULES = [
 ].join("\n");
 
 type ShopFaq = { question: string; answer: string };
-type MatchedProduct = {
-  brand: string | null;
-  model: string | null;
-  name: string;
-  price: number;
-  category: string;
-  allow_booking: boolean;
-  allow_order: boolean;
-};
-type QueueDay = { work_date: string; units: number; is_over_capacity: boolean };
 
-function formatQueueDensity(queueDays: QueueDay[]): string {
-  const overCount = queueDays.filter((d) => d.is_over_capacity).length;
-  const lines = queueDays.map((d) => {
-    const label = new Date(`${d.work_date}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-    return `- ${label}: ${d.is_over_capacity ? "งานเกินกำลังผลิตปกติ (คิวแน่น)" : "งานยังไม่เกินกำลังผลิตปกติ"}`;
-  });
-  return [
-    `สถานะคิวช่วง ${queueDays.length} วันข้างหน้า (ใช้ตอบถ้าลูกค้าถามว่าคิว/ออเดอร์ตอนนี้แน่นไหม รับงานเพิ่มได้ไหม):`,
-    ...lines,
-    `สรุป: ${overCount} จาก ${queueDays.length} วันงานเกินกำลังผลิตปกติ`,
-  ].join("\n");
-}
-
-// ponytail: search_products only sees this string, not the full conversation - without recent user
-// turns folded in, a follow-up like "แล้วแร็คท้ายล่ะ" (no brand/model) matches nothing.
-function buildProductSearchMessage(userMessage: string, history: Array<{ role: string; content: string }>): string {
-  // no extra cap here - `history` is already bounded to 40 messages total by StateManager.appendHistory
-  // (vendored copy raised from the module's default of 20 - CEO wanted longer memory for long chats),
-  // so this covers everything the model itself can still "remember" in the session, not just recent turns.
-  const allUserTurns = history
-    .filter((h) => h.role === "user")
-    .map((h) => h.content)
-    .join("\n");
-  return [allUserTurns, userMessage].filter(Boolean).join("\n");
-}
-
-function buildSystemPrompt(
-  settings: Record<string, string>,
-  faqs: ShopFaq[],
-  products: MatchedProduct[],
-  queueDays: QueueDay[],
-): string {
+// Agent model reaches live data through the tools in line-agent-tools.ts, not through eager context
+// stuffed here. This prompt is only the stable stuff: who you are, the safety rules, persona, FAQs.
+function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): string {
   const shopName = settings.shop_name || "ร้าน";
   const parts = [
     `คุณคือผู้ช่วยตอบแชทของ${shopName}${settings.shop_description ? ` (${settings.shop_description})` : ""}`,
@@ -83,49 +42,26 @@ function buildSystemPrompt(
   if (settings.shop_contact) parts.push(`ช่องทางติดต่อ: ${settings.shop_contact}`);
   if (settings.shop_hours) parts.push(`เวลาเปิด-ปิด: ${settings.shop_hours}`);
   parts.push(LINE_AI_SAFETY_RULES);
+  parts.push(
+    [
+      "เครื่องมือที่เรียกได้ (เรียกเมื่อจำเป็นเท่านั้น ไม่ต้องเรียกทุกข้อความ):",
+      "- search_products: ถามราคา/รุ่น/มีของไหม",
+      "- get_order_status: ลูกค้าถามสถานะงาน/ออเดอร์ของตัวเอง",
+      "- check_queue: ลูกค้าถามว่าคิวแน่นไหม สั่งตอนนี้นานไหม",
+      "ห้ามเดาราคา สถานะงาน หรือความแน่นของคิวเอง ต้องเรียก tool ก่อนเสมอ ถ้า tool ไม่คืนข้อมูลให้บอกว่าจะให้ทีมงานติดต่อกลับ",
+    ].join("\n"),
+  );
   if (settings.ai_persona_prompt) parts.push(settings.ai_persona_prompt);
   if (faqs.length > 0) {
     parts.push(
-      ["คำถามที่พบบ่อยและคำตอบมาตรฐาน (ใช้ตอบถ้าลูกค้าถามตรงกับเรื่องนี้):", ...faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`)].join(
-        "\n",
-      ),
+      ["คำถามที่พบบ่อยและคำตอบมาตรฐาน (ใช้ตอบถ้าลูกค้าถามตรงกับเรื่องนี้):", ...faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`)].join("\n"),
     );
   }
-  if (products.length > 0) {
-    const line = (p: MatchedProduct) => `- ${[p.brand, p.model].filter(Boolean).join(" ")} ${p.name} (${p.category}): ${p.price.toLocaleString("th-TH")} บาท`;
-    const bookingOnly = products.filter((p) => p.allow_booking && !p.allow_order);
-    const orderOnly = products.filter((p) => p.allow_order && !p.allow_booking);
-    const either = products.filter((p) => p.allow_booking && p.allow_order);
-    const groups: string[] = [];
-    if (bookingOnly.length > 0) {
-      groups.push([`กลุ่ม "ต้องเอารถเข้าร้าน" (ใช้ลิงก์นี้: ${LIFF_BOOKING_URL}):`, ...bookingOnly.map(line)].join("\n"));
-    }
-    if (orderOnly.length > 0) {
-      groups.push([`กลุ่ม "สั่งผลิตได้เลยไม่ต้องเข้าร้าน" (ใช้ลิงก์นี้: ${CUSTOMER_ORDER_URL}):`, ...orderOnly.map(line)].join("\n"));
-    }
-    if (either.length > 0) {
-      groups.push(["กลุ่ม \"จองคิวหรือสั่งผลิตก็ได้\":", ...either.map(line)].join("\n"));
-    }
-    parts.push(
-      [
-        "รายการสินค้า/ราคาที่ตรงกับข้อความลูกค้า แบ่งเป็นกลุ่มตามลิงก์ที่ต้องใช้ (ตอบราคาจากตรงนี้เท่านั้น ห้ามเดาราคาสินค้าที่ไม่อยู่ในรายการนี้):",
-        ...groups,
-        "ถ้าลูกค้าถามสินค้าหลายชิ้นที่อยู่คนละกลุ่มในข้อความเดียว ต้องตอบแยกทีละกลุ่มพร้อมลิงก์ของกลุ่มนั้นให้ครบทุกกลุ่มที่เกี่ยวข้อง ห้ามส่งลิงก์เดียวเหมารวมทุกชิ้น",
-      ].join("\n\n"),
-    );
-  } else {
-    // ponytail: when search_products finds nothing, don't let the model guess a link from
-    // conversation history — that's exactly the failure mode this whole block exists to prevent.
-    parts.push(
-      "ไม่พบสินค้าที่ตรงกับข้อความล่าสุด: ถ้าลูกค้าถามว่าจะจอง/สั่งยังไง ห้ามเดาลิงก์เองจากบทสนทนาก่อนหน้า ให้ถามกลับว่าหมายถึงรุ่นรถ/สินค้าอะไร หรือให้ลูกค้าพิมพ์ชื่อสินค้าซ้ำอีกครั้ง",
-    );
-  }
-  if (queueDays.length > 0) parts.push(formatQueueDensity(queueDays));
   return parts.join("\n\n");
 }
 
-// ponytail: matches the exact phrase the system prompt above instructs the AI to say — that's the
-// only way we can tell "AI punted to a human" apart from a normal answer, since there's no function-calling.
+// Matches the exact phrase the safety rules tell the AI to say when it can't answer - the only
+// signal we have that "AI punted to a human", since the reply is plain text with no structured flag.
 const NEEDS_STAFF_FOLLOWUP = "ทีมงานติดต่อกลับ";
 
 async function notifyStaffOfUnansweredQuestion(
@@ -235,20 +171,15 @@ serve(async (req) => {
                 };
 
                 try {
-                  const productSearchMessage = buildProductSearchMessage(userMessage, history);
-                  const [customerContext, matchedProducts, queueDays] = await Promise.all([
-                    getCustomerContext(supabase, session.userId, extractThaiPhone(productSearchMessage)),
-                    supabase.rpc("search_products", { customer_message: productSearchMessage }).then(({ data, error }) => {
-                      if (error) console.error("[line-ai] search_products failed", error);
-                      return data ?? [];
-                    }),
-                    supabase.rpc("get_upcoming_queue_density", { from_date: dateOnlyInBangkok(), days: 7 }).then(({ data, error }) => {
-                      if (error) console.error("[line-ai] get_upcoming_queue_density failed", error);
-                      return data ?? [];
-                    }),
-                  ]);
-                  const systemPrompt = `${buildSystemPrompt(settings ?? {}, faqs ?? [], matchedProducts, queueDays)}\n\n${customerContext}`;
-                  const { reply } = await generateLineReply({ userMessage, history, systemPrompt });
+                  const systemPrompt = buildSystemPrompt(settings ?? {}, faqs ?? []);
+                  const { reply } = await generateLineReplyAgent({
+                    userMessage,
+                    history,
+                    systemPrompt,
+                    tools: LINE_AGENT_TOOLS,
+                    runTool: makeLineAgentRunner(supabase, session.userId),
+                    maxRounds: 3,
+                  });
                   await notifyIfNeeded(reply);
                   return { reply };
                 } catch (error) {
