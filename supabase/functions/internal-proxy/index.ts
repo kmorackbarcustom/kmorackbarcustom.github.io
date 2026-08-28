@@ -35,8 +35,9 @@ type StaffPasscodeVerifier = {
 };
 // ponytail: this is a PBKDF2 hash, one-way — if you rotate system_settings.staff_passcode_verifier,
 // the plaintext passcode CANNOT be recovered afterward. Update D:\AI-Workspace\.secrets\keys.txt
-// (KMO_INTERNAL_PROXY_STAFF_PASSCODE) with the new value FIRST, or staff get locked out of
-// admin-shop-config/AdminOrderDashboard/bookingdashboard/vehicle-intake like 2026-08-26 → 2026-08-28.
+// (KMO_STAFF_PASSCODE — also gates the separate staff-reply function's STAFF_PASSCODE secret, keep
+// both in sync) with the new value FIRST, or staff get locked out of admin-shop-config/
+// AdminOrderDashboard/bookingdashboard/vehicle-intake like 2026-08-26 → 2026-08-28.
 const VERIFIER_SETTING_KEY = "staff_passcode_verifier";
 const VERIFIER_CACHE_MS = 5 * 60 * 1000;
 let cachedVerifier: StaffPasscodeVerifier | null = null;
