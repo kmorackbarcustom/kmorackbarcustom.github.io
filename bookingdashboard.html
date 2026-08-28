@@ -1062,7 +1062,7 @@
                      src="${PLACEHOLDER_IMG}"
                      data-src="${url}"
                      alt="รูป ${idx + 1}"
-                     onclick="openLightbox(${JSON.stringify(booking.images)}, ${idx})"
+                     onclick="openLightboxForBooking(${booking.id}, ${idx})"
                 >
               `).join('')}
             </div>
@@ -1194,6 +1194,15 @@
       updateLightbox();
       document.getElementById('lightbox').classList.add('open');
       document.body.style.overflow = 'hidden';
+    }
+
+    // ponytail: looks images up from allBookings instead of inlining JSON.stringify(images) into
+    // an onclick="..." attribute — that broke the moment an image URL's quotes closed the
+    // double-quoted attribute early (browser saw onclick="openLightbox([" and stopped there).
+    function openLightboxForBooking(bookingId, index) {
+      const booking = allBookings.find(b => b.id === bookingId);
+      if (!booking || !booking.images) return;
+      openLightbox(booking.images, index);
     }
 
     function updateLightbox() {
