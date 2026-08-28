@@ -1,0 +1,14 @@
+# Minimal config so `supabase functions deploy` stops resetting verify_jwt.
+# These functions do their own auth (LINE signature / Telegram secret / x-staff-key) and
+# receive requests with no Supabase JWT, so verify_jwt MUST stay false for them. Before this
+# file existed, every code deploy silently flipped them back to true and broke the webhooks.
+project_id = "xfhpwxjywqgqefbncumm"
+
+[functions.line-webhook]
+verify_jwt = false
+
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.telegram-notify]
+verify_jwt = false
