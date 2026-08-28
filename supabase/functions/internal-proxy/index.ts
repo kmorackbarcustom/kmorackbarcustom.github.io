@@ -9,6 +9,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE, PATCH",
 };
 
+// 🔒 LOCKED (CEO instruction 2026-08-28): this allowlist gates service_role access for the whole
+// shop. Do NOT add/remove/reorder entries, and do not widen a path's HTTP methods (see
+// isPathAllowed's GET-only carve-out for system_settings below), without asking the CEO first and
+// laying out the pros/cons/blast-radius. This is the exact policy that silently locked staff out
+// for 2 days (2026-08-26 → 08-28, see commits fdf6ff9/35582f5) — next time, ask before touching it.
 const allowedPaths = [
   "orders",
   "bookings",
