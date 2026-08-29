@@ -33,6 +33,7 @@ import {
   shouldHandleImage,
 } from "../_shared/line-image-flow.ts";
 import { processRescheduleMessage } from "../_shared/reschedule-state.ts";
+import { guardGroundedOutput } from "../_shared/output-grounding.ts";
 
 // Safety-critical rules that stay hardcoded, not editable from admin-shop-config.html:
 // wrong link or a false "booking confirmed" promise is a real customer-facing failure,
@@ -191,17 +192,33 @@ async function generateAgentText(
 
   try {
     const systemPrompt = buildSystemPrompt(settings, faqs);
+    const authoritativeToolResults: string[] = [];
+    const baseRunner = makeLineAgentRunner(supabase, userId);
     const { reply } = await generateLineReplyAgent({
       userMessage,
       history,
       systemPrompt,
       tools: LINE_AGENT_TOOLS,
-      runTool: makeLineAgentRunner(supabase, userId),
+      runTool: async (name, args) => {
+        const result = await baseRunner(name, args);
+        if (name === "get_order_status") authoritativeToolResults.push(result);
+        return result;
+      },
       maxRounds: 3,
     });
-    await notifyIfNeeded(reply);
-    console.log(`[line-ai] reply for ${userId}: ${reply.slice(0, 300)}`);
-    return reply;
+    const guarded = guardGroundedOutput(reply, {
+      userMessage,
+      authoritativeToolResults,
+    });
+    if (guarded.blocked) {
+      console.warn("[line-ai] output grounding blocked unsupported claim", {
+        userId,
+        reason: guarded.reason,
+      });
+    }
+    await notifyIfNeeded(guarded.text);
+    console.log(`[line-ai] reply for ${userId}: ${guarded.text.slice(0, 300)}`);
+    return guarded.text;
   } catch (error) {
     console.error("[line-ai] generation failed, sending fallback reply", error);
     const fallback =
@@ -320,11 +337,23 @@ serve(async (req) => {
                             reschedule.completed.requestedDate,
                           );
                         } catch (notifyError) {
-                          console.error("[line-ai] reschedule staff notify failed", notifyError);
+                          console.error(
+                            "[line-ai] reschedule staff notify failed",
+                            notifyError,
+                          );
                         }
                       }
                     }
-                    return reschedule;
+                    const guarded = guardGroundedOutput(reschedule.reply, {
+                      userMessage,
+                      structuredDates: {
+                        original_date: reschedule.completed?.originalDate ??
+                          reschedule.extractedData.original_date,
+                        requested_date: reschedule.completed?.requestedDate ??
+                          reschedule.extractedData.requested_date,
+                      },
+                    });
+                    return { ...reschedule, reply: guarded.text };
                   }
                   return {
                     reply: await generateAgentText(

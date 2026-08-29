@@ -36,3 +36,17 @@ Candidate reusable concepts:
 
 **Status:** UPSTREAM CANDIDATE ONLY
 **Implementation status:** Not implemented in modules-hub
+
+## Phase 3 observation — pre-emission factual validation
+
+The production incident also supports a narrow deterministic validation hook immediately before an AI draft is emitted to the customer. Prompt and conversation state reduce risk, but a final guard can prevent an unsupported high-risk factual claim from leaving the system.
+
+Candidate reusable concepts:
+
+- **Pre-emission factual validation hook:** inspect the final draft before the messaging adapter emits it.
+- **Authoritative evidence contract:** high-risk factual identity claims are allowed only when supported by trusted tool/business data or an explicitly labeled fact in the current user turn.
+- **Unsupported-claim fallback:** remove an unsupported claim when it is safe to do so; otherwise return a neutral fallback that introduces no replacement fact.
+- **Deterministic guard:** validation should not require a second LLM/judge call.
+
+**Status:** UPSTREAM CANDIDATE ONLY
+**Implementation status:** Not implemented in modules-hub
