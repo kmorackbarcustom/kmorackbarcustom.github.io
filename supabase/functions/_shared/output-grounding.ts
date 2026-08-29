@@ -16,7 +16,9 @@ export type GroundingGuardResult = {
     | "unsupported_vehicle_claim"
     | "unsupported_customer_name_claim"
     | "unsupported_order_status_claim"
-    | "unsupported_order_date_claim";
+    | "unsupported_order_date_claim"
+    | "unsupported_payment_claim"
+    | "unsupported_booking_confirmation_claim";
 };
 
 const SAFE_FALLBACK =
@@ -132,6 +134,53 @@ function authoritativeText(evidence: GroundingEvidence): string {
   return (evidence.authoritativeToolResults ?? []).join("\n");
 }
 
+function extractAuthoritativePaymentStates(
+  results: string[],
+): { depositPaid: boolean | null; totalPaid: boolean | null } {
+  let depositPaid: boolean | null = null;
+  let totalPaid: boolean | null = null;
+  for (const result of results) {
+    const deposit = result.match(/^\s*มัดจำ:\s*(.+)$/im)?.[1]?.trim();
+    if (deposit === "ชำระแล้ว") depositPaid = true;
+    if (deposit === "ยังไม่พบการชำระ") depositPaid = false;
+    const total = result.match(/^\s*สถานะชำระเต็มจำนวน:\s*(.+)$/im)?.[1]?.trim();
+    if (total === "ชำระครบแล้ว") totalPaid = true;
+    if (total === "ยังไม่ชำระครบ") totalPaid = false;
+  }
+  return { depositPaid, totalPaid };
+}
+
+function paymentClaimSupported(
+  line: string,
+  evidence: GroundingEvidence,
+): boolean {
+  if (!/(มัดจำ|ชำระ|จ่าย)/i.test(line)) return true;
+  const { depositPaid, totalPaid } = extractAuthoritativePaymentStates(
+    evidence.authoritativeToolResults ?? [],
+  );
+  if (
+    /(ชำระมัดจำแล้ว|จ่ายมัดจำแล้ว|มัดจำเรียบร้อยแล้ว|มัดจำ.{0,12}(ชำระแล้ว|จ่ายแล้ว))/i.test(
+      line,
+    )
+  ) {
+    return depositPaid === true;
+  }
+  if (/(ยังไม่พบ.{0,12}มัดจำ|มัดจำ.{0,12}(ยังไม่พบ|ยังไม่ได้|ยังไม่ชำระ))/i.test(line)) {
+    return depositPaid === false;
+  }
+  if (/(ชำระครบแล้ว|จ่ายครบแล้ว|ชำระเต็มจำนวนแล้ว)/i.test(line)) {
+    return totalPaid === true;
+  }
+  if (/(ยังไม่ชำระครบ|ยังจ่ายไม่ครบ)/i.test(line)) return totalPaid === false;
+  if (/(ชำระเงินแล้ว|จ่ายเงินแล้ว|จ่ายแล้ว)/i.test(line)) return totalPaid === true;
+  if (/(ยังไม่ได้ชำระ|ยังไม่ได้จ่าย)/i.test(line)) return totalPaid === false;
+  return true;
+}
+
+function hasUnsupportedBookingConfirmation(line: string): boolean {
+  return /(เจอกันวันที่|ลงคิวให้แล้ว|จองให้แล้ว|ยืนยันนัดให้แล้ว|ยืนยันคิวให้แล้ว)/i.test(line);
+}
+
 const ORDER_STATUS_PHRASES = [
   "เสร็จแล้ว",
   "เสร็จ",
@@ -186,18 +235,30 @@ function orderStatusSupported(
 }
 
 const THAI_MONTHS: Record<string, string> = {
-  "ม.ค": "01", "มกราคม": "01",
-  "ก.พ": "02", "กุมภาพันธ์": "02",
-  "มี.ค": "03", "มีนาคม": "03",
-  "เม.ย": "04", "เมษายน": "04",
-  "พ.ค": "05", "พฤษภาคม": "05",
-  "มิ.ย": "06", "มิถุนายน": "06",
-  "ก.ค": "07", "กรกฎาคม": "07",
-  "ส.ค": "08", "สิงหาคม": "08",
-  "ก.ย": "09", "กันยายน": "09",
-  "ต.ค": "10", "ตุลาคม": "10",
-  "พ.ย": "11", "พฤศจิกายน": "11",
-  "ธ.ค": "12", "ธันวาคม": "12",
+  "ม.ค": "01",
+  "มกราคม": "01",
+  "ก.พ": "02",
+  "กุมภาพันธ์": "02",
+  "มี.ค": "03",
+  "มีนาคม": "03",
+  "เม.ย": "04",
+  "เมษายน": "04",
+  "พ.ค": "05",
+  "พฤษภาคม": "05",
+  "มิ.ย": "06",
+  "มิถุนายน": "06",
+  "ก.ค": "07",
+  "กรกฎาคม": "07",
+  "ส.ค": "08",
+  "สิงหาคม": "08",
+  "ก.ย": "09",
+  "กันยายน": "09",
+  "ต.ค": "10",
+  "ตุลาคม": "10",
+  "พ.ย": "11",
+  "พฤศจิกายน": "11",
+  "ธ.ค": "12",
+  "ธันวาคม": "12",
 };
 
 function dateKeys(value: string, evidenceMode = false): string[] {
@@ -206,7 +267,9 @@ function dateKeys(value: string, evidenceMode = false): string[] {
   if (iso) {
     const [, year, month, day] = iso;
     keys.add(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
-    if (evidenceMode) keys.add(`${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
+    if (evidenceMode) {
+      keys.add(`${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
+    }
   }
   const numeric = value.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
   if (numeric) {
@@ -220,7 +283,9 @@ function dateKeys(value: string, evidenceMode = false): string[] {
       keys.add(`${year}-${md}`);
     }
   }
-  const thai = value.match(/(\d{1,2})\s*(ม\.ค|มกราคม|ก\.พ|กุมภาพันธ์|มี\.ค|มีนาคม|เม\.ย|เมษายน|พ\.ค|พฤษภาคม|มิ\.ย|มิถุนายน|ก\.ค|กรกฎาคม|ส\.ค|สิงหาคม|ก\.ย|กันยายน|ต\.ค|ตุลาคม|พ\.ย|พฤศจิกายน|ธ\.ค|ธันวาคม)\.?\s*(\d{2,4})?/i);
+  const thai = value.match(
+    /(\d{1,2})\s*(ม\.ค|มกราคม|ก\.พ|กุมภาพันธ์|มี\.ค|มีนาคม|เม\.ย|เมษายน|พ\.ค|พฤษภาคม|มิ\.ย|มิถุนายน|ก\.ค|กรกฎาคม|ส\.ค|สิงหาคม|ก\.ย|กันยายน|ต\.ค|ตุลาคม|พ\.ย|พฤศจิกายน|ธ\.ค|ธันวาคม)\.?\s*(\d{2,4})?/i,
+  );
   if (thai) {
     const [, day, monthName, rawYear] = thai;
     const month = THAI_MONTHS[monthName.replace(/\.$/, "")];
@@ -241,7 +306,11 @@ function dateKeys(value: string, evidenceMode = false): string[] {
 function extractAuthoritativeDates(results: string[]): string[] {
   const values: string[] = [];
   for (const result of results) {
-    for (const match of result.matchAll(/(?:กำหนดส่ง|นัดเข้า|นัดรับ)\s*:\s*([^|\n(]+)/gi)) {
+    for (
+      const match of result.matchAll(
+        /(?:กำหนดส่ง|นัดเข้า|นัดรับ)\s*:\s*([^|\n(]+)/gi,
+      )
+    ) {
       const value = match[1].trim();
       if (value && value !== "ไม่มีข้อมูลในระบบ") values.push(value);
     }
@@ -263,7 +332,9 @@ function orderDateSupported(
     evidence.structuredDates?.original_date ?? "",
     evidence.structuredDates?.requested_date ?? "",
   ].filter(Boolean);
-  const evidenceKeys = new Set(evidenceValues.flatMap((value) => dateKeys(value, true)));
+  const evidenceKeys = new Set(
+    evidenceValues.flatMap((value) => dateKeys(value, true)),
+  );
   return claimKeys.some((key) => evidenceKeys.has(key));
 }
 
@@ -292,6 +363,14 @@ export function guardGroundedOutput(
     }
     if (!orderDateSupported(line, evidence)) {
       reason ??= "unsupported_order_date_claim";
+      continue;
+    }
+    if (!paymentClaimSupported(line, evidence)) {
+      reason ??= "unsupported_payment_claim";
+      continue;
+    }
+    if (hasUnsupportedBookingConfirmation(line)) {
+      reason ??= "unsupported_booking_confirmation_claim";
       continue;
     }
     kept.push(line);

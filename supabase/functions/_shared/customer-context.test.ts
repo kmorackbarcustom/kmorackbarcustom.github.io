@@ -3,6 +3,8 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  type Booking,
+  formatBookingForAgent,
   formatOrderForAgent,
   getCustomerContext,
   type Order,
@@ -147,5 +149,61 @@ Deno.test("order context keeps LINE user identity isolation", async () => {
   assertEquals(
     fake.selectedColumns.orders,
     "order_id, customer_name, brand, model, items, status, due_date, note",
+  );
+});
+
+function makeBooking(overrides: Partial<Booking> = {}): Booking {
+  return {
+    id: 1,
+    job_id: "KLI-TEST",
+    product: "แคชบาร์",
+    queue_status: "ยืนยัน",
+    production_status: "รอเริ่มงาน",
+    appointment_date: "2026-09-03",
+    pickup_date: "2026-09-04",
+    line_uid: "line-A",
+    deposit: 500,
+    deposit_paid: false,
+    deposit_paid_at: null,
+    total_amount: 5000,
+    total_paid: false,
+    ...overrides,
+  };
+}
+
+Deno.test("booking grounding exposes current unpaid deposit state explicitly", () => {
+  const context = formatBookingForAgent(makeBooking());
+  assertStringIncludes(context, "สถานะคิว: ยืนยัน");
+  assertStringIncludes(context, "นัดเข้า: 2026-09-03");
+  assertStringIncludes(context, "มัดจำ: ยังไม่พบการชำระ");
+  assertStringIncludes(context, "ยอดมัดจำ: 500 บาท");
+});
+
+Deno.test("booking grounding exposes paid deposit only when DB says paid", () => {
+  const context = formatBookingForAgent(
+    makeBooking({
+      deposit_paid: true,
+      deposit_paid_at: "2026-08-29T12:00:00+07:00",
+    }),
+  );
+  assertStringIncludes(context, "มัดจำ: ชำระแล้ว");
+  assertStringIncludes(context, "ชำระมัดจำเมื่อ: 2026-08-29T12:00:00+07:00");
+});
+
+Deno.test("booking context reads payment truth from the linked booking", async () => {
+  const fake = new FakeSupabase({
+    bookings: [makeBooking({ line_uid: "line-A", deposit_paid: false })],
+    orders: [],
+  });
+  const context = await getCustomerContext(
+    fake as unknown as Parameters<typeof getCustomerContext>[0],
+    "line-A",
+  );
+  assertStringIncludes(context, "งานจองคิว KLI-TEST");
+  assertStringIncludes(context, "มัดจำ: ยังไม่พบการชำระ");
+  assertStringIncludes(context, "สถานะชำระเต็มจำนวน: ยังไม่ชำระครบ");
+  assertEquals(
+    fake.selectedColumns.bookings,
+    "id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid, deposit, deposit_paid, deposit_paid_at, total_amount, total_paid",
   );
 });

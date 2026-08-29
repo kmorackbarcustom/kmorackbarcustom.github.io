@@ -170,3 +170,45 @@ Deno.test("blocks same day and month when claimed Buddhist year is wrong", () =>
   assertEquals(result.blocked, true);
   assertEquals(result.reason, "unsupported_order_date_claim");
 });
+
+Deno.test("blocks paid-deposit claim when authoritative booking says unpaid", () => {
+  const result = guardGroundedOutput("ระบบพบว่าชำระมัดจำแล้วครับ", {
+    userMessage: "ผมมัดจำแล้วนะครับ",
+    authoritativeToolResults: [
+      "สถานะคิว: ยืนยัน\nมัดจำ: ยังไม่พบการชำระ\nสถานะชำระเต็มจำนวน: ยังไม่ชำระครบ",
+    ],
+  });
+  assertEquals(result.blocked, true);
+  assertEquals(result.reason, "unsupported_payment_claim");
+});
+
+Deno.test("allows paid-deposit claim only from current authoritative booking state", () => {
+  const draft = "ระบบพบว่าชำระมัดจำแล้วครับ";
+  const result = guardGroundedOutput(draft, {
+    userMessage: "มัดจำเรียบร้อยไหมครับ",
+    authoritativeToolResults: [
+      "สถานะคิว: ยืนยัน\nมัดจำ: ชำระแล้ว\nสถานะชำระเต็มจำนวน: ยังไม่ชำระครบ",
+    ],
+  });
+  assertEquals(result, { text: draft, blocked: false });
+});
+
+Deno.test("allows explicit unpaid-deposit report when authoritative booking says unpaid", () => {
+  const draft = "ตอนนี้ระบบยังไม่พบการยืนยันมัดจำครับ";
+  const result = guardGroundedOutput(draft, {
+    userMessage: "เช็คคิวให้หน่อยครับ",
+    authoritativeToolResults: ["สถานะคิว: ยืนยัน\nมัดจำ: ยังไม่พบการชำระ"],
+  });
+  assertEquals(result, { text: draft, blocked: false });
+});
+
+Deno.test("blocks booking-confirmation promise wording even when date exists", () => {
+  const result = guardGroundedOutput("เจอกันวันที่ 3 ก.ย. นะครับ", {
+    userMessage: "ผมจองวันที่ 3 ไปครับ",
+    authoritativeToolResults: [
+      "สถานะคิว: ยืนยัน\nนัดเข้า: 2026-09-03\nมัดจำ: ยังไม่พบการชำระ",
+    ],
+  });
+  assertEquals(result.blocked, true);
+  assertEquals(result.reason, "unsupported_booking_confirmation_claim");
+});
