@@ -1,14 +1,37 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createServiceClient, getSettings, jsonResponse } from "../_shared/database.ts";
-import { verifyLineSignature, replyMessage, getProfile } from "../_shared/line.ts";
+import {
+  createServiceClient,
+  getSettings,
+  jsonResponse,
+} from "../_shared/database.ts";
+import {
+  downloadLineImageContent,
+  getProfile,
+  pushMessage,
+  replyMessage,
+  verifyLineSignature,
+} from "../_shared/line.ts";
 import { generateLineReplyAgent } from "../_shared/ai-providers.ts";
 import { sendTelegramMessage } from "../_shared/telegram.ts";
 import { PostgresSessionStore } from "../_shared/line-session-store.ts";
+import { StateManager } from "../_shared/vendor/line-oa-ai-module/core/state-manager.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
 import { upsertLineCustomer } from "../_shared/customer-context.ts";
-import { LINE_AGENT_TOOLS, makeLineAgentRunner } from "../_shared/line-agent-tools.ts";
+import {
+  LINE_AGENT_TOOLS,
+  makeLineAgentRunner,
+} from "../_shared/line-agent-tools.ts";
 import { CUSTOMER_ORDER_URL, LIFF_BOOKING_URL } from "../_shared/constants.ts";
+import {
+  analyzeImageWithGemma,
+  formatVisionObservation,
+} from "../_shared/vision.ts";
+import {
+  isSupportedLineImageProvider,
+  processImageConversation,
+  shouldHandleImage,
+} from "../_shared/line-image-flow.ts";
 
 // Safety-critical rules that stay hardcoded, not editable from admin-shop-config.html:
 // wrong link or a false "booking confirmed" promise is a real customer-facing failure,
@@ -33,17 +56,30 @@ type ShopFaq = { question: string; answer: string };
 
 // Agent model reaches live data through the tools in line-agent-tools.ts, not through eager context
 // stuffed here. This prompt is only the stable stuff: who you are, the safety rules, persona, FAQs.
-function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): string {
+function buildSystemPrompt(
+  settings: Record<string, string>,
+  faqs: ShopFaq[],
+): string {
   const shopName = settings.shop_name || "ร้าน";
-  const today = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric", weekday: "long" });
+  const today = new Date().toLocaleDateString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    weekday: "long",
+  });
   const parts = [
-    `คุณคือผู้ช่วยตอบแชทของ${shopName}${settings.shop_description ? ` (${settings.shop_description})` : ""}`,
+    `คุณคือผู้ช่วยตอบแชทของ${shopName}${
+      settings.shop_description ? ` (${settings.shop_description})` : ""
+    }`,
     // ponytail: without this, dates from tools (นัดรับ/กำหนดส่ง) read as inert strings with no
     // "now" to compare against - confirmed live, customer asked on their pickup day and the bot
     // answered as if the date were still upcoming.
     `วันนี้คือวัน${today} (เวลาไทย) — ใช้เทียบกับวันที่ที่เห็นจากข้อมูลลูกค้า/tool เสมอ`,
   ];
-  if (settings.shop_address) parts.push(`ที่อยู่/พื้นที่ให้บริการ: ${settings.shop_address}`);
+  if (settings.shop_address) {
+    parts.push(`ที่อยู่/พื้นที่ให้บริการ: ${settings.shop_address}`);
+  }
   if (settings.shop_contact) parts.push(`ช่องทางติดต่อ: ${settings.shop_contact}`);
   if (settings.shop_hours) parts.push(`เวลาเปิด-ปิด: ${settings.shop_hours}`);
   parts.push(LINE_AI_SAFETY_RULES);
@@ -59,7 +95,10 @@ function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): s
   if (settings.ai_persona_prompt) parts.push(settings.ai_persona_prompt);
   if (faqs.length > 0) {
     parts.push(
-      ["คำถามที่พบบ่อยและคำตอบมาตรฐาน (ใช้ตอบถ้าลูกค้าถามตรงกับเรื่องนี้):", ...faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`)].join("\n"),
+      [
+        "คำถามที่พบบ่อยและคำตอบมาตรฐาน (ใช้ตอบถ้าลูกค้าถามตรงกับเรื่องนี้):",
+        ...faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`),
+      ].join("\n"),
     );
   }
   return parts.join("\n\n");
@@ -81,19 +120,74 @@ async function notifyStaffOfUnansweredQuestion(
     .eq("line_uid", lineUid)
     .maybeSingle();
 
-  const displayName = [customer?.name, customer?.line_display_name && customer.line_display_name !== customer.name
-    ? `LINE: ${customer.line_display_name}` : null].filter(Boolean).join(" / ");
-  const who = displayName ? `${displayName}${customer?.phone ? ` (${customer.phone})` : ""}` : lineUid;
+  const displayName = [
+    customer?.name,
+    customer?.line_display_name && customer.line_display_name !== customer.name
+      ? `LINE: ${customer.line_display_name}`
+      : null,
+  ].filter(Boolean).join(" / ");
+  const who = displayName
+    ? `${displayName}${customer?.phone ? ` (${customer.phone})` : ""}`
+    : lineUid;
   await sendTelegramMessage(
     chatId,
     `🔔 AI ตอบลูกค้าไม่ได้ ต้องติดต่อกลับ\nลูกค้า: ${who}\nคำถาม: ${question}`,
   );
 }
 
+type AgentHistoryItem = { role: string; content: string };
+
+async function generateAgentText(
+  supabase: ReturnType<typeof createServiceClient>,
+  settings: Record<string, string>,
+  faqs: ShopFaq[],
+  userId: string,
+  userMessage: string,
+  history: AgentHistoryItem[],
+): Promise<string> {
+  const notifyIfNeeded = async (replyText: string) => {
+    const chatId = settings.telegram_group_chat_id;
+    if (!chatId || !replyText.includes(NEEDS_STAFF_FOLLOWUP)) return;
+    try {
+      await notifyStaffOfUnansweredQuestion(
+        supabase,
+        chatId,
+        userId,
+        userMessage,
+      );
+    } catch (notifyError) {
+      console.error("[line-ai] staff notify failed", notifyError);
+    }
+  };
+
+  try {
+    const systemPrompt = buildSystemPrompt(settings, faqs);
+    const { reply } = await generateLineReplyAgent({
+      userMessage,
+      history,
+      systemPrompt,
+      tools: LINE_AGENT_TOOLS,
+      runTool: makeLineAgentRunner(supabase, userId),
+      maxRounds: 3,
+    });
+    await notifyIfNeeded(reply);
+    console.log(`[line-ai] reply for ${userId}: ${reply.slice(0, 300)}`);
+    return reply;
+  } catch (error) {
+    console.error("[line-ai] generation failed, sending fallback reply", error);
+    const fallback =
+      "ขอโทษครับ ระบบขัดข้องชั่วคราว รบกวนลองพิมพ์ใหม่อีกครั้ง หรือรอทีมงานติดต่อกลับครับ";
+    await notifyIfNeeded(fallback);
+    return fallback;
+  }
+}
+
 serve(async (req) => {
   try {
     const rawBody = await req.text();
-    if (!(await verifyLineSignature(rawBody, req.headers.get("x-line-signature")))) {
+    if (
+      !(await verifyLineSignature(rawBody, req.headers.get("x-line-signature")))
+    ) {
       return jsonResponse({ error: "invalid signature" }, 401);
     }
 
@@ -116,7 +210,8 @@ serve(async (req) => {
           const shopName = settings.shop_name || "ร้าน";
           await replyMessage(event.replyToken, [{
             type: "text",
-            text: `ยินดีต้อนรับสู่${shopName}!\nกดลิงก์นี้เพื่อจองคิวได้เลยครับ:\n${LIFF_BOOKING_URL}`,
+            text:
+              `ยินดีต้อนรับสู่${shopName}!\nกดลิงก์นี้เพื่อจองคิวได้เลยครับ:\n${LIFF_BOOKING_URL}`,
           }]);
         }
         continue;
@@ -143,20 +238,33 @@ serve(async (req) => {
         // could never find/pause them by name. Backfill on their first message.
         if (!pauseRow) {
           const profile = await getProfile(event.source?.userId);
-          await upsertLineCustomer(supabase, event.source?.userId, profile?.displayName);
+          await upsertLineCustomer(
+            supabase,
+            event.source?.userId,
+            profile?.displayName,
+          );
         }
 
-        const isPaused = pauseRow?.paused_until && new Date(pauseRow.paused_until).getTime() > Date.now();
+        const isPaused = pauseRow?.paused_until &&
+          new Date(pauseRow.paused_until).getTime() > Date.now();
 
-        if (!isPaused && (rollout === "all" || (rollout === "owner_only" && isOwner))) {
+        if (
+          !isPaused &&
+          (rollout === "all" || (rollout === "owner_only" && isOwner))
+        ) {
           if (faqs === null) {
-            const { data, error } = await supabase.from("shop_faqs").select("question, answer").order("sort_order");
-            if (error) console.error("[line-webhook] shop_faqs lookup failed", error);
+            const { data, error } = await supabase.from("shop_faqs").select(
+              "question, answer",
+            ).order("sort_order");
+            if (error) {
+              console.error("[line-webhook] shop_faqs lookup failed", error);
+            }
             faqs = data ?? [];
           }
           aiHandler ??= new LineOaWebhookHandler(
             {
-              channelAccessToken: Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") ?? "",
+              channelAccessToken: Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") ??
+                "",
               channelSecret: Deno.env.get("LINE_CHANNEL_SECRET") ?? "",
             },
             {
@@ -164,46 +272,26 @@ serve(async (req) => {
                 supabase,
                 (Number(settings?.session_ttl_hours) || 6) * 60 * 60 * 1000,
               ),
-              aiAdapter: new PromptBasedAiAdapter(async ({ userMessage, session, history }) => {
-                const notifyIfNeeded = async (replyText: string) => {
-                  const chatId = settings?.telegram_group_chat_id;
-                  if (!chatId || !replyText.includes(NEEDS_STAFF_FOLLOWUP)) return;
-                  try {
-                    await notifyStaffOfUnansweredQuestion(supabase, chatId, session.userId, userMessage);
-                  } catch (notifyError) {
-                    console.error("[line-ai] staff notify failed", notifyError);
-                  }
-                };
-
-                try {
-                  const systemPrompt = buildSystemPrompt(settings ?? {}, faqs ?? []);
-                  const { reply } = await generateLineReplyAgent({
+              aiAdapter: new PromptBasedAiAdapter(
+                async ({ userMessage, session, history }) => ({
+                  reply: await generateAgentText(
+                    supabase,
+                    settings ?? {},
+                    faqs ?? [],
+                    session.userId,
                     userMessage,
                     history,
-                    systemPrompt,
-                    tools: LINE_AGENT_TOOLS,
-                    runTool: makeLineAgentRunner(supabase, session.userId),
-                    maxRounds: 3,
-                  });
-                  await notifyIfNeeded(reply);
-                  // ponytail: only the failure path was ever logged - no way to see what the bot
-                  // actually told a customer without querying line_chat_sessions by hand. This is
-                  // the standing "check on the AI" duty's cheapest possible hook.
-                  console.log(`[line-ai] reply for ${session.userId}: ${reply.slice(0, 300)}`);
-                  return { reply };
-                } catch (error) {
-                  // AI generation totally failed (primary + fallback, or context lookup) - never let the
-                  // customer get silence. The vendored module swallows exceptions thrown from here
-                  // internally with no reply sent, so this must return a normal reply, not re-throw.
-                  console.error("[line-ai] generation failed, sending fallback reply", error);
-                  const fallback = "ขอโทษครับ ระบบขัดข้องชั่วคราว รบกวนลองพิมพ์ใหม่อีกครั้ง หรือรอทีมงานติดต่อกลับครับ";
-                  await notifyIfNeeded(fallback);
-                  return { reply: fallback };
-                }
-              }, LINE_AI_SAFETY_RULES),
+                  ),
+                }),
+                LINE_AI_SAFETY_RULES,
+              ),
               businessAdapter: {
                 async onIntent(intent, data, session) {
-                  console.log("[line-ai] intent detected", { intent, data, userId: session.userId });
+                  console.log("[line-ai] intent detected", {
+                    intent,
+                    data,
+                    userId: session.userId,
+                  });
                 },
               },
             },
@@ -212,11 +300,130 @@ serve(async (req) => {
           // Reply-first: the handler already tried replyMessage (free, no quota). If that failed -
           // usually an expired/used replyToken because the agent loop ran long - fall back to push
           // (costs monthly quota) so the customer gets the answer instead of silence.
-          if (result.eventType === "message" && !result.replied && result.replyMessages?.length && event.source?.userId) {
-            console.warn("[line-webhook] reply failed, using push fallback", result.replyResult?.error);
-            const pushResult = await aiHandler.getLineClient().pushMessage(event.source.userId, result.replyMessages);
-            if (!pushResult.success) console.error("[line-webhook] push fallback also failed", pushResult.error);
+          if (
+            result.eventType === "message" && !result.replied &&
+            result.replyMessages?.length && event.source?.userId
+          ) {
+            console.warn(
+              "[line-webhook] reply failed, using push fallback",
+              result.replyResult?.error,
+            );
+            const pushResult = await aiHandler.getLineClient().pushMessage(
+              event.source.userId,
+              result.replyMessages,
+            );
+            if (!pushResult.success) {
+              console.error(
+                "[line-webhook] push fallback also failed",
+                pushResult.error,
+              );
+            }
           }
+        }
+        continue;
+      }
+
+      if (event.type === "message" && event.message?.type === "image") {
+        if (event.source?.type !== "user") continue;
+        const userId = event.source?.userId;
+        if (!userId) continue;
+
+        settings ??= await getSettings(supabase);
+        const mainRollout = settings.line_ai_rollout ?? "off";
+        const imageRollout = settings.line_ai_image_rollout ?? "off";
+        const isOwner = userId === settings.line_ai_owner_uid;
+        const { data: pauseRow } = await supabase
+          .from("customers")
+          .select("paused_until")
+          .eq("line_uid", userId)
+          .maybeSingle();
+        if (!pauseRow) {
+          const profile = await getProfile(userId);
+          await upsertLineCustomer(supabase, userId, profile?.displayName);
+        }
+        const isPaused = Boolean(
+          pauseRow?.paused_until &&
+            new Date(pauseRow.paused_until).getTime() > Date.now(),
+        );
+        if (
+          !shouldHandleImage({
+            sourceType: event.source?.type,
+            mainRollout,
+            imageRollout,
+            isOwner,
+            isPaused,
+          })
+        ) continue;
+
+        if (faqs === null) {
+          const { data, error } = await supabase.from("shop_faqs").select(
+            "question, answer",
+          ).order("sort_order");
+          if (error) {
+            console.error("[line-webhook] shop_faqs lookup failed", error);
+          }
+          faqs = data ?? [];
+        }
+
+        const ttlMs = (Number(settings.session_ttl_hours) || 6) * 60 * 60 *
+          1000;
+        const stateManager = new StateManager(
+          new PostgresSessionStore(supabase, ttlMs),
+          ttlMs,
+        );
+        const providerType = event.message?.contentProvider?.type;
+        const result = await processImageConversation({
+          sessions: stateManager,
+          downloadImage: async (messageId) => {
+            if (!isSupportedLineImageProvider(providerType)) {
+              const error = new Error(
+                "external image provider is not supported",
+              ) as Error & { code?: string };
+              error.code = "external_provider";
+              throw error;
+            }
+            return await downloadLineImageContent(messageId);
+          },
+          analyzeImage: async (image) =>
+            await analyzeImageWithGemma({
+              bytes: image.bytes,
+              mimeType: image.mimeType,
+            }),
+          formatObservation: formatVisionObservation,
+          generateReply: async ({ userMessage, history }) =>
+            await generateAgentText(
+              supabase,
+              settings ?? {},
+              faqs ?? [],
+              userId,
+              userMessage,
+              history,
+            ),
+          sendReply: async (replyToken, text) =>
+            await replyMessage(replyToken, [{ type: "text", text }]),
+          sendPush: async (to, text) =>
+            await pushMessage(to, [{ type: "text", text }]),
+          notifyImageFailure: async (messageId) => {
+            const chatId = settings?.telegram_group_chat_id;
+            if (!chatId) return;
+            await notifyStaffOfUnansweredQuestion(
+              supabase,
+              chatId,
+              userId,
+              `ลูกค้าส่งรูป (messageId: ${messageId}) แต่ระบบอ่านรูปไม่สำเร็จ`,
+            );
+          },
+          log: (name, data) => console.log(`[line-image] ${name}`, data),
+        }, {
+          userId,
+          messageId: event.message.id,
+          replyToken: event.replyToken,
+          timestamp: event.timestamp,
+        });
+        if (!result.replied && !result.pushed) {
+          console.error("[line-image] reply and push both failed", {
+            messageId: event.message.id,
+          });
         }
         continue;
       }
