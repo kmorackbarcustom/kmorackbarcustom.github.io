@@ -22,3 +22,17 @@ A future generic LINE AI module should consider these reusable concepts:
 ## Boundary
 
 This observation records a reusable design lesson only. It does not authorize changes to `modules-hub`, migrations, schemas, write paths, or rollout behavior. Any upstream implementation requires a separate review and brief.
+## Phase 2 observation — structured follow-up state
+
+The same incident also showed a second reusable failure mode: follow-up messages become unsafe when the agent must infer what field it is currently waiting for from free-form chat history alone. A generic LINE agent should consider a typed pending-action contract for multi-turn business requests instead of relying only on LLM memory.
+
+Candidate reusable concepts:
+
+- **Typed pending action:** persist the active business action, such as `reschedule`.
+- **Required-fields state:** explicitly record which slots are still missing.
+- **Follow-up slot resolution:** interpret the next message against the known missing field(s), not arbitrary factual fields.
+- **Ambiguous-input clarification:** when one value could map to more than one missing field, ask instead of guessing.
+- **State cleanup:** clear pending action and slot values on completion or cancellation so later messages are not captured by stale state.
+
+**Status:** UPSTREAM CANDIDATE ONLY
+**Implementation status:** Not implemented in modules-hub

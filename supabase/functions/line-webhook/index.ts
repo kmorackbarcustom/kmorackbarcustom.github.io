@@ -32,6 +32,7 @@ import {
   processImageConversation,
   shouldHandleImage,
 } from "../_shared/line-image-flow.ts";
+import { processRescheduleMessage } from "../_shared/reschedule-state.ts";
 
 // Safety-critical rules that stay hardcoded, not editable from admin-shop-config.html:
 // wrong link or a false "booking confirmed" promise is a real customer-facing failure,
@@ -133,6 +134,33 @@ async function notifyStaffOfUnansweredQuestion(
   await sendTelegramMessage(
     chatId,
     `🔔 AI ตอบลูกค้าไม่ได้ ต้องติดต่อกลับ\nลูกค้า: ${who}\nคำถาม: ${question}`,
+  );
+}
+
+async function notifyStaffOfRescheduleRequest(
+  supabase: ReturnType<typeof createServiceClient>,
+  chatId: string,
+  lineUid: string,
+  originalDate: string,
+  requestedDate: string,
+): Promise<void> {
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("name, line_display_name, phone")
+    .eq("line_uid", lineUid)
+    .maybeSingle();
+  const displayName = [
+    customer?.name,
+    customer?.line_display_name && customer.line_display_name !== customer.name
+      ? `LINE: ${customer.line_display_name}`
+      : null,
+  ].filter(Boolean).join(" / ");
+  const who = displayName
+    ? `${displayName}${customer?.phone ? ` (${customer.phone})` : ""}`
+    : lineUid;
+  await sendTelegramMessage(
+    chatId,
+    `📅 ลูกค้าขอเลื่อนคิว\nลูกค้า: ${who}\nวันนัดเดิม: ${originalDate}\nวันที่ต้องการ: ${requestedDate}\nกรุณาตรวจสอบและยืนยันกับลูกค้า`,
   );
 }
 
@@ -274,16 +302,41 @@ serve(async (req) => {
                 (Number(settings?.session_ttl_hours) || 6) * 60 * 60 * 1000,
               ),
               aiAdapter: new PromptBasedAiAdapter(
-                async ({ userMessage, session, history }) => ({
-                  reply: await generateAgentText(
-                    supabase,
-                    settings ?? {},
-                    faqs ?? [],
-                    session.userId,
+                async ({ userMessage, session, history }) => {
+                  const reschedule = processRescheduleMessage(
+                    session.contextData,
                     userMessage,
-                    history,
-                  ),
-                }),
+                  );
+                  if (reschedule) {
+                    if (reschedule.completed) {
+                      const chatId = settings?.telegram_group_chat_id;
+                      if (chatId) {
+                        try {
+                          await notifyStaffOfRescheduleRequest(
+                            supabase,
+                            chatId,
+                            session.userId,
+                            reschedule.completed.originalDate,
+                            reschedule.completed.requestedDate,
+                          );
+                        } catch (notifyError) {
+                          console.error("[line-ai] reschedule staff notify failed", notifyError);
+                        }
+                      }
+                    }
+                    return reschedule;
+                  }
+                  return {
+                    reply: await generateAgentText(
+                      supabase,
+                      settings ?? {},
+                      faqs ?? [],
+                      session.userId,
+                      userMessage,
+                      history,
+                    ),
+                  };
+                },
                 LINE_AI_SAFETY_RULES,
               ),
               businessAdapter: {
