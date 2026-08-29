@@ -186,6 +186,10 @@ serve(async (req) => {
                     maxRounds: 3,
                   });
                   await notifyIfNeeded(reply);
+                  // ponytail: only the failure path was ever logged - no way to see what the bot
+                  // actually told a customer without querying line_chat_sessions by hand. This is
+                  // the standing "check on the AI" duty's cheapest possible hook.
+                  console.log(`[line-ai] reply for ${session.userId}: ${reply.slice(0, 300)}`);
                   return { reply };
                 } catch (error) {
                   // AI generation totally failed (primary + fallback, or context lookup) - never let the
