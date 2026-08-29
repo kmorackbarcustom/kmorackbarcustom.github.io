@@ -12,10 +12,15 @@ type Booking = {
   line_uid: string | null;
 };
 
-type Order = {
+export type Order = {
   order_id: string | null;
+  customer_name: string | null;
+  brand: string | null;
+  model: string | null;
+  items: unknown;
   status: string | null;
   due_date: string | null;
+  note: string | null;
 };
 
 // ponytail: most bookings are entered by staff from a phone call, not the LINE booking flow, so
@@ -51,6 +56,7 @@ export async function upsertLineCustomer(
 }
 
 const BOOKING_COLS = "id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid";
+const ORDER_COLS = "order_id, customer_name, brand, model, items, status, due_date, note";
 
 // ponytail: the model never sees a "today" fact anywhere else in its context, so a stored
 // pickup_date/due_date reads to it as a bare string with no reference point - it can't tell an
@@ -65,6 +71,46 @@ function overdueNote(dateStr: string | null, status: string | null): string {
   if (days > 0) return ` (⚠️ เลยกำหนดมาแล้ว ${days} วัน)`;
   if (days === 0) return " (⚠️ ถึงกำหนดวันนี้พอดี)";
   return "";
+}
+
+const MISSING_BUSINESS_DATA = "ไม่มีข้อมูลในระบบ";
+
+function formatOrderItems(items: unknown): string {
+  if (items == null) return MISSING_BUSINESS_DATA;
+  if (Array.isArray(items)) {
+    const values = items
+      .map((item) => typeof item === "string" ? item.trim() : JSON.stringify(item))
+      .filter((item): item is string => Boolean(item));
+    return values.length > 0 ? values.join(", ") : MISSING_BUSINESS_DATA;
+  }
+  if (typeof items === "string") return items.trim() || MISSING_BUSINESS_DATA;
+  const serialized = JSON.stringify(items);
+  return serialized && serialized !== "null" ? serialized : MISSING_BUSINESS_DATA;
+}
+
+function formatBusinessText(value: string | null): string {
+  return value?.trim() || MISSING_BUSINESS_DATA;
+}
+
+export function formatOrderForAgent(order: Order): string {
+  const vehicle = [order.brand, order.model]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" ") || MISSING_BUSINESS_DATA;
+  const lines = [
+    `- ออเดอร์ ${formatBusinessText(order.order_id)}`,
+    `  ชื่อลูกค้า: ${formatBusinessText(order.customer_name)}`,
+    `  รถ: ${vehicle}`,
+    `  รายการ: ${formatOrderItems(order.items)}`,
+    `  สถานะ: ${formatBusinessText(order.status)}`,
+    `  กำหนดส่ง: ${formatBusinessText(order.due_date)}${overdueNote(order.due_date, order.status)}`,
+  ];
+  if (order.note?.trim()) {
+    lines.push(
+      `  หมายเหตุภายในออเดอร์ (ไม่ใช่ข้อความลูกค้าปัจจุบัน): ${order.note.trim()}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 export async function getCustomerContext(
@@ -91,7 +137,7 @@ export async function getCustomerContext(
     phoneQuery,
     supabase
       .from("orders")
-      .select("order_id, status, due_date")
+      .select(ORDER_COLS)
       .eq("line_user_id", lineUid)
       .order("created_at", { ascending: false })
       .limit(3),
@@ -129,7 +175,8 @@ export async function getCustomerContext(
   const today = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric" });
   const lines = [
     `วันนี้คือวันที่ ${today} (ใช้เทียบวันนัด/กำหนดส่งด้านล่างเสมอ ห้ามพูดถึงวันนัดที่ผ่านมาแล้วราวกับยังไม่ถึง)`,
-    "ข้อมูลงานจองคิว/ออเดอร์ของลูกค้ารายนี้ในระบบ (ใช้ตอบคำถามลูกค้าเท่านั้น ห้ามเดาข้อมูลอื่นนอกเหนือจากนี้):",
+    "ข้อมูลด้านล่างเป็น authoritative business data จากระบบสำหรับ LINE user ปัจจุบัน ใช้ตอบคำถามลูกค้าเท่านั้น",
+    "Grounding contract: ห้ามเปลี่ยนความหมายของ field ที่มี label; ห้ามใช้ค่าจาก ชื่อลูกค้า เป็น รถ/รุ่นรถ; ห้ามสร้างชื่อลูกค้า ยี่ห้อ/รุ่นรถ รายการงาน สถานะ หรือวันที่ที่ไม่มีอยู่ในข้อมูลนี้",
   ];
   for (const b of bookingRows) {
     lines.push(
@@ -137,7 +184,7 @@ export async function getCustomerContext(
     );
   }
   for (const o of orderRows) {
-    lines.push(`- ออเดอร์ ${o.order_id ?? "-"}: สถานะ: ${o.status ?? "-"} | กำหนดส่ง: ${o.due_date ?? "-"}${overdueNote(o.due_date, o.status)}`);
+    lines.push(formatOrderForAgent(o));
   }
   return lines.join("\n");
 }
