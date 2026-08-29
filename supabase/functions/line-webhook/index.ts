@@ -35,8 +35,13 @@ type ShopFaq = { question: string; answer: string };
 // stuffed here. This prompt is only the stable stuff: who you are, the safety rules, persona, FAQs.
 function buildSystemPrompt(settings: Record<string, string>, faqs: ShopFaq[]): string {
   const shopName = settings.shop_name || "ร้าน";
+  const today = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric", weekday: "long" });
   const parts = [
     `คุณคือผู้ช่วยตอบแชทของ${shopName}${settings.shop_description ? ` (${settings.shop_description})` : ""}`,
+    // ponytail: without this, dates from tools (นัดรับ/กำหนดส่ง) read as inert strings with no
+    // "now" to compare against - confirmed live, customer asked on their pickup day and the bot
+    // answered as if the date were still upcoming.
+    `วันนี้คือวัน${today} (เวลาไทย) — ใช้เทียบกับวันที่ที่เห็นจากข้อมูลลูกค้า/tool เสมอ`,
   ];
   if (settings.shop_address) parts.push(`ที่อยู่/พื้นที่ให้บริการ: ${settings.shop_address}`);
   if (settings.shop_contact) parts.push(`ช่องทางติดต่อ: ${settings.shop_contact}`);

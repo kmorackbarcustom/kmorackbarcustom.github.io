@@ -1,4 +1,5 @@
 import { createServiceClient } from "./database.ts";
+import { diffDays, isStopStatus } from "./constants.ts";
 
 type Booking = {
   id: number;
@@ -50,6 +51,21 @@ export async function upsertLineCustomer(
 }
 
 const BOOKING_COLS = "id, job_id, product, queue_status, production_status, appointment_date, pickup_date, line_uid";
+
+// ponytail: the model never sees a "today" fact anywhere else in its context, so a stored
+// pickup_date/due_date reads to it as a bare string with no reference point - it can't tell an
+// overdue date from a future one on its own (confirmed live: customer asked on their pickup day,
+// bot answered as if the date hadn't arrived yet). Pre-compute the overdue/due-today fact in code
+// (reusing the same diffDays/isStopStatus the Telegram Friday bot already uses for this) instead
+// of expecting the model to do date arithmetic - LLMs are unreliable at exact day counting even
+// when told the current date.
+function overdueNote(dateStr: string | null, status: string | null): string {
+  if (!dateStr || isStopStatus(status)) return "";
+  const days = diffDays(dateStr);
+  if (days > 0) return ` (⚠️ เลยกำหนดมาแล้ว ${days} วัน)`;
+  if (days === 0) return " (⚠️ ถึงกำหนดวันนี้พอดี)";
+  return "";
+}
 
 export async function getCustomerContext(
   supabase: ReturnType<typeof createServiceClient>,
@@ -110,14 +126,18 @@ export async function getCustomerContext(
     return "ไม่พบข้อมูลงานจองคิว/ออเดอร์ของลูกค้ารายนี้ในระบบ";
   }
 
-  const lines = ["ข้อมูลงานจองคิว/ออเดอร์ของลูกค้ารายนี้ในระบบ (ใช้ตอบคำถามลูกค้าเท่านั้น ห้ามเดาข้อมูลอื่นนอกเหนือจากนี้):"];
+  const today = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric" });
+  const lines = [
+    `วันนี้คือวันที่ ${today} (ใช้เทียบวันนัด/กำหนดส่งด้านล่างเสมอ ห้ามพูดถึงวันนัดที่ผ่านมาแล้วราวกับยังไม่ถึง)`,
+    "ข้อมูลงานจองคิว/ออเดอร์ของลูกค้ารายนี้ในระบบ (ใช้ตอบคำถามลูกค้าเท่านั้น ห้ามเดาข้อมูลอื่นนอกเหนือจากนี้):",
+  ];
   for (const b of bookingRows) {
     lines.push(
-      `- งานจองคิว ${b.job_id ?? "-"}: ${b.product ?? "-"} | สถานะคิว: ${b.queue_status ?? "-"} | สถานะผลิต: ${b.production_status ?? "-"} | นัดเข้า: ${b.appointment_date ?? "-"} | นัดรับ: ${b.pickup_date ?? "-"}`,
+      `- งานจองคิว ${b.job_id ?? "-"}: ${b.product ?? "-"} | สถานะคิว: ${b.queue_status ?? "-"} | สถานะผลิต: ${b.production_status ?? "-"} | นัดเข้า: ${b.appointment_date ?? "-"} | นัดรับ: ${b.pickup_date ?? "-"}${overdueNote(b.pickup_date, b.production_status)}`,
     );
   }
   for (const o of orderRows) {
-    lines.push(`- ออเดอร์ ${o.order_id ?? "-"}: สถานะ: ${o.status ?? "-"} | กำหนดส่ง: ${o.due_date ?? "-"}`);
+    lines.push(`- ออเดอร์ ${o.order_id ?? "-"}: สถานะ: ${o.status ?? "-"} | กำหนดส่ง: ${o.due_date ?? "-"}${overdueNote(o.due_date, o.status)}`);
   }
   return lines.join("\n");
 }
