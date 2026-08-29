@@ -1,9 +1,9 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
 **Last Updated:** 2026-08-29 — documentation truth reconciliation
-**Current Phase:** Phase 1–4 CLOSED in production; monitoring continues. Phase 5 — LINE Image Understanding is NOT STARTED and requires a separate brief.
-**Progress:** Phase 1–4 implementation/deploy complete; production model hardening complete through HEAD `927c18d`; documentation truth reconciliation completed 2026-08-29.
-**Next Session:** create and approve the Phase 5 brief only after this documentation reconciliation is committed cleanly.
+**Current Phase:** Phase 1–4 CLOSED. Phase 5 — LINE Image Understanding is deployed as line-webhook v42 with image rollout owner_only; live owner E2E is pending, so Phase 5 is NOT CLOSED.
+**Progress:** Phase 5 implementation commit `12a6dff`; `_shared` automated suite 31/31 PASS; production deploy v42 verified with `verify_jwt=false`.
+**Next Session:** run the 5-case owner LINE image E2E, inspect logs/session evidence, then either remediate or open image rollout to `all` and close Phase 5.
 
 ---
 
@@ -17,7 +17,7 @@
 | Phase 2 — Model Eval / Selection | CLOSED | N/A | Yes |
 | Phase 3 — Agent Tool-Calling Loop | CLOSED | Yes | Yes |
 | Phase 4 — Reply-First / Push-Fallback | CLOSED (monitoring limitation recorded) | Yes | Yes |
-| Phase 5 — LINE Image Understanding | NOT STARTED | No | Brief pending |
+| Phase 5 — LINE Image Understanding | DEPLOYED — OWNER E2E PENDING | Owner-only | In progress |
 
 
 ### เสร็จแล้ว (Completed — 2026-08-28, นอกขอบเขต agent upgrade แต่ทำระหว่างเซสชันเดียวกัน)
@@ -47,6 +47,18 @@
 | 3 | Agent loop (`generateLineReplyAgent`, ≤3 รอบ), 3 tools (`search_products`,`get_order_status`,`check_queue`), FAQ inline | b083cd1 | E2E signed webhook → 200, agent เรียก tool + ตอบจริง (4.7s). exclusive-once-linked: stranger เห็น 0 rows, เจ้าของเห็น 1 |
 | 3 | `getCustomerContext` exclusive-once-linked (แยก own vs phone-unlinked query แทน OR) | b083cd1 | SQL proof |
 | 4 | Reply-first → Push-fallback เมื่อ LINE Reply ล้มเหลว | 9a6e194 | handler path อยู่ใน production; ยังไม่เจอ expired reply token จริง จึงคงเป็น monitoring limitation |
+
+### Phase 5 implementation / deploy — 2026-08-29
+
+| Item | Current truth |
+|---|---|
+| Brief | Approved in `adb48ed` |
+| Implementation | 12a6dff |
+| Automated tests | 31 passed / 0 failed across _shared/*.test.ts |
+| Production function | line-webhook v42 |
+| JWT gate | `verify_jwt=false` verified after deploy |
+| Image rollout | owner_only; existing text rollout remains `all` |
+| Remaining gate | 5 real owner inbound LINE image cases; Phase 5 stays OPEN until pass |
 
 ### Post-deploy AI hardening (2026-08-28/29)
 
@@ -101,20 +113,20 @@
 ## 🚀 Next Steps
 
 ### ต้องทำอะไรต่อ (ลำดับความสำคัญ)
-1. **Immediate — documentation gate:**
-   - [x] Reconcile Phase 1–4 docs ให้ตรง production model/tool/runtime truth
-   - [ ] ตรวจ diff + consistency แล้ว commit documentation reconciliation ให้ working tree clean
-   - [ ] หลังจากนั้นค่อยสร้าง **BRIEF Phase 5 — LINE Image Understanding**; ห้ามเริ่ม implementation ก่อน brief ถูกล็อก
+1. **Phase 5 owner live gate:**
+   - [ ] ส่งรูปจริง 5 เคสจาก owner account ตาม approved brief
+   - [ ] ตรวจ reply + edge logs + line_chat_sessions; ห้ามมี raw image/base64 persistence
+   - [ ] ถ้า gate ผ่าน เปลี่ยน line_ai_image_rollout จาก owner_only → `all`, verify แล้วค่อย mark Phase 5 CLOSED
 
 2. **Standing production monitoring:**
-   - [ ] ตรวจ success logs ของ DeepSeek agent ต่อเนื่อง: tool discipline, hallucination, degenerate output/fallback, latency
+   - [ ] ตรวจ DeepSeek tool discipline / hallucination / degenerate fallback / latency ต่อเนื่อง
    - [ ] เก็บ evidence ถ้า Reply ล้มเหลวและ Push fallback ถูกใช้จริง
-   - [ ] Push quota tracking — ยัง deferred เพราะ usage ต่ำ
+   - [ ] Push quota tracking ยัง deferred
 
 3. **Deferred / separate scopes:**
    - [ ] Facebook Messenger integration
    - [ ] pgvector semantic search
-   - [ ] "ลูกค้าเลือกวันติดตั้งเอง" ใน CustomerOrder.html — ต้องออกแบบ schema/queue policy แยก
+   - [ ] ลูกค้าเลือกวันติดตั้งเอง — ต้องออกแบบ schema/queue policy แยก
 
 ---
 
@@ -122,7 +134,7 @@
 
 | คำถาม | ต้องตัดสินใจเมื่อ | Impact |
 |---|---|---|
-| Phase 5 จะกำหนด image input contract / size limit / structured vision output / failure path อย่างไร | ตอนเขียน Phase 5 brief | ป้องกัน vision output กลายเป็น business truth โดยไม่ผ่าน DeepSeek/tools |
+| Phase 5 owner live E2E ผ่านครบ 5 เคสหรือไม่ | ก่อนเปิด image rollout `all` | เป็น release gate สุดท้ายของ Phase 5 |
 | Push quota tracking (นับ+แจ้งเตือนใกล้เต็ม 300/เดือน) | ยังไม่ต้องตอนนี้ (usage ต่ำ) | รอปริมาณแชทโตขึ้นค่อยทำ |
 | "ลูกค้าเลือกวันติดตั้งเอง" ออกแบบยังไงให้เข้ากับตัวจัดคิวผลิต | ก่อนเริ่มแก้ CustomerOrder.html | ต้อง session แยกออกแบบ schema |
 

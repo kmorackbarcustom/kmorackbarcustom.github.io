@@ -123,7 +123,7 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 | Phase 2 — Model Eval / Selection | CLOSED | N/A | Yes |
 | Phase 3 — Agent Tool-Calling Loop | CLOSED | Yes | Yes |
 | Phase 4 — Reply-First / Push-Fallback | CLOSED (monitoring limitation recorded) | Yes | Yes |
-| Phase 5 — LINE Image Understanding | NOT STARTED | No | Brief pending |
+| Phase 5 — LINE Image Understanding | DEPLOYED — OWNER E2E PENDING | Owner-only | In progress |
 
 ---
 
@@ -132,8 +132,10 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 - `PROJECT_CONTEXT.md` — ความคืบหน้า, incident log ของ session 2026-08-28
 - `implementation_plan.md` — as-built execution record ของ Phase 1–4
 - `DEVELOPMENT_WORKFLOW.md` — canonical Docs → Brief → Build → Verify → Docs cycle
+- `BRIEF-phase5-line-image-understanding.md` — approved Phase 5 scope
+- `PHASE5_IMPLEMENTATION_EVIDENCE.md` — implementation/deploy evidence + remaining live gate
 
 ---
 
-**สถานะ:** Phase 1–4 CLOSED / production current as of 2026-08-29; Phase 5 NOT STARTED — brief pending
+**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed to production behind owner_only image rollout and remains OPEN pending live owner E2E
 **Priority:** High

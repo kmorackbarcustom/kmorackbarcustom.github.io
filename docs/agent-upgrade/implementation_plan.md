@@ -125,3 +125,11 @@ FAQ ไม่ได้เป็น tool แยกใน production; `shop_faqs` 
 - [ ] Commit + push ทุกครั้งหลัง deploy สำเร็จ (repo `kmorackbarcustom.github.io`)
 - [ ] ถ้า phase ไหนแตะ `internal-proxy` — ต้องขออนุญาต CEO ก่อนเสมอ (ดู memory [[internal-proxy-locked]])
 - [ ] ถ้า phase ไหนแตะข้อมูล production ของ order/booking ที่มีสถานะ active — ถามนโยบายก่อนแก้ทุกครั้ง (บทเรียนจาก 28/08)
+
+---
+
+## Phase 5 — LINE Image Understanding — DEPLOYED / LIVE GATE PENDING
+
+Phase 5 ใช้ brief แยก BRIEF-phase5-line-image-understanding.md; implementation commit 12a6dff ถูก deploy เป็น line-webhook v42 แล้ว. Automated _shared suite ผ่าน 31/31 และ `verify_jwt=false` ถูกตรวจหลัง deploy.
+
+สถานะ rollout ปัจจุบัน: text AI = `all`; image AI = owner_only. ห้ามเปิด `all` หรือ mark Phase 5 CLOSED จน owner-only live E2E 5 เคสผ่านและ evidence ถูกบันทึกใน PHASE5_IMPLEMENTATION_EVIDENCE.md.
