@@ -1,8 +1,8 @@
 # Phase 2 — Model Eval Results
 
 **Run:** 2026-08-28, by Claude Code (direct Ollama Cloud / Gemini API calls)
-**Question:** Does `gemma4:31b-cloud` support tool-calling well enough to be the agent model?
-**Answer: Yes. Keeping gemma4 as the agent model. No switch to Gemini/DeepSeek.**
+**Question:** Which currently-callable Ollama Cloud model should be the production KMO LINE agent model?
+**Final Answer (authoritative):** `deepseek-v4-flash:0731-cloud`. The earlier Gemma decision below is historical and was superseded by the head-to-head addendum.
 
 Raw eval scripts kept at `scratchpad/eval_toolcall.mjs`, `scratchpad/eval_loop.mjs`
 (session scratchpad — not committed). Reproduce by pointing them at `OLLAMA_API_KEY`.
@@ -45,20 +45,19 @@ date, no extra round. Loop terminates on its own in 2 rounds.
 | "ขอลิงก์ Google Maps ร้านหน่อย" | "ผมไม่มีลิงก์แผนที่ สามารถค้นหาชื่อร้านใน Google Maps ได้เลย" | ✅ no fabricated link |
 
 The one ⚠️ was with a 1-line abridged rule, not the real 15-rule `LINE_AI_SAFETY_RULES`.
-Production already runs gemma4 with the full ruleset and this class of slip is covered there.
+At the time of this initial pass, Gemma was the planned production model. This statement is historical; the later head-to-head addendum superseded the model choice.
 
 ## Environment notes
 
-- `deepseek-v3.1:671b` (and `:671b-cloud`) — **retired on Ollama Cloud 2026-07-15** (HTTP 410).
-  DeepSeek is not a currently-callable option on this account without picking a new tag.
+- `deepseek-v3.1:671b` (and `:671b-cloud`) — retired on Ollama Cloud 2026-07-15 (HTTP 410). The later head-to-head found the callable dated tag `deepseek-v4-flash:0731-cloud`, which is now production.
 - Gemini `gemini-2.5-flash` stays wired as the automatic fallback in `ai-providers.ts`
   and supports function-calling — no code change needed for fallback.
 - A fuller gemma-vs-gemini A/B on the full ruleset is still worth doing **if** Phase 3
   field testing shows rule slippage. Not a blocker now.
 
-## Decision
+## Initial Decision — SUPERSEDED
 
-Proceed to Phase 3 with `gemma4:31b-cloud` as the agent model.
+Initial pass selected `gemma4:31b-cloud`. This decision is retained for audit history only. The authoritative final decision is the addendum below: production uses `deepseek-v4-flash:0731-cloud`.
 
 ---
 
@@ -102,3 +101,18 @@ Backstops kept regardless of model:
   falls through to the Gemini fallback instead of sending it to the customer. Test:
   `ai-providers.test.ts`.
 - Gemini `gemini-2.5-flash` single-shot fallback if the Ollama call fails or loops.
+
+
+---
+
+## Pre-Phase 5 Vision Capability Verification — 2026-08-29
+
+This is **capability evidence only**, not a production model change and not Phase 5 implementation.
+
+- `gemma4:31b-cloud` was called directly through Ollama native `/api/chat` and OpenAI-compatible `/v1/chat/completions` with real base64 image input.
+- Controlled image cases were read correctly: `KMO 27`, `TEST 842`, and `BIKE 913` with the expected shape/color context.
+- No token-loop / repeated-chunk degenerate output was observed in this controlled vision test set.
+- Current KMO `line-webhook` still handles only `message.type === "text"`; LINE image download/processing is not implemented.
+- Production chat/agent model remains `deepseek-v4-flash:0731-cloud`. Gemma is only the verified **vision candidate** for the next separately briefed phase.
+
+**Decision:** vision capability is sufficient to justify a Phase 5 brief, but not sufficient to authorize production image handling.

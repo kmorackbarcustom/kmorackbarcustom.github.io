@@ -1,13 +1,24 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
-**Last Updated:** 2026-08-28 (session 2 — implementation)
-**Current Phase:** Phase 1–4 built + deployed to production. Awaiting real-customer traffic + CEO review.
-**Progress:** Planning 100% / Implementation 100% (all 4 phases shipped, monitoring next)
-**Next Session:** watch live LINE traffic for agent behaviour; decide gemma vs gemini if rule slips; deferred items (FB Messenger, pgvector, self-pick install date)
+**Last Updated:** 2026-08-29 — documentation truth reconciliation
+**Current Phase:** Phase 1–4 CLOSED in production; monitoring continues. Phase 5 — LINE Image Understanding is NOT STARTED and requires a separate brief.
+**Progress:** Phase 1–4 implementation/deploy complete; production model hardening complete through HEAD `927c18d`; documentation truth reconciliation completed 2026-08-29.
+**Next Session:** create and approve the Phase 5 brief only after this documentation reconciliation is committed cleanly.
 
 ---
 
 ## 🎯 สถานะปัจจุบัน
+
+### Phase Status Ledger
+
+| Phase | Status | Production | Docs synced |
+|---|---|---:|---:|
+| Phase 1 — Identity Model Fix | CLOSED | Yes | Yes |
+| Phase 2 — Model Eval / Selection | CLOSED | N/A | Yes |
+| Phase 3 — Agent Tool-Calling Loop | CLOSED | Yes | Yes |
+| Phase 4 — Reply-First / Push-Fallback | CLOSED (monitoring limitation recorded) | Yes | Yes |
+| Phase 5 — LINE Image Understanding | NOT STARTED | No | Brief pending |
+
 
 ### เสร็จแล้ว (Completed — 2026-08-28, นอกขอบเขต agent upgrade แต่ทำระหว่างเซสชันเดียวกัน)
 
@@ -32,10 +43,20 @@
 |---|---|---|---|
 | 1 | `customers.line_display_name` แยกจาก `name`; helper `upsertLineCustomer`; trigger comment; migration `20260828160000` | 38efad7 | 29 line customers มี line_display_name ครบ; 8 ที่โดนทับ (K.9=บุณยสิทธิ์ ฯลฯ) กู้ชื่อ LINE จริงจาก getProfile() แล้ว |
 | 1 | admin-line-reply + staff-reply แสดง 2 ชื่อ | 38efad7 | staff-reply `list` คืน line_display_name, ทดสอบด้วย anon key ของหน้าจริง — เห็น "บุณยสิทธิ์ วรุตม์พงศ์ / LINE:K.9" |
-| 2 | Eval tool-calling | (docs) `phase2-model-eval.md` | gemma4:31b-cloud ทำ tool-calling ได้ดี → คงไว้ ไม่สลับ Gemini. deepseek-v3.1 retired บน Ollama แล้ว |
+| 2 | Eval + production model selection | d294b30 / b317d22 / 423794c | initial Gemma eval ผ่าน แต่ final head-to-head เลือก `deepseek-v4-flash:0731-cloud`; เพิ่ม degenerate guard + Gemini fallback |
 | 3 | Agent loop (`generateLineReplyAgent`, ≤3 รอบ), 3 tools (`search_products`,`get_order_status`,`check_queue`), FAQ inline | b083cd1 | E2E signed webhook → 200, agent เรียก tool + ตอบจริง (4.7s). exclusive-once-linked: stranger เห็น 0 rows, เจ้าของเห็น 1 |
 | 3 | `getCustomerContext` exclusive-once-linked (แยก own vs phone-unlinked query แทน OR) | b083cd1 | SQL proof |
-| 4 | Reply-first → Push-fallback ถ้า reply token ตาย | 9a6e194 | logic only (ยังไม่เจอ token หมดอายุจริง) |
+| 4 | Reply-first → Push-fallback เมื่อ LINE Reply ล้มเหลว | 9a6e194 | handler path อยู่ใน production; ยังไม่เจอ expired reply token จริง จึงคงเป็น monitoring limitation |
+
+### Post-deploy AI hardening (2026-08-28/29)
+
+| งาน | Commit | Current truth |
+|---|---|---|
+| ป้องกัน token-loop / repeated-chunk garbage | 423794c | `isDegenerateText()` guard ทำให้ Ollama failure ตกไป Gemini fallback |
+| สลับ production model เป็น DeepSeek dated tag | d294b30 | `deepseek-v4-flash:0731-cloud` คือ chat/agent model ปัจจุบัน |
+| บันทึก final model-eval verdict | b317d22 | `phase2-model-eval.md` ต้องอ่าน final addendum เป็น authoritative verdict |
+| ใส่ current Thai date ใน system prompt | 92bc3f5 | ลดการตีความ due/pickup date ผิดบริบทเวลา |
+| log คำตอบ AI สำเร็จ | 927c18d | มี success logging สำหรับ post-deploy monitoring ไม่ใช่ log เฉพาะ error |
 
 ### ⚠️ Incident (session 2) — verify_jwt reset
 
@@ -45,9 +66,15 @@
 
 ## 📝 Last Session Summary
 
+**Session 3 — 2026-08-29 (truth reconciliation + pre-Phase 5 verification)**
+- ✅ Reconciled docs against production code/HEAD `927c18d`: chat model is DeepSeek, not Gemma; degenerate guard + Gemini fallback + success logging are live.
+- ✅ Verified `gemma4:31b-cloud` image capability directly through Ollama native `/api/chat` and OpenAI-compatible `/v1/chat/completions`; controlled images were read correctly with no degenerate output in the test set.
+- ✅ Confirmed current LINE webhook only processes `message.type === "text"`; image handling is not implemented yet.
+- ⛔ No Phase 5 code started. Next action after clean docs commit is a separate Phase 5 brief.
+
 **Session 2 — 2026-08-28 (implementation)**
 - ✅ Phase 1–4 ทั้งหมด: build + deploy production + verify (ดูตาราง "เสร็จแล้ว" ด้านบน) commits 38efad7 / b083cd1 / 9a6e194
-- ✅ Phase 2 eval: gemma4:31b-cloud tool-calling ใช้ได้จริง → คงโมเดลเดิม (`phase2-model-eval.md`)
+- ✅ Phase 2 initial eval พิสูจน์ว่า Gemma tool-calling ได้; subsequent head-to-head + production hardening สรุป final เป็น `deepseek-v4-flash:0731-cloud` (`phase2-model-eval.md`)
 - ⚠️ Incident: deploy รีเซ็ต verify_jwt → true, LINE webhook เงียบ ~1 ชม. แก้ด้วย `supabase/config.toml` (commit 32dbca7)
 - บทเรียน: ทุก `supabase functions deploy` ต้องเช็ค verify_jwt หลัง deploy จนกว่าจะมั่นใจ config.toml ครอบคลุมทุก fn
 
@@ -74,19 +101,20 @@
 ## 🚀 Next Steps
 
 ### ต้องทำอะไรต่อ (ลำดับความสำคัญ)
-1. **High Priority:**
-   - [x] CEO แก้ due_date ของ Mei Fern (ORD-20260802-2DF5) + ช่างเบส (ORD-20260822-46DE) แล้ว 2026-08-28
-   - [ ] เฝ้าดู LINE traffic จริง 2-3 วัน: agent เรียก tool ถูกไหม, หลุดกฎ (ยืนยันจอง/มั่วราคา) ไหม, มี tool loop ค้างไหม
-   - [ ] ถ้าเห็น rule slip จริง → ทำ eval gemma vs gemini เต็มรูป (ชุด LINE_AI_SAFETY_RULES จริง) แล้วตัดสินใจสลับ
+1. **Immediate — documentation gate:**
+   - [x] Reconcile Phase 1–4 docs ให้ตรง production model/tool/runtime truth
+   - [ ] ตรวจ diff + consistency แล้ว commit documentation reconciliation ให้ working tree clean
+   - [ ] หลังจากนั้นค่อยสร้าง **BRIEF Phase 5 — LINE Image Understanding**; ห้ามเริ่ม implementation ก่อน brief ถูกล็อก
 
-2. **Medium Priority:**
-   - [x] Backfill ชื่อ LINE 7 คน (จริง 8 คน) — เสร็จ session 2
-   - [ ] Push quota tracking — ยังไม่ทำ (usage ต่ำ) แต่ Phase 4 เปิดทาง push fallback แล้ว ควรมี counter ถ้าแชทโต
+2. **Standing production monitoring:**
+   - [ ] ตรวจ success logs ของ DeepSeek agent ต่อเนื่อง: tool discipline, hallucination, degenerate output/fallback, latency
+   - [ ] เก็บ evidence ถ้า Reply ล้มเหลวและ Push fallback ถูกใช้จริง
+   - [ ] Push quota tracking — ยัง deferred เพราะ usage ต่ำ
 
-3. **Low Priority (deferred, ไม่ใช่เฟสนี้):**
-   - [ ] Facebook Messenger integration (ต้องมี Facebook App/App Secret ก่อน)
+3. **Deferred / separate scopes:**
+   - [ ] Facebook Messenger integration
    - [ ] pgvector semantic search
-   - [ ] "ลูกค้าเลือกวันติดตั้งเอง" ใน CustomerOrder.html — ต้องคุยรายละเอียด schema ก่อน
+   - [ ] "ลูกค้าเลือกวันติดตั้งเอง" ใน CustomerOrder.html — ต้องออกแบบ schema/queue policy แยก
 
 ---
 
@@ -94,7 +122,7 @@
 
 | คำถาม | ต้องตัดสินใจเมื่อ | Impact |
 |---|---|---|
-| gemma4:31b-cloud รองรับ tool-calling ดีพอไหม เทียบ DeepSeek/Gemini | ก่อนเริ่ม Phase 3 | เลือกโมเดลหลักของ agent |
+| Phase 5 จะกำหนด image input contract / size limit / structured vision output / failure path อย่างไร | ตอนเขียน Phase 5 brief | ป้องกัน vision output กลายเป็น business truth โดยไม่ผ่าน DeepSeek/tools |
 | Push quota tracking (นับ+แจ้งเตือนใกล้เต็ม 300/เดือน) | ยังไม่ต้องตอนนี้ (usage ต่ำ) | รอปริมาณแชทโตขึ้นค่อยทำ |
 | "ลูกค้าเลือกวันติดตั้งเอง" ออกแบบยังไงให้เข้ากับตัวจัดคิวผลิต | ก่อนเริ่มแก้ CustomerOrder.html | ต้อง session แยกออกแบบ schema |
 
@@ -111,9 +139,10 @@
 | ai-providers.ts | `../../supabase/functions/_shared/ai-providers.ts` | `generateLineReplyAgent` (tool loop) + `generateLineReply` (single-shot) + Gemini fallback |
 | customer-context.ts | `../../supabase/functions/_shared/customer-context.ts` | `getCustomerContext` (exclusive-once-linked) + `upsertLineCustomer` (identity) |
 | config.toml | `../../supabase/config.toml` | pins verify_jwt=false for webhook fns — DO NOT delete |
-| phase2-model-eval.md | `./phase2-model-eval.md` | tool-calling eval results |
+| phase2-model-eval.md | `./phase2-model-eval.md` | model selection + pre-Phase 5 vision capability evidence |
+| DEVELOPMENT_WORKFLOW.md | `./DEVELOPMENT_WORKFLOW.md` | canonical phase workflow + gates |
 
 ---
 
 **Template Version:** adapted from project-templates v1.0 (ตัดส่วน Hermes/OpenClaw mailbox ออกเพราะไม่ใช้ในโปรเจกต์นี้)
-**Last Edited By:** Claude (session 2026-08-28 #2 — implementation)
+**Last Edited By:** GPT-5.6 Sol (2026-08-29 truth reconciliation)

@@ -1,9 +1,9 @@
 # Implementation Plan: KMO LINE Chat Agent Upgrade
 
 **Created:** 2026-08-28
-**Status:** Draft — รอ CEO อนุมัติก่อนเริ่ม Phase 1
+**Status:** CLOSED for Phase 1–4 — implemented + deployed; retained as as-built execution record. Phase 5 is not part of this plan.
 
-ลำดับ phase ตั้งใจให้ **Phase 1 ทำได้ทันทีไม่ต้องรอผลใคร** (แก้บั๊กที่ยืนยันแล้ว) ส่วน **Phase 2 เป็น blocker ของ Phase 3** (ต้องรู้ก่อนว่าโมเดลไหนใช้ได้จริง ก่อนลงมือสร้าง agent loop)
+เอกสารนี้เริ่มต้นเป็นแผนก่อน build แต่หลัง truth reconciliation 2026-08-29 ให้ใช้อ่านเป็น **as-built record ของ Phase 1–4**. สถานะปัจจุบันที่ authoritative ให้ดู `PRD.md` + `PROJECT_CONTEXT.md`; งาน Phase ถัดไปต้องมี brief แยกก่อน implement.
 
 ---
 
@@ -23,9 +23,9 @@ alter table public.customers add column if not exists line_display_name text;
 ```ts
 { line_uid: userId, platform: "line", name: profile?.displayName ?? "LINE User", phone: "" }
 ```
-เป็น: เขียน `line_display_name` แทน (หรือคู่กับ) `name` — ต้องตัดสินใจว่า `name` เริ่มต้นควรเป็นอะไรถ้ายังไม่เคยจอง (ชื่อ LINE ไปก่อนก็ได้ จนกว่าจะมีชื่อจริงจาก booking มาเขียนทับ — แต่ `line_display_name` ต้องไม่ถูกทับอีก)
+As built: `upsertLineCustomer()` seed `name` และ `line_display_name` ด้วยชื่อ LINE เฉพาะตอน insert แรก (`ignoreDuplicates: true`); หลังจากนั้นอัปเดตเฉพาะ `line_display_name`. ชื่อจริงจาก booking trigger จึงเป็นเจ้าของ `name` โดยไม่ถูก `getProfile()` เขียนทับอีก
 
-### 1.4 Backfill 7 คนที่โดนทับชื่อไปแล้ว
+### 1.4 Backfill — ตรวจจริงพบ 8 คนที่โดนทับชื่อ
 ```sql
 -- หา list ก่อน (ไม่ backfill มั่ว)
 select c.id, c.line_uid, c.name
@@ -38,28 +38,26 @@ where c.line_uid is not null;
 ### 1.5 แก้ `admin-line-reply.html`
 โชว์ `line_display_name (name)` แทน `name` เดี่ยวๆ ในลิสต์ค้นหาลูกค้า
 
-### Verification (Phase 1)
-- [ ] Query ยืนยัน 0 แถวที่ `name` กับ `line_display_name` เท่ากันแบบไม่ตั้งใจ (ยกเว้นกรณีชื่อ LINE = ชื่อจริงพอดีจริงๆ)
-- [ ] ทดสอบจองใหม่ผ่านฟอร์ม → backfill line_uid ผ่านแชท → เช็คว่า `line_display_name` ไม่เปลี่ยน, `name` เปลี่ยนตามฟอร์ม
-- [ ] เปิด `admin-line-reply.html` จริง ค้นชื่อ LINE เจอ K.9 ได้แล้ว
+### Verification (Phase 1) — as built
+- [x] ลูกค้า LINE 29 รายมี `line_display_name`; 8 รายที่ชื่อถูกทับได้รับชื่อ LINE จริงคืนจาก `getProfile()`
+- [x] `admin-line-reply` / `staff-reply` แสดงชื่อจริงและชื่อ LINE แยกกัน; K.9 ตรวจบนหน้าจริงแล้ว
+- [x] กติกา identity ที่ผูก `line_uid` แล้วไม่ให้ phone fallback แซง ถูก verify ร่วมกับ Phase 3
 
 ---
 
-## Phase 2 — Model Eval (blocker ก่อน Phase 3)
+## Phase 2 — Model Eval / Production Model Selection — CLOSED
 
-### 2.1 ทดสอบ tool-calling ของ `gemma4:31b-cloud` (Ollama Cloud)
-ยิง request ตรงไปที่ `https://ollama.com/v1/chat/completions` พร้อม `tools` param (schema สมมติ 1 tool ง่ายๆ) เช็คว่า:
-- โมเดลเรียก tool จริงไหม (ตอบ `tool_calls` ใน response ไม่ใช่แค่ text)
-- เรียกด้วย argument ที่ parse ได้ถูกต้อง
-
-### 2.2 ถ้า gemma4 ไม่รองรับ/รองรับได้ไม่ดี
-สลับ Gemini 2.5 Flash ขึ้นเป็นตัวหลักสำหรับ agent loop โดยเฉพาะ (Ollama เก็บไว้เป็น fallback ของงาน non-agent อื่นถ้ามี) — ต้องแก้ `ai-providers.ts` ให้เลือก provider ตาม "ต้องใช้ tool-calling หรือไม่"
-
-### 2.3 Eval rule-adherence (คำถามหลอกล่อ 8-10 ข้อ)
-ใช้ prompt ชุด `LINE_AI_SAFETY_RULES` จริง ยิงผ่านทั้ง 2 โมเดลผู้สมัคร เทียบว่าใครหลุดกฎกี่ครั้ง (ยืนยันจองเอง, มั่วราคา, ฯลฯ) — ผลใช้ตัดสินใจ Gemma vs DeepSeek vs Gemini ให้เป็น agent หลัก
+### As-built result
+- `gemma4:31b-cloud` ผ่าน tool-calling และ agent-loop eval แรก แต่ภายหลังมีประวัติ token-loop garbage จาก traffic จริง/งานอื่นใน workspace
+- ทำ head-to-head เพิ่มกับโมเดล Ollama Cloud ที่ยัง callable โดยใช้ `LINE_AI_SAFETY_RULES` และ tool flow จริง
+- `deepseek-v4-flash:0731-cloud` ได้ grounding/tool discipline สะอาดหลังปรับ prompt ให้ `get_order_status` เรียกได้โดยไม่ขอเบอร์ก่อน
+- Production chat/agent จึงสลับเป็น `deepseek-v4-flash:0731-cloud`; Gemini 2.5 Flash คงเป็น fallback
+- เพิ่ม `isDegenerateText()` guard เพื่อไม่ส่ง token-loop/repeated-chunk garbage ให้ลูกค้า
 
 ### Verification (Phase 2)
-- [ ] มีผล eval เป็นลายลักษณ์อักษร (ไม่ใช่ความรู้สึก) ก่อนล็อกโมเดล
+- [x] ผล eval เป็นลายลักษณ์อักษรใน `phase2-model-eval.md`
+- [x] Production code ใช้ `deepseek-v4-flash:0731-cloud` (`ai-providers.ts`)
+- [x] Degenerate-output guard + Gemini fallback อยู่ใน production path
 
 ---
 
@@ -68,10 +66,12 @@ where c.line_uid is not null;
 ### 3.1 นิยาม tool schema (3 ตัว)
 ```
 search_products(query: string) → ใช้ RPC search_products เดิม
-search_faq(query: string) → query shop_faqs (ILIKE เดิมไปก่อน, ไม่ทำ pgvector เฟสนี้)
 get_order_status(phone?: string) → ยกระดับ getCustomerContext เดิม
   - บังคับใช้กติกา exclusive-once-linked จาก PRD §3
   - ถ้า booking/order มี line_uid แล้วและไม่ตรงกับผู้ถาม → ไม่คืนข้อมูล
+check_queue() → อ่านความหนาแน่นคิวจริง
+
+FAQ ไม่ได้เป็น tool แยกใน production; `shop_faqs` ถูกโหลดเข้า system prompt
 ```
 
 ### 3.2 แก้ `getCustomerContext` (customer-context.ts)
@@ -106,14 +106,15 @@ get_order_status(phone?: string) → ยกระดับ getCustomerContext �
 
 ### 4.1 แก้ handler ส่งข้อความ
 - Path หลัก: ใช้ `replyMessage(replyToken, ...)` เหมือนเดิม
-- ถ้า agent loop เสร็จช้าเกินไป (ตั้ง threshold จาก reply token TTL จริงของ LINE) หรือ replyToken ถูกใช้ไปแล้ว → fallback `pushMessage(line_uid, ...)`
+- Handler พยายาม `replyMessage` ก่อน; ถ้า LINE reply call ล้มเหลว/ใช้ token ไม่สำเร็จและมีข้อความตอบ → fallback `pushMessage(line_uid, ...)`
 
 ### 4.2 (Deferred — ไม่ต้องทำเฟสนี้) Push quota tracking
 เก็บไว้เป็น idea ไม่ implement ตอนนี้ (usage ต่ำ) — ถ้าจะทำ: table เก็บ count ต่อเดือน + threshold แจ้งเตือนผ่าน Telegram
 
-### Verification (Phase 4)
-- [ ] ข้อความปกติ (ตอบเร็ว) ยังใช้ Reply เหมือนเดิม ไม่กิน Push quota
-- [ ] จำลอง agent ตอบช้า (เช่น mock delay) → ยืนยันว่า fallback ไป Push จริง ไม่ค้าง/ไม่หาย
+### Verification (Phase 4) — as built
+- [x] ข้อความปกติยังใช้ Reply เป็น path หลัก
+- [x] Push fallback อยู่ใน handler เมื่อ Reply ล้มเหลว
+- [ ] ยังไม่มีหลักฐาน production จาก reply token ที่หมดอายุจริง — บันทึกเป็น monitoring limitation ไม่ใช่ blocker ของ Phase 4
 
 ---
 
