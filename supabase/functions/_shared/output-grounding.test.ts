@@ -143,3 +143,30 @@ Deno.test("allows factual due date supported by authoritative result", () => {
   });
   assertEquals(result, { text: draft, blocked: false });
 });
+
+Deno.test("allows production canonical done status to support Thai completed wording", () => {
+  const draft = "งานเสร็จแล้วครับ";
+  const result = guardGroundedOutput(draft, {
+    userMessage: "งานเสร็จหรือยังครับ",
+    authoritativeToolResults: ["สถานะ: done\nกำหนดส่ง: 2026-08-31"],
+  });
+  assertEquals(result, { text: draft, blocked: false });
+});
+
+Deno.test("allows human-formatted Thai date equivalent to ISO authoritative date", () => {
+  const draft = "กำหนดส่งวันที่ 31 ส.ค. 2569";
+  const result = guardGroundedOutput(draft, {
+    userMessage: "กำหนดส่งวันไหนครับ",
+    authoritativeToolResults: ["สถานะ: done\nกำหนดส่ง: 2026-08-31"],
+  });
+  assertEquals(result, { text: draft, blocked: false });
+});
+
+Deno.test("blocks same day and month when claimed Buddhist year is wrong", () => {
+  const result = guardGroundedOutput("กำหนดส่งวันที่ 31 ส.ค. 2570", {
+    userMessage: "กำหนดส่งวันไหนครับ",
+    authoritativeToolResults: ["สถานะ: done\nกำหนดส่ง: 2026-08-31"],
+  });
+  assertEquals(result.blocked, true);
+  assertEquals(result.reason, "unsupported_order_date_claim");
+});
