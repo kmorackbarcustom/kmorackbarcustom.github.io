@@ -49,6 +49,7 @@ export type ImageFlowDeps = {
   sendReply(replyToken: string, text: string): Promise<boolean>;
   sendPush(userId: string, text: string): Promise<boolean>;
   notifyImageFailure(messageId: string, error: unknown): Promise<void>;
+  notifyPaymentProof?(messageId: string, observation: VisionObservation): Promise<void>;
   log?: (event: string, data: Record<string, unknown>) => void;
 };
 
@@ -58,6 +59,14 @@ export type ImageFlowResult = {
   replied: boolean;
   pushed: boolean;
 };
+
+export function isLikelyPaymentProof(observation: VisionObservation): boolean {
+  const text = [observation.summary, ...observation.visible_text, ...observation.notable_details].join(" ");
+  const strong = /(โอนเงินสำเร็จ|โอนสำเร็จ|รายการสำเร็จ|สลิป|payment\s*(?:successful|complete)|transfer\s*(?:successful|complete))/i.test(text);
+  const provider = /(กสิกรไทย|K\+|กรุงไทย|ไทยพาณิชย์|SCB|ธนาคารกรุงเทพ|ttb|ทรูมันนี่|TrueMoney|พร้อมเพย์|PromptPay)/i.test(text);
+  const transaction = /(จำนวน|ยอดเงิน|บาท|เลขที่รายการ|รหัสรายการ|transaction|amount)/i.test(text);
+  return strong || (provider && transaction);
+}
 
 async function sendWithFallback(
   deps: ImageFlowDeps,
@@ -92,6 +101,11 @@ export async function processImageConversation(
     const image = await deps.downloadImage(input.messageId);
     const visionStarted = Date.now();
     const observation = await deps.analyzeImage(image);
+    if (deps.notifyPaymentProof && isLikelyPaymentProof(observation)) {
+      await deps.notifyPaymentProof(input.messageId, observation).catch((error) => {
+        deps.log?.("payment_proof_notify_failure", { messageId: input.messageId, errorClass: error instanceof Error ? error.name : typeof error });
+      });
+    }
     synthetic = deps.formatObservation(observation);
     deps.log?.("vision_success", {
       messageId: input.messageId,

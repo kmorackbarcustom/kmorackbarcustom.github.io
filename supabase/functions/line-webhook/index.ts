@@ -140,6 +140,13 @@ async function notifyStaffOfUnansweredQuestion(
   );
 }
 
+async function notifyStaffOfPaymentProof(supabase: ReturnType<typeof createServiceClient>, chatId: string, lineUid: string, messageId: string): Promise<void> {
+  const { data: customer } = await supabase.from("customers").select("name, line_display_name, phone").eq("line_uid", lineUid).maybeSingle();
+  const displayName = [customer?.name, customer?.line_display_name && customer.line_display_name !== customer.name ? `LINE: ${customer.line_display_name}` : null].filter(Boolean).join(" / ");
+  const who = displayName ? `${displayName}${customer?.phone ? ` (${customer.phone})` : ""}` : lineUid;
+  await sendTelegramMessage(chatId, `🧾 ลูกค้าส่งหลักฐานการชำระ/สลิป กรุณาตรวจสอบทันที\nลูกค้า: ${who}\nLINE messageId: ${messageId}\nหมายเหตุ: ระบบยังไม่ถือว่าชำระแล้วจนกว่าทีมงาน/DB จะยืนยัน`);
+}
+
 async function notifyStaffOfRescheduleRequest(
   supabase: ReturnType<typeof createServiceClient>,
   chatId: string,
@@ -488,6 +495,11 @@ serve(async (req) => {
             await replyMessage(replyToken, [{ type: "text", text }]),
           sendPush: async (to, text) =>
             await pushMessage(to, [{ type: "text", text }]),
+          notifyPaymentProof: async (messageId) => {
+            const chatId = settings?.telegram_group_chat_id;
+            if (!chatId) return;
+            await notifyStaffOfPaymentProof(supabase, chatId, userId, messageId);
+          },
           notifyImageFailure: async (messageId) => {
             const chatId = settings?.telegram_group_chat_id;
             if (!chatId) return;

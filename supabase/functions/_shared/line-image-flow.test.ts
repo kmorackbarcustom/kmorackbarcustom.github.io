@@ -5,6 +5,7 @@ import {
 import {
   IMAGE_READ_FALLBACK,
   type ImageFlowDeps,
+  isLikelyPaymentProof,
   isSupportedLineImageProvider,
   processImageConversation,
   shouldHandleImage,
@@ -135,4 +136,27 @@ Deno.test("vision failure returns safe fallback, notifies staff and persists no 
   assertEquals(t.getNotified(), 1);
   assertEquals(t.persisted.map((x) => x.role), ["user", "assistant"]);
   assertEquals(t.persisted.some((x) => x.content.includes("SECRET")), false);
+});
+
+Deno.test("payment proof detector recognizes bank slip observations", () => {
+  assertEquals(isLikelyPaymentProof({ ...observation, summary: "โอนเงินสำเร็จ", visible_text: ["K+", "จำนวน 500.00 บาท"] }), true);
+  assertEquals(isLikelyPaymentProof(observation), false);
+});
+
+Deno.test("payment proof notifies staff immediately after vision success", async () => {
+  let paymentNotified = 0;
+  const t = makeDeps({
+    analyzeImage: async () => ({ ...observation, summary: "โอนเงินสำเร็จ", visible_text: ["K+", "จำนวน 500.00 บาท"] }),
+    notifyPaymentProof: async () => { paymentNotified++; },
+  });
+  const result = await processImageConversation(t.deps, { userId: "U1", messageId: "SLIP1", replyToken: "R1" });
+  assertEquals(result.visionSuccess, true);
+  assertEquals(paymentNotified, 1);
+});
+
+Deno.test("ordinary image does not notify payment review", async () => {
+  let paymentNotified = 0;
+  const t = makeDeps({ notifyPaymentProof: async () => { paymentNotified++; } });
+  await processImageConversation(t.deps, { userId: "U1", messageId: "M1", replyToken: "R1" });
+  assertEquals(paymentNotified, 0);
 });
