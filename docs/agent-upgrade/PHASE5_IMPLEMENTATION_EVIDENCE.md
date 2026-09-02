@@ -3,9 +3,9 @@
 **Date:** 2026-08-29
 **Implementation commit:** `12a6dff`
 **Brief commit:** `adb48ed`
-**Production function:** `line-webhook` v42
-**Current rollout:** `line_ai_image_rollout=owner_only`
-**Phase status:** DEPLOYED / OWNER LIVE E2E PENDING — NOT CLOSED
+**Production function:** `line-webhook` v46 (entrypoint pins `4b98aac`; v42 was the original Phase 5 deploy)
+**Current rollout:** `line_ai_image_rollout=all` (owner expanded it; verified live 2026-09-03)
+**Phase status:** RELEASED TO ALL / E2E EVIDENCE NOT RECORDED — NOT CLOSED
 
 ## Implemented
 - LINE image content download with 10 MiB bounded read
@@ -34,5 +34,9 @@
 - No production order/booking data changed.
 - `internal-proxy` and vendored `line-oa-ai-module` were not modified.
 
-## Remaining Gate
-Owner must send real inbound LINE images so LINE issues real message IDs. Required matrix from the approved brief remains 5 cases. Until those pass, do not set image rollout to `all` and do not mark Phase 5 CLOSED.
+## Remaining Gate (updated 2026-09-03)
+Rollout is already `all` — the owner expanded it and ran a live test himself. Reported result: the vision path recognises bank slips and `notifyStaffOfPaymentProof` fires a Telegram staff alert immediately. That covers the payment-proof / visible-text case.
+
+What is missing is **written evidence**, not the test. Every Telegram payment-proof alert embeds the real LINE `messageId`, so those messages are usable raw evidence. Outstanding matrix cases: full-bike photo, close-up part, text-then-image session continuity, and an out-of-context image (must not invent service/product). Phase 5 stays NOT CLOSED until those results are recorded here.
+
+Verified live 2026-09-03: `verify_jwt=false` on v46; `internal-proxy` and vendored `line-oa-ai-module` untouched; no raw image/base64 in session history.

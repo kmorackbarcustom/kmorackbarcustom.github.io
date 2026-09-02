@@ -1,9 +1,9 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
-**Last Updated:** 2026-08-29 — documentation truth reconciliation
-**Current Phase:** Phase 1–4 CLOSED. Phase 5 — LINE Image Understanding is deployed as line-webhook v42 with image rollout owner_only; live owner E2E is pending, so Phase 5 is NOT CLOSED.
-**Progress:** Phase 5 implementation commit `12a6dff`; `_shared` automated suite 31/31 PASS; production deploy v42 verified with `verify_jwt=false`.
-**Next Session:** run the 5-case owner LINE image E2E, inspect logs/session evidence, then either remediate or open image rollout to `all` and close Phase 5.
+**Last Updated:** 2026-09-03 — production truth reconciliation (docs were 4 function versions and one rollout stage behind)
+**Current Phase:** Phase 1–4 CLOSED and deployed. Phase 5 — LINE Image Understanding is live as line-webhook v46 with image rollout `all`; owner ran a live test and reported slip detection + Telegram staff alert working, but the 5-case matrix evidence is not yet recorded, so Phase 5 is NOT formally CLOSED.
+**Progress:** Phase 5 implementation commit `12a6dff`; `_shared` automated suite 31/31 PASS; production is v46 pinned to commit `4b98aac` (Phase 4 grounding + payment-proof staff notify included), `verify_jwt=false` verified 2026-09-03.
+**Next Session:** record the owner live-test evidence (Telegram payment-proof alerts carry real LINE messageIds) and fill the remaining matrix cases, then mark Phase 5 CLOSED. Rollout is already `all`.
 
 ---
 
@@ -17,7 +17,7 @@
 | Phase 2 — Model Eval / Selection | CLOSED | N/A | Yes |
 | Phase 3 — Agent Tool-Calling Loop | CLOSED | Yes | Yes |
 | Phase 4 — Reply-First / Push-Fallback | CLOSED (monitoring limitation recorded) | Yes | Yes |
-| Phase 5 — LINE Image Understanding | DEPLOYED — OWNER E2E PENDING | Owner-only | In progress |
+| Phase 5 — LINE Image Understanding | RELEASED — E2E EVIDENCE NOT RECORDED | All | In progress |
 
 
 ### เสร็จแล้ว (Completed — 2026-08-28, นอกขอบเขต agent upgrade แต่ทำระหว่างเซสชันเดียวกัน)
@@ -55,10 +55,10 @@
 | Brief | Approved in `adb48ed` |
 | Implementation | 12a6dff |
 | Automated tests | 31 passed / 0 failed across _shared/*.test.ts |
-| Production function | line-webhook v42 |
+| Production function | line-webhook v46 (entrypoint pins commit `4b98aac`), deployed 2026-08-30T11:23:37Z |
 | JWT gate | `verify_jwt=false` verified after deploy |
-| Image rollout | owner_only; existing text rollout remains `all` |
-| Remaining gate | 5 real owner inbound LINE image cases; Phase 5 stays OPEN until pass |
+| Image rollout | `all` (changed by owner, undated — `system_settings` has no updated_at trigger and no audit_logs row); text rollout remains `all` |
+| Remaining gate | Owner live test reported OK (slip recognised, Telegram alert immediate) but not written down. Phase 5 stays OPEN until the case results are recorded. |
 
 ### Post-deploy AI hardening (2026-08-28/29)
 
@@ -113,10 +113,12 @@
 ## 🚀 Next Steps
 
 ### ต้องทำอะไรต่อ (ลำดับความสำคัญ)
-1. **Phase 5 owner live gate:**
-   - [ ] ส่งรูปจริง 5 เคสจาก owner account ตาม approved brief
-   - [ ] ตรวจ reply + edge logs + line_chat_sessions; ห้ามมี raw image/base64 persistence
-   - [ ] ถ้า gate ผ่าน เปลี่ยน line_ai_image_rollout จาก owner_only → `all`, verify แล้วค่อย mark Phase 5 CLOSED
+1. **Phase 5 evidence backfill (rollout already `all`):**
+   - [x] เปิด `line_ai_image_rollout=all` — owner ทำไปแล้ว
+   - [x] เคสสลิป/หลักฐานโอน — owner เทสจริง ผลโอเค แยกสลิปได้ + Telegram แจ้งทีมงานทันที
+   - [ ] บันทึกหลักฐาน: ข้อความแจ้งเตือน Telegram มี LINE messageId จริงอยู่ในนั้นแล้ว ใช้เป็น raw evidence ได้
+   - [ ] เคสที่เหลือของ matrix: รูปรถเต็มคัน, close-up อุปกรณ์, ข้อความก่อนแล้วส่งรูปตาม (session continuity), รูปนอกบริบทร้าน (ห้ามแต่ง service/product)
+   - [ ] ครบแล้วค่อย mark Phase 5 CLOSED
 
 2. **Standing production monitoring:**
    - [ ] ตรวจ DeepSeek tool discipline / hallucination / degenerate fallback / latency ต่อเนื่อง
@@ -134,7 +136,7 @@
 
 | คำถาม | ต้องตัดสินใจเมื่อ | Impact |
 |---|---|---|
-| Phase 5 owner live E2E ผ่านครบ 5 เคสหรือไม่ | ก่อนเปิด image rollout `all` | เป็น release gate สุดท้ายของ Phase 5 |
+| Phase 5 owner live E2E เคสที่เหลือ (นอกจากเคสสลิปที่ผ่านแล้ว) | ก่อน mark Phase 5 CLOSED — rollout `all` เปิดไปแล้ว | เป็น evidence gate ย้อนหลัง ไม่ใช่ release gate อีกต่อไป |
 | Push quota tracking (นับ+แจ้งเตือนใกล้เต็ม 300/เดือน) | ยังไม่ต้องตอนนี้ (usage ต่ำ) | รอปริมาณแชทโตขึ้นค่อยทำ |
 | "ลูกค้าเลือกวันติดตั้งเอง" ออกแบบยังไงให้เข้ากับตัวจัดคิวผลิต | ก่อนเริ่มแก้ CustomerOrder.html | ต้อง session แยกออกแบบ schema |
 
