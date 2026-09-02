@@ -4,3 +4,7 @@ supabase/.temp/
 supabase-hr/supabase/.temp/
 AGY_TASK*.txt
 key.txt
+
+# Generated LINE webhook bundles
+supabase/functions/line-webhook/bundle.js
+supabase/functions/line-webhook/bundle.min.js
