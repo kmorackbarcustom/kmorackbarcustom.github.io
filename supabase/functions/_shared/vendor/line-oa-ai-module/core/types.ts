@@ -19,6 +19,14 @@ export interface SessionStore {
   set(userId: string, session: UserSession, ttlMs?: number): Promise<void>;
   delete(userId: string): Promise<void>;
   clear?(): Promise<void>;
+  // Optional: a store that can append a history entry as a single atomic operation (no JS-side
+  // read-modify-write) should implement this. StateManager.appendHistory prefers it when present -
+  // stores that don't implement it (e.g. MemorySessionStore) keep the old get-then-set behavior.
+  appendHistoryAtomic?(
+    userId: string,
+    message: ChatMessageHistory,
+    maxHistory: number,
+  ): Promise<UserSession>;
 }
 
 export interface LineOaConfig {

@@ -81,3 +81,44 @@ Deno.test("get() isolates persisted context_data by LINE user id", async () => {
     undefined,
   );
 });
+
+Deno.test("appendHistoryAtomic calls the atomic RPC with the right args and maps the row back", async () => {
+  let calledName = "";
+  let calledArgs: Record<string, unknown> = {};
+  const rpcResultRow = {
+    user_id: "u1",
+    state: "IDLE",
+    context_data: {},
+    history: [{ role: "user", content: "hi", timestamp: 1 }],
+    last_interaction: new Date().toISOString(),
+  };
+  const supabase = {
+    rpc: (name: string, args: Record<string, unknown>) => {
+      calledName = name;
+      calledArgs = args;
+      return Promise.resolve({ data: rpcResultRow, error: null });
+    },
+  } as any;
+  const store = new PostgresSessionStore(supabase, 30 * 60 * 1000);
+  const message = { role: "user" as const, content: "hi", timestamp: 1 };
+  const session = await store.appendHistoryAtomic("u1", message, 40);
+
+  assertEquals(calledName, "line_append_chat_history");
+  assertEquals(calledArgs, { p_user_id: "u1", p_message: message, p_max_history: 40 });
+  assertEquals(session.userId, "u1");
+  assertEquals(session.history, [{ role: "user", content: "hi", timestamp: 1 }]);
+});
+
+Deno.test("appendHistoryAtomic throws when the RPC errors", async () => {
+  const supabase = {
+    rpc: () => Promise.resolve({ data: null, error: new Error("boom") }),
+  } as any;
+  const store = new PostgresSessionStore(supabase, 30 * 60 * 1000);
+  let threw = false;
+  try {
+    await store.appendHistoryAtomic("u1", { role: "user", content: "hi", timestamp: 1 }, 40);
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+});

@@ -73,6 +73,13 @@ export class StateManager {
     message: ChatMessageHistory,
     maxHistory = 40
   ): Promise<UserSession> {
+    // Prefer an atomic append when the store supports one - it does the append+trim in a single
+    // DB statement, so concurrent callers for the same userId (e.g. an image burst) can never
+    // clobber each other's history. Stores without it (MemorySessionStore) fall back to the
+    // previous get-then-set behavior, which is fine for a single in-process store.
+    if (this.store.appendHistoryAtomic) {
+      return await this.store.appendHistoryAtomic(userId, message, maxHistory);
+    }
     const session = await this.getSession(userId);
     session.history.push(message);
     if (session.history.length > maxHistory) {

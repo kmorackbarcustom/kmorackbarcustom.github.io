@@ -1,5 +1,5 @@
 import { failureResult } from './errors.ts';
-import type { WebhookResult } from './types';
+import type { WebhookResult } from './types.ts';
 
 export const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
 

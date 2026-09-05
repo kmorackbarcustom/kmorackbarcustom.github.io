@@ -1,5 +1,9 @@
 import { createServiceClient } from "./database.ts";
-import type { SessionStore, UserSession } from "./vendor/line-oa-ai-module/core/types.ts";
+import type {
+  ChatMessageHistory,
+  SessionStore,
+  UserSession,
+} from "./vendor/line-oa-ai-module/core/types.ts";
 
 export class PostgresSessionStore implements SessionStore {
   constructor(
@@ -49,5 +53,30 @@ export class PostgresSessionStore implements SessionStore {
   async delete(userId: string): Promise<void> {
     const { error } = await this.supabase.from("line_chat_sessions").delete().eq("user_id", userId);
     if (error) console.error("[line-session-store] delete failed", error);
+  }
+
+  // Appends via the line_append_chat_history RPC, which does the array-append and trim-to-maxHistory
+  // in one SQL statement server-side - no get-then-set gap for concurrent callers to race through.
+  async appendHistoryAtomic(
+    userId: string,
+    message: ChatMessageHistory,
+    maxHistory: number,
+  ): Promise<UserSession> {
+    const { data, error } = await this.supabase.rpc("line_append_chat_history", {
+      p_user_id: userId,
+      p_message: message,
+      p_max_history: maxHistory,
+    });
+    if (error || !data) {
+      console.error("[line-session-store] appendHistoryAtomic failed", error);
+      throw error ?? new Error("line_append_chat_history returned no row");
+    }
+    return {
+      userId: data.user_id,
+      state: data.state,
+      contextData: data.context_data ?? {},
+      history: data.history ?? [],
+      lastInteraction: new Date(data.last_interaction).getTime(),
+    };
   }
 }

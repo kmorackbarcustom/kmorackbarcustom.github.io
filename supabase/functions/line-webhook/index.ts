@@ -28,8 +28,9 @@ import {
   formatVisionObservation,
 } from "../_shared/vision.ts";
 import {
+  type BatchImageItem,
   isSupportedLineImageProvider,
-  processImageConversation,
+  processImageBatchConversation,
   shouldHandleImage,
 } from "../_shared/line-image-flow.ts";
 import { processRescheduleMessage } from "../_shared/reschedule-state.ts";
@@ -45,6 +46,7 @@ const LINE_AI_SAFETY_RULES = [
   `- ลิงก์ "สั่งผลิต/สั่งซื้ออุปกรณ์" (ไม่ต้องเอารถเข้าร้าน กรอกข้อมูลแล้วส่งของ/นัดติดตั้งทีหลัง): ${CUSTOMER_ORDER_URL}`,
   "ถ้าลูกค้าอยากจองคิวเข้าร้าน ให้แนะนำลิงก์จองคิว",
   "ถ้าลูกค้าอยากสั่งผลิต/สั่งซื้อของใหม่ (ยังไม่มีออเดอร์เดิม) ให้แนะนำลิงก์สั่งผลิต",
+  "กฎเรื่องส่งลิงก์เมื่อลูกค้าตั้งใจจะจอง/สั่งซื้อ มีความสำคัญเหนือกฎ 'ไม่มีข้อมูลให้บอกว่าจะให้ทีมงานติดต่อกลับ' เสมอ - ถ้าลูกค้าระบุรุ่นรถ/ชิ้นส่วนที่ต้องการชัดเจนแล้ว ให้ส่งลิงก์ที่ตรงกับงานทันที แม้ระบบไม่มีข้อมูลราคาของรุ่นนั้น อย่าใช้การไม่มีข้อมูลราคาเป็นข้ออ้างในการไม่ส่งลิงก์หรือส่งไปให้ทีมงานติดต่อกลับแทน",
   "ถ้าลูกค้าแค่ถามข้อมูลทั่วไป (เช่น มีรุ่นอะไรบ้าง, ราคาเท่าไหร่, มีของไหม) ให้ตอบข้อมูลนั้นเฉยๆ ห้ามแนบลิงก์ทันที - แนบลิงก์เฉพาะตอนที่ลูกค้าแสดงเจตนาจะจอง/สั่งซื้อจริงๆ หรือถามเองว่าจะจอง/สั่งยังไงเท่านั้น",
   "ห้ามยืนยันว่าจองคิว/สั่งออเดอร์สำเร็จ ห้ามอ้างว่าเช็ควันว่างให้ได้ - บอกให้กดลิงก์ที่ถูกต้องเพื่อทำเองเท่านั้น",
   "ถ้าลูกค้าถามสถานะงาน/ออเดอร์ที่มีอยู่แล้ว ให้เรียก tool get_order_status แล้วตอบจากผลที่ได้เท่านั้น ห้ามเดาวันที่หรือสถานะเอง",
@@ -172,6 +174,18 @@ async function notifyStaffOfRescheduleRequest(
     chatId,
     `📅 ลูกค้าขอเลื่อนคิว\nลูกค้า: ${who}\nวันนัดเดิม: ${originalDate}\nวันที่ต้องการ: ${requestedDate}\nกรุณาตรวจสอบและยืนยันกับลูกค้า`,
   );
+}
+
+// Debounce window for coalescing a burst of images from the same customer into one AI turn (see
+// line_image_batch_append/claim RPCs, migration 20260905130000). Each image appends itself then
+// waits this long; only the invocation whose append is still the newest one when it wakes up
+// claims and processes the whole batch. p_max_wait_seconds bounds a long straggling burst so a
+// batch can never wait indefinitely (well inside LINE's reply-token expiry either way).
+const IMAGE_BATCH_DEBOUNCE_MS = 1500;
+const IMAGE_BATCH_MAX_WAIT_SECONDS = 8;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 type AgentHistoryItem = { role: string; content: string };
@@ -457,17 +471,74 @@ serve(async (req) => {
           faqs = data ?? [];
         }
 
+        // Coalesce a burst of images from this customer into one AI turn instead of one
+        // independent full pipeline run per image event (see migration 20260905130000 for why:
+        // concurrent webhook invocations racing on the same session row used to produce
+        // duplicate/near-identical replies and duplicate staff alerts). Every image appends
+        // itself to a per-customer pending batch, then waits; only the invocation whose append
+        // is still the newest one when it wakes up actually claims and processes the whole
+        // batch - everyone else bails immediately, for free.
+        const { data: appended, error: appendError } = await supabase.rpc(
+          "line_image_batch_append",
+          {
+            p_line_uid: userId,
+            p_message_id: event.message.id,
+            p_reply_token: event.replyToken ?? null,
+            p_event_timestamp: event.timestamp ?? Date.now(),
+            p_provider_type: event.message?.contentProvider?.type ?? null,
+          },
+        );
+        if (appendError || !appended) {
+          console.error("[line-image] batch append failed", appendError);
+          continue;
+        }
+
+        await sleep(IMAGE_BATCH_DEBOUNCE_MS);
+
+        const { data: claimedItems, error: claimError } = await supabase.rpc(
+          "line_image_batch_claim",
+          {
+            p_line_uid: userId,
+            p_since: appended.updated_at,
+            p_max_wait_seconds: IMAGE_BATCH_MAX_WAIT_SECONDS,
+          },
+        );
+        if (claimError) {
+          console.error("[line-image] batch claim failed", claimError);
+          continue;
+        }
+        type QueuedImageItem = {
+          message_id: string;
+          reply_token: string | null;
+          timestamp: number;
+          provider_type: string | null;
+        };
+        const queuedItems = (claimedItems ?? []) as QueuedImageItem[];
+        if (queuedItems.length === 0) {
+          // Superseded: a newer image arrived while we were waiting, so that later invocation
+          // owns the whole batch (including this image) instead of us. No vision/LLM cost paid.
+          continue;
+        }
+
+        const providerByMessageId = new Map(
+          queuedItems.map((it) => [it.message_id, it.provider_type ?? undefined]),
+        );
+        const batchItems: BatchImageItem[] = queuedItems.map((it) => ({
+          messageId: it.message_id,
+          replyToken: it.reply_token ?? undefined,
+          timestamp: it.timestamp,
+        }));
+
         const ttlMs = (Number(settings.session_ttl_hours) || 6) * 60 * 60 *
           1000;
         const stateManager = new StateManager(
           new PostgresSessionStore(supabase, ttlMs),
           ttlMs,
         );
-        const providerType = event.message?.contentProvider?.type;
-        const result = await processImageConversation({
+        const result = await processImageBatchConversation({
           sessions: stateManager,
           downloadImage: async (messageId) => {
-            if (!isSupportedLineImageProvider(providerType)) {
+            if (!isSupportedLineImageProvider(providerByMessageId.get(messageId))) {
               const error = new Error(
                 "external image provider is not supported",
               ) as Error & { code?: string };
@@ -511,15 +582,10 @@ serve(async (req) => {
             );
           },
           log: (name, data) => console.log(`[line-image] ${name}`, data),
-        }, {
-          userId,
-          messageId: event.message.id,
-          replyToken: event.replyToken,
-          timestamp: event.timestamp,
-        });
+        }, { userId, items: batchItems });
         if (!result.replied && !result.pushed) {
           console.error("[line-image] reply and push both failed", {
-            messageId: event.message.id,
+            messageIds: batchItems.map((it) => it.messageId),
           });
         }
         continue;

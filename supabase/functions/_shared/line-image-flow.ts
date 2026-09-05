@@ -37,6 +37,17 @@ export function isSupportedLineImageProvider(providerType?: string): boolean {
 export const IMAGE_READ_FALLBACK =
   "ขอโทษครับ ตอนนี้ผมอ่านรูปนี้ไม่สำเร็จ เดี๋ยวให้ทีมงานติดต่อกลับเพื่อช่วยตรวจให้นะครับ";
 
+// One image event queued for batch processing - see line_image_batch_append/claim RPCs in
+// migration 20260905130000. A burst of images from the same customer arriving within the
+// debounce window is collapsed into a single call to processImageBatchConversation instead of
+// one independent AI turn per image (which used to produce duplicate/near-identical replies and
+// duplicate staff alerts under concurrent webhook invocations).
+export type BatchImageItem = {
+  messageId: string;
+  replyToken?: string;
+  timestamp?: number;
+};
+
 export type ImageFlowDeps = {
   sessions: SessionPort;
   downloadImage(messageId: string): Promise<LineImageContent>;
@@ -79,82 +90,143 @@ async function sendWithFallback(
   const pushed = await deps.sendPush(userId, text);
   return { replied: false, pushed };
 }
-export async function processImageConversation(
+
+type VisionSuccess = { item: BatchImageItem; index: number; observation: VisionObservation };
+
+export async function processImageBatchConversation(
   deps: ImageFlowDeps,
-  input: {
-    userId: string;
-    messageId: string;
-    replyToken?: string;
-    timestamp?: number;
-  },
+  input: { userId: string; items: BatchImageItem[] },
 ): Promise<ImageFlowResult> {
-  const session = await deps.sessions.getSession(input.userId);
-  const priorHistory = session.history.map((item) => ({
-    role: item.role,
-    content: item.content,
-  }));
+  const items = input.items;
+  const total = items.length;
+  const lastReplyToken = items[items.length - 1]?.replyToken;
+  const lastTimestamp = items[items.length - 1]?.timestamp;
+
   let synthetic: string | null = null;
   let userHistoryAppended = false;
 
   try {
-    const downloadStarted = Date.now();
-    const image = await deps.downloadImage(input.messageId);
-    const visionStarted = Date.now();
-    const observation = await deps.analyzeImage(image);
-    if (deps.notifyPaymentProof && isLikelyPaymentProof(observation)) {
-      await deps.notifyPaymentProof(input.messageId, observation).catch((error) => {
-        deps.log?.("payment_proof_notify_failure", { messageId: input.messageId, errorClass: error instanceof Error ? error.name : typeof error });
+    const session = await deps.sessions.getSession(input.userId);
+    const priorHistory = session.history.map((item) => ({
+      role: item.role,
+      content: item.content,
+    }));
+
+    const settled = await Promise.allSettled(
+      items.map(async (item, index): Promise<VisionSuccess> => {
+        const image = await deps.downloadImage(item.messageId);
+        const observation = await deps.analyzeImage(image);
+        deps.log?.("vision_success", {
+          messageId: item.messageId,
+          mimeType: image.mimeType,
+          byteLength: image.byteLength,
+        });
+        return { item, index, observation };
+      }),
+    );
+
+    const successes = settled
+      .filter((r): r is PromiseFulfilledResult<VisionSuccess> => r.status === "fulfilled")
+      .map((r) => r.value)
+      .sort((a, b) => a.index - b.index);
+    const failureCount = settled.length - successes.length;
+
+    if (failureCount > 0) {
+      const firstFailure = settled.find((r) => r.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined;
+      deps.log?.("vision_failure", {
+        failedCount: failureCount,
+        totalCount: total,
+        errorClass: firstFailure?.reason instanceof Error
+          ? firstFailure.reason.name
+          : typeof firstFailure?.reason,
       });
     }
-    synthetic = deps.formatObservation(observation);
-    deps.log?.("vision_success", {
-      messageId: input.messageId,
-      mimeType: image.mimeType,
-      byteLength: image.byteLength,
-      downloadMs: visionStarted - downloadStarted,
-      visionMs: Date.now() - visionStarted,
-    });
+
+    if (successes.length === 0) {
+      // Whole batch unreadable - notify staff exactly once for the batch, not once per image.
+      await deps.notifyImageFailure(
+        items[items.length - 1].messageId,
+        (settled.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)
+          ?.reason,
+      ).catch(() => undefined);
+      const placeholder = total > 1
+        ? `[IMAGE_MESSAGE_UNREADABLE] ลูกค้าส่งรูป ${total} รูป แต่ระบบ vision อ่านไม่สำเร็จทั้งหมด`
+        : "[IMAGE_MESSAGE_UNREADABLE] ลูกค้าส่งรูป แต่ระบบ vision อ่านรูปไม่สำเร็จ";
+      await deps.sessions.appendHistory(input.userId, {
+        role: "user",
+        content: placeholder,
+        timestamp: lastTimestamp ?? Date.now(),
+      }).catch(() => undefined);
+      await deps.sessions.appendHistory(input.userId, {
+        role: "assistant",
+        content: IMAGE_READ_FALLBACK,
+        timestamp: Date.now(),
+      }).catch(() => undefined);
+      const sent = await sendWithFallback(deps, input.userId, lastReplyToken, IMAGE_READ_FALLBACK);
+      return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
+    }
+
+    // Payment-proof check runs before reply generation and notifies at most once per batch, so a
+    // slip is flagged to staff even if the chat-reply step below fails for some reason.
+    if (deps.notifyPaymentProof) {
+      const paymentHit = successes.find(({ observation }) => isLikelyPaymentProof(observation));
+      if (paymentHit) {
+        await deps.notifyPaymentProof(paymentHit.item.messageId, paymentHit.observation).catch(
+          (error) => {
+            deps.log?.("payment_proof_notify_failure", {
+              messageId: paymentHit.item.messageId,
+              errorClass: error instanceof Error ? error.name : typeof error,
+            });
+          },
+        );
+      }
+    }
+
+    const blocks = successes.map(({ observation }, i) =>
+      total > 1
+        ? `[รูปที่ ${i + 1}/${total}]\n${deps.formatObservation(observation)}`
+        : deps.formatObservation(observation)
+    );
+    if (failureCount > 0) {
+      blocks.push(`[หมายเหตุ] มี ${failureCount} จาก ${total} รูปที่ระบบอ่านไม่สำเร็จ`);
+    }
+    synthetic = blocks.join("\n\n");
 
     await deps.sessions.appendHistory(input.userId, {
       role: "user",
       content: synthetic,
-      timestamp: input.timestamp ?? Date.now(),
+      timestamp: lastTimestamp ?? Date.now(),
     });
     userHistoryAppended = true;
-    const reply = await deps.generateReply({
-      userMessage: synthetic,
-      history: priorHistory,
-    });
+
+    const reply = await deps.generateReply({ userMessage: synthetic, history: priorHistory });
     await deps.sessions.appendHistory(input.userId, {
       role: "assistant",
       content: reply,
       timestamp: Date.now(),
     });
-    const sent = await sendWithFallback(
-      deps,
-      input.userId,
-      input.replyToken,
-      reply,
-    );
+    const sent = await sendWithFallback(deps, input.userId, lastReplyToken, reply);
     return { reply, visionSuccess: true, ...sent };
   } catch (error) {
+    // Outer safety net: batching raised the blast radius of a mid-pipeline crash from "one image's
+    // reply lost" to "the whole batch's reply lost" - so no matter where this throws (session
+    // read, history append, reply generation, send), still try to get *a* reply to the customer
+    // using the last item's reply token, same as the single-image path used to guarantee.
     const coded = error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code ?? "")
       : "";
-    deps.log?.("vision_failure", {
-      messageId: input.messageId,
+    deps.log?.("batch_failure", {
+      itemCount: total,
       errorClass: coded || (error instanceof Error ? error.name : typeof error),
     });
-    await deps.notifyImageFailure(input.messageId, error).catch(() =>
-      undefined
-    );
-    const placeholder = synthetic ??
-      "[IMAGE_MESSAGE_UNREADABLE] ลูกค้าส่งรูป แต่ระบบ vision อ่านรูปไม่สำเร็จ";
     if (!userHistoryAppended) {
       await deps.sessions.appendHistory(input.userId, {
         role: "user",
-        content: placeholder,
-        timestamp: input.timestamp ?? Date.now(),
+        content: synthetic ??
+          `[IMAGE_MESSAGE_UNREADABLE] ลูกค้าส่งรูป ${total} รูป แต่ระบบประมวลผลไม่สำเร็จ`,
+        timestamp: lastTimestamp ?? Date.now(),
       }).catch(() => undefined);
     }
     await deps.sessions.appendHistory(input.userId, {
@@ -162,12 +234,9 @@ export async function processImageConversation(
       content: IMAGE_READ_FALLBACK,
       timestamp: Date.now(),
     }).catch(() => undefined);
-    const sent = await sendWithFallback(
-      deps,
-      input.userId,
-      input.replyToken,
-      IMAGE_READ_FALLBACK,
-    );
+    await deps.notifyImageFailure(items[items.length - 1].messageId, error).catch(() => undefined);
+    const sent = await sendWithFallback(deps, input.userId, lastReplyToken, IMAGE_READ_FALLBACK)
+      .catch(() => ({ replied: false, pushed: false }));
     return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
   }
 }
