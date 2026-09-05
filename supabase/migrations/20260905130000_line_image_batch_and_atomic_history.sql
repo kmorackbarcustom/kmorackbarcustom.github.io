@@ -40,11 +40,17 @@ $$;
 -- Pending-image coordination table for the "supersede and bail" burst-batching pattern.
 -- created_at freezes at the first item's insert (used for the max-wait force-claim guard);
 -- updated_at bumps on every non-duplicate append (used to detect "someone appended after me").
+-- created_at/updated_at use clock_timestamp() (advances on every call, even within one
+-- transaction), not now() (frozen at transaction start) - line_image_batch_append can otherwise
+-- return an identical updated_at for two appends that happen to run inside the same Postgres
+-- transaction, which would break the claim RPC's "is anything newer than me" comparison. In
+-- production each RPC call is its own PostgREST transaction so this is defense in depth, not a
+-- fix for an observed production failure - but it's free and it closes the gap outright.
 create table if not exists public.line_image_batches (
   line_uid text primary key,
   items jsonb not null default '[]'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  created_at timestamptz not null default clock_timestamp(),
+  updated_at timestamptz not null default clock_timestamp()
 );
 
 alter table public.line_image_batches enable row level security;
@@ -70,10 +76,9 @@ declare
     'timestamp', p_event_timestamp,
     'provider_type', p_provider_type
   );
-  v_is_dup boolean;
 begin
   insert into public.line_image_batches (line_uid, items, updated_at)
-  values (p_line_uid, jsonb_build_array(v_item), now())
+  values (p_line_uid, jsonb_build_array(v_item), clock_timestamp())
   on conflict (line_uid) do update set
     items = case
       when exists (
@@ -87,7 +92,7 @@ begin
         select 1 from jsonb_array_elements(line_image_batches.items) e
         where e->>'message_id' = p_message_id
       ) then line_image_batches.updated_at
-      else now()
+      else clock_timestamp()
     end
   returning * into v_row;
   return v_row;
@@ -115,7 +120,7 @@ begin
   where line_uid = p_line_uid
     and (
       updated_at <= p_since
-      or created_at < now() - make_interval(secs => p_max_wait_seconds)
+      or created_at < clock_timestamp() - make_interval(secs => p_max_wait_seconds)
     )
   returning items into v_items;
   return v_items;
