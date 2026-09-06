@@ -27,11 +27,12 @@ Therefore KMO legacy booking and BK01 booking are not safe 1:1 table replacement
 KMO Supabase
 ├── public.*              existing KMO operational system
 ├── local_service.*       BK01 booking engine
-└── kmo_bridge.*          mapping/reconciliation boundary
+├── kmo_booking.*         KMO-only booking detail extension
+└── kmo_bridge.*          mapping/reconciliation/cutover boundary
 ```
 
-Optional KMO extension data that does not belong in canonical BK01 should live outside BK01 core,
-for example a KMO-owned booking-detail table keyed by `local_service.bookings.id`.
+KMO extension data that does not belong in canonical BK01 lives in `kmo_booking.*`,
+with booking detail rows keyed by `local_service.bookings.id`. `kmo_bridge.*` remains mapping/reconciliation only.
 
 ## Nine release gates
 1. **Live DB audit** — schema, RLS, triggers, functions, storage, migration history, counts.
@@ -75,4 +76,6 @@ Customer rows, payment details and secrets are not required for the schema audit
 
 Gate 2 schema ownership contract: `bk01-pilot/KMO_SCHEMA_CONTRACT.md` — PASS / LOCKED.
 
-Next: Gate 3 KMO extension/bridge design. No production DDL is authorized yet.
+Gate 3 extension/bridge design: `bk01-pilot/KMO_EXTENSION_DESIGN.md` — PASS / LOCKED.
+
+Next: Gate 4 dependency-safe KMO BK01 baseline + rollback package. No production DDL has been applied.
