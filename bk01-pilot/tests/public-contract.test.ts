@@ -15,15 +15,20 @@ test('KMO pilot excludes Stripe checkout and remote PromptPay QR paths', () => {
 
   assert.doesNotMatch(surfaces, /promptpay\.io/i);
   assert.doesNotMatch(surfaces, /annual|yearly|4900|9900/i);
+
+  const adminService = read('apps/booking-admin/src/lib/admin-service.ts');
+  const registerPage = read('apps/booking-admin/src/app/register/page.tsx');
+  assert.doesNotMatch(adminService, /\.from\('subscriptions'\)/);
+  assert.match(registerPage, /redirect\('\/login'\)/);
 });
 
-test('current package copy states provisional pricing and no paid booking wall', () => {
+test('KMO admin copy has no SaaS billing surface or paid booking wall', () => {
   for (const path of ['apps/booking-admin/messages/th.json', 'apps/booking-admin/messages/en.json']) {
     const messages = JSON.parse(read(path));
     const dashboard = JSON.stringify(messages.dashboard);
-    assert.match(dashboard, /pilot|นำร่อง/i);
+    assert.doesNotMatch(dashboard, /stripe|checkout|customer portal/i);
     assert.doesNotMatch(dashboard, /100%|guaranteed/i);
-    assert.doesNotMatch(dashboard, /100 bookings|500 bookings|100 คิว|500 คิว/i);
+    assert.doesNotMatch(dashboard, /100 bookings|500 bookings|100 à¸„à¸´à¸§|500 à¸„à¸´à¸§/i);
   }
 });
 

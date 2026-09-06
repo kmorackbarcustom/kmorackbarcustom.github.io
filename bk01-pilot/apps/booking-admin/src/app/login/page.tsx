@@ -67,9 +67,8 @@ function LoginForm() {
           {isSubmitting ? t('submittingLogin') : t('loginTitle')}
         </button>
 
-        <div className="flex justify-between text-xs">
+        <div className="flex justify-end text-xs">
           <Link href="/forgot-password" className="text-slate-400 hover:text-white">{t('forgotPasswordLink')}</Link>
-          <Link href="/register" className="text-emerald-400 hover:text-emerald-300">{t('registerLink')}</Link>
         </div>
       </form>
     </main>
