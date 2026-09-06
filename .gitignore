@@ -16,3 +16,6 @@ bk01-pilot/node_modules/
 bk01-pilot/apps/*/.next/
 bk01-pilot/apps/*/.open-next/
 bk01-pilot/apps/*/.wrangler/
+
+# KMO production DB audit raw evidence — local only
+bk01-pilot/docs/kmo-live-db-audit-*.json

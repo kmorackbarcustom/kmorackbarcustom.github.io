@@ -1,6 +1,6 @@
 # KMO BK01 Database Cutover Plan
 
-Status: GATE 1 IN PROGRESS — READ-ONLY AUDIT
+Status: GATE 1 COMPLETE — READ-ONLY LIVE AUDIT
 Owner scope: KMO RACKBARCUSTOM only
 Production project ref: `xfhpwxjywqgqefbncumm`
 
@@ -67,6 +67,10 @@ Customer rows, payment details and secrets are not required for the schema audit
 - Local KMO project link: repository evidence points to `xfhpwxjywqgqefbncumm`.
 - ChatGPT Supabase connector: different account; must not be used for KMO mutation.
 - Repository dependency audit: confirms legacy `public.bookings` is operational infrastructure, not disposable data.
-- Live database audit: pending execution/readback through authenticated KMO CLI.
+- Live database audit: COMPLETE on 2026-09-06 through authenticated KMO CLI.
+- Confirmed live schemas currently include `public`, `auth`, and `storage`; `local_service` and `kmo_bridge` do not exist yet.
+- Confirmed existing operational `public.bookings`, `public.orders`, `public.customers`, and `public.production_allocations` are populated and must remain protected.
+- Confirmed production has a substantial existing migration/function/trigger/RLS surface; Gate 2 must design around the live contracts rather than replay BK01 history.
+- Raw audit JSON is local evidence only and is intentionally Git-ignored.
 
 Next decision after live audit: produce a schema-diff matrix and the exact KMO BK01 baseline boundary before any production DDL.
