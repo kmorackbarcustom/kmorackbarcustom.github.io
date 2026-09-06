@@ -8,3 +8,11 @@ key.txt
 # Generated LINE webhook bundles
 supabase/functions/line-webhook/bundle.js
 supabase/functions/line-webhook/bundle.min.js
+
+# BK01 KMO pilot local/build state
+bk01-pilot/.env.local
+bk01-pilot/apps/*/.env.local
+bk01-pilot/node_modules/
+bk01-pilot/apps/*/.next/
+bk01-pilot/apps/*/.open-next/
+bk01-pilot/apps/*/.wrangler/

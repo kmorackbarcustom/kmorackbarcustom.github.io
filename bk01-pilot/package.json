@@ -1,0 +1,19 @@
+{
+  "name": "local-service-booking-saas",
+  "private": true,
+  "workspaces": [
+    "apps/booking-consumer",
+    "apps/booking-admin"
+  ],
+  "scripts": {
+    "test": "node --no-warnings --test --experimental-test-isolation=none tests/*.test.ts",
+    "sync-env": "node scripts/sync-env.js",
+    "predev:shop": "npm run sync-env",
+    "dev:shop": "npm --workspace apps/booking-consumer run dev",
+    "predev:admin": "npm run sync-env",
+    "dev:admin": "npm --workspace apps/booking-admin run dev",
+    "prebuild": "npm run sync-env",
+    "build": "npm --workspace apps/booking-consumer run build && npm --workspace apps/booking-admin run build",
+    "lint": "npm --workspace apps/booking-consumer run lint && npm --workspace apps/booking-admin run lint"
+  }
+}
