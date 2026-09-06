@@ -78,4 +78,6 @@ Gate 2 schema ownership contract: `bk01-pilot/KMO_SCHEMA_CONTRACT.md` — PASS /
 
 Gate 3 extension/bridge design: `bk01-pilot/KMO_EXTENSION_DESIGN.md` — PASS / LOCKED.
 
-Next: Gate 4 dependency-safe KMO BK01 baseline + rollback package. No production DDL has been applied.
+Gate 4 dependency inventory: `bk01-pilot/KMO_BASELINE_DEPENDENCY_INVENTORY.md` — direct app scan complete.
+
+Next: close transitive SQL dependencies, then author baseline + rollback package. No production DDL has been applied.
