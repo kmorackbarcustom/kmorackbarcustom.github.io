@@ -73,4 +73,6 @@ Customer rows, payment details and secrets are not required for the schema audit
 - Confirmed production has a substantial existing migration/function/trigger/RLS surface; Gate 2 must design around the live contracts rather than replay BK01 history.
 - Raw audit JSON is local evidence only and is intentionally Git-ignored.
 
-Next decision after live audit: produce a schema-diff matrix and the exact KMO BK01 baseline boundary before any production DDL.
+Gate 2 schema ownership contract: `bk01-pilot/KMO_SCHEMA_CONTRACT.md` — PASS / LOCKED.
+
+Next: Gate 3 KMO extension/bridge design. No production DDL is authorized yet.
