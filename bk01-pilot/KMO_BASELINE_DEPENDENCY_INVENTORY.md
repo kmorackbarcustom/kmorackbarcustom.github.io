@@ -88,6 +88,38 @@ Gate 4 must inspect the final function/trigger definitions before omitting any o
 
 ## Current Gate 4 state
 Direct app dependency scan: **COMPLETE**.
-Transitive SQL dependency closure: **NEXT**.
-Baseline SQL generation: **NOT STARTED**.
+Transitive SQL dependency closure: **COMPLETE**.
+Baseline SQL generation: **COMPLETE**.
+Static baseline verification: **PASS**.
 Production apply: **NOT AUTHORIZED / NOT RUN**.
+
+## Gate 4 closure update — 2026-09-06
+A second pass parsed exact dollar-quoted final function bodies instead of broad SQL blocks.
+This removed false transitive dependencies caused by adjacent statements.
+
+Final active RPC closure:
+- 23 direct app RPCs — all resolved to committed definitions.
+- Required function helpers: `generate_booking_code`, `generate_link_token`, `get_tier_limits`, `has_shop_role`, `is_shop_member`, `is_shop_owner`.
+- RLS additionally requires `current_staff_id`.
+
+The corrected closure does **not** require `tickets`, `ticket_timeline_entries`, `platform_admins`, `entitlement_usage`, `apply_topup`, or commercial quota/top-up runtime.
+## Storage dependency
+Source scan also found an active Supabase Storage dependency not covered by the original `.from()` / `.rpc()` scan:
+- private bucket: `deposit-slips`
+- customer uploads use server-issued signed upload URLs;
+- object path contract: `<booking_uuid>/<object_uuid>.(jpg|png|webp)`;
+- maximum upload request size: 5 MiB;
+- admin UI creates a 300-second signed read URL.
+
+Gate 1 confirmed KMO production does not currently have a `deposit-slips` bucket.
+Gate 5 must create it private and add a shop-scoped authenticated SELECT policy; no anonymous direct object INSERT policy is required.
+## Gate 4 final verification ? 2026-09-07
+- Active app dependency check: 23/23 RPCs resolved; all runtime relations/views resolved.
+- Storage dependency: private `deposit-slips` bucket included.
+- Baseline SQL parses successfully as 153 PostgreSQL statements.
+- Containment rollback parses successfully as 7 PostgreSQL statements.
+- `verify-kmo-baseline.py`: PASS.
+- App tests: 17/17 PASS; lint: 0 errors / 8 inherited warnings; consumer/admin production builds PASS.
+- SELECT-only production refresh confirmed target schemas and bucket are still absent and protected `public.*` counts are unchanged from Gate 1.
+
+Gate 4 verdict: **PASS / LOCKED**. Gate 5 remains **NOT AUTHORIZED** pending backup/restore evidence and final pre-apply readback.

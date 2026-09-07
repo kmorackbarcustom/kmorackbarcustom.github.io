@@ -1,6 +1,6 @@
 # KMO BK01 Database Cutover Plan
 
-Status: GATE 1 COMPLETE — READ-ONLY LIVE AUDIT
+Status: GATE 4 COMPLETE ? BASELINE PACKAGE LOCKED; GATE 5 NOT AUTHORIZED
 Owner scope: KMO RACKBARCUSTOM only
 Production project ref: `xfhpwxjywqgqefbncumm`
 
@@ -78,6 +78,9 @@ Gate 2 schema ownership contract: `bk01-pilot/KMO_SCHEMA_CONTRACT.md` — PASS /
 
 Gate 3 extension/bridge design: `bk01-pilot/KMO_EXTENSION_DESIGN.md` — PASS / LOCKED.
 
-Gate 4 dependency inventory: `bk01-pilot/KMO_BASELINE_DEPENDENCY_INVENTORY.md` — direct app scan complete.
+Gate 4 dependency inventory: `bk01-pilot/KMO_BASELINE_DEPENDENCY_INVENTORY.md` ? PASS / dependency closure complete.
 
-Next: close transitive SQL dependencies, then author baseline + rollback package. No production DDL has been applied.
+Gate 4 baseline package: `bk01-pilot/supabase/kmo-baseline/` ? PASS / LOCKED for pre-deploy review.
+Static verifier: `bk01-pilot/scripts/verify-kmo-baseline.py` ? PASS.
+Production dark deploy remains NOT AUTHORIZED until Gate 5 backup/restore evidence and final identity/readback checks pass.
+No production DDL has been applied.
