@@ -1,6 +1,7 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "main": "custom-worker.ts",
+  "account_id": "c7d775fe2e3175ca58c0959867814998",
   "name": "kmo-booking-consumer",
   "compatibility_date": "2026-08-23",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -15,4 +16,3 @@
     { "binding": "WORKER_SELF_REFERENCE", "service": "kmo-booking-consumer" }
   ]
 }
-
