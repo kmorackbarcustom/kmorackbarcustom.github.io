@@ -1,6 +1,6 @@
-# KMO BK01 Ã¢â‚¬â€ Gate 4/5 Preflight
+# KMO BK01 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Gate 4/5 Preflight
 
-Status: **DRAFT Ã¢â‚¬â€ must PASS before dark deploy**
+Status: **DRAFT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â must PASS before dark deploy**
 Date: 2026-09-07
 Target Supabase project: `xfhpwxjywqgqefbncumm` (`KMO-Booking`)
 
@@ -61,11 +61,11 @@ Abort Gate 5 immediately if any of these occur:
 
 ## Current verdict
 Project/profile preparation: **READY**.
-Gate 1Ã¢â‚¬â€œ3 evidence: **PASS / LOCKED**.
+Gate 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“3 evidence: **PASS / LOCKED**.
 Gate 4 dependency manifest: **LOCKED**.
 Baseline SQL + rollback SQL: **PASS / LOCKED**.
 Static verifier + PostgreSQL parse: **PASS**.
-Production dark deploy: **NOT YET AUTHORIZED** ? backup/restore evidence and final pre-apply identity/readback remain required.
+Production dark deploy: **PRE-AUTHORIZED** — backup/restore evidence is PASS; immediate pre-apply identity/count/schema/bucket readback remains required.
 ## Storage preflight
 Before dark deploy, verify `deposit-slips` is absent or already matches the locked private configuration.
 If an unexpected bucket with that ID exists, abort rather than mutate it silently.
@@ -82,8 +82,16 @@ After creation, verify:
 - `deposit-slips` bucket: absent.
 - Protected counts: bookings 143; orders 214; customers 75; production allocations 30.
 - Supabase migration count: 43.
-- Baseline SHA-256: `3c4546507ec529b9a23363b9c81b6793f6d3e4a9301440ccf26c2168a2caf5ff`.
+- Baseline SHA-256: `a79867b65d91a3e7958a6d96b0d002f031f4c1c20cb5bff96683014689da60ea`.
 - Rollback SHA-256: `381464103d22d50c6d6d52208027ac849c7417ad10faee25ac33b446ae0c05f9`.
 - App tests 17/17 PASS; lint 0 errors / 8 inherited warnings; both production builds PASS.
 
-Remaining Gate 5 blocker: capture/verify recoverable backup or restore path immediately before any production DDL, then repeat identity/count/schema/bucket preflight.
+Backup/restore blocker: **CLOSED / PASS 2026-09-08**. Remaining action before production DDL: repeat exact project-ref, public-count, target-schema, bucket, and Data API exposure preflight immediately before apply.
+
+## Gate 5 backup checkpoint — 2026-09-08
+- Single-statement logical snapshot: 28 `public` tables / 2,706 rows; contains production customer/business data and remains outside Git.
+- Critical snapshot counts: bookings 143; customers 80; orders 215; production allocations 21.
+- Restore validation PASS for every table against live row types; emergency restore artifact parses and remains `ROLLBACK` by default.
+- Current Data API exposed schemas before dark deploy: `public, graphql_public`. Gate 5 must preserve both and add only `local_service` after the schema exists.
+- `authenticator` currently has no manual `pgrst.db_schemas` role override; keep configuration ownership with Supabase Management API rather than introducing a role-level override.
+- Baseline SHA-256 after public-column minimization: `a79867b65d91a3e7958a6d96b0d002f031f4c1c20cb5bff96683014689da60ea`; parser 157 statements PASS; static verifier PASS.

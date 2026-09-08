@@ -1119,7 +1119,7 @@ BEGIN
         RAISE EXCEPTION 'Staff name is required' USING ERRCODE = '22023';
     END IF;
 
-    -- à¸à¸²à¸£à¸„à¸·à¸™à¸„à¹ˆà¸²à¹à¸šà¸š Idempotent à¸ªà¸³à¸«à¸£à¸±à¸šà¸„à¸³à¸‚à¸­à¹€à¸”à¸´à¸¡à¸—à¸µà¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆà¹„à¸›à¹à¸¥à¹‰à¸§ (à¸•à¹‰à¸­à¸‡à¸—à¸³à¸‡à¸²à¸™à¸à¹ˆà¸­à¸™à¹€à¸Šà¹‡à¸„à¸‚à¸µà¸”à¸ˆà¸³à¸à¸±à¸”)
+    -- Ã Â¸ÂÃ Â¸Â²Ã Â¸Â£Ã Â¸â€žÃ Â¸Â·Ã Â¸â„¢Ã Â¸â€žÃ Â¹Ë†Ã Â¸Â²Ã Â¹ÂÃ Â¸Å¡Ã Â¸Å¡ Idempotent Ã Â¸ÂªÃ Â¸Â³Ã Â¸Â«Ã Â¸Â£Ã Â¸Â±Ã Â¸Å¡Ã Â¸â€žÃ Â¸Â³Ã Â¸â€šÃ Â¸Â­Ã Â¹â‚¬Ã Â¸â€Ã Â¸Â´Ã Â¸Â¡Ã Â¸â€”Ã Â¸ÂµÃ Â¹Ë†Ã Â¸ÂªÃ Â¸Â³Ã Â¹â‚¬Ã Â¸Â£Ã Â¹â€¡Ã Â¸Ë†Ã Â¹â€žÃ Â¸â€ºÃ Â¹ÂÃ Â¸Â¥Ã Â¹â€°Ã Â¸Â§ (Ã Â¸â€¢Ã Â¹â€°Ã Â¸Â­Ã Â¸â€¡Ã Â¸â€”Ã Â¸Â³Ã Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸ÂÃ Â¹Ë†Ã Â¸Â­Ã Â¸â„¢Ã Â¹â‚¬Ã Â¸Å Ã Â¹â€¡Ã Â¸â€žÃ Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€)
     SELECT id
       INTO v_staff_id
       FROM local_service.staff
@@ -1134,7 +1134,7 @@ BEGIN
     -- create_staff calls near the limit cannot both pass the COUNT(*) gate.
     PERFORM pg_advisory_xact_lock(hashtext(v_shop_id::text));
 
-    -- à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸‚à¸µà¸”à¸ˆà¸³à¸à¸±à¸”à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸•à¸²à¸¡à¹à¸žà¹‡à¸à¹€à¸à¸ˆ
+    -- Ã Â¸â€¢Ã Â¸Â£Ã Â¸Â§Ã Â¸Ë†Ã Â¸ÂªÃ Â¸Â­Ã Â¸Å¡Ã Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€¢Ã Â¸Â²Ã Â¸Â¡Ã Â¹ÂÃ Â¸Å¾Ã Â¹â€¡Ã Â¸ÂÃ Â¹â‚¬Ã Â¸ÂÃ Â¸Ë†
     SELECT COALESCE(plan, 'free_trial')
       INTO v_plan
       FROM local_service.subscriptions
@@ -1199,7 +1199,7 @@ BEGIN
         RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Owner role required';
     END IF;
 
-    -- à¸«à¸²à¸à¹€à¸›à¹‡à¸™à¸à¸²à¸£à¹€à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸žà¸™à¸±à¸à¸‡à¸²à¸™ (Activate) à¹ƒà¸«à¹‰à¸•à¸£à¸§à¸ˆà¹€à¸Šà¹‡à¸„à¸‚à¸µà¸”à¸ˆà¸³à¸à¸±à¸”à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸‚à¸­à¸‡à¸£à¹‰à¸²à¸™
+    -- Ã Â¸Â«Ã Â¸Â²Ã Â¸ÂÃ Â¹â‚¬Ã Â¸â€ºÃ Â¹â€¡Ã Â¸â„¢Ã Â¸ÂÃ Â¸Â²Ã Â¸Â£Ã Â¹â‚¬Ã Â¸â€ºÃ Â¸Â´Ã Â¸â€Ã Â¹Æ’Ã Â¸Å Ã Â¹â€°Ã Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢ (Activate) Ã Â¹Æ’Ã Â¸Â«Ã Â¹â€°Ã Â¸â€¢Ã Â¸Â£Ã Â¸Â§Ã Â¸Ë†Ã Â¹â‚¬Ã Â¸Å Ã Â¹â€¡Ã Â¸â€žÃ Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€šÃ Â¸Â­Ã Â¸â€¡Ã Â¸Â£Ã Â¹â€°Ã Â¸Â²Ã Â¸â„¢
     IF p_is_active = true AND (v_current_is_active IS DISTINCT FROM true) THEN
         -- Lock the shop's staff-limit slot transactionally so two concurrent
         -- set_staff_active/reactivate calls near the limit cannot both pass
@@ -1287,7 +1287,7 @@ BEGIN
         shop_id, staff_id, holiday_date, reason, creation_idempotency_key
     ) VALUES (
         p_shop_id, NULL, p_holiday_date,
-        COALESCE(NULLIF(BTRIM(p_reason), ''), 'à¸§à¸±à¸™à¸«à¸¢à¸¸à¸”à¸žà¸´à¹€à¸¨à¸©à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²'),
+        COALESCE(NULLIF(BTRIM(p_reason), ''), 'Ã Â¸Â§Ã Â¸Â±Ã Â¸â„¢Ã Â¸Â«Ã Â¸Â¢Ã Â¸Â¸Ã Â¸â€Ã Â¸Å¾Ã Â¸Â´Ã Â¹â‚¬Ã Â¸Â¨Ã Â¸Â©Ã Â¸Â£Ã Â¹â€°Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€žÃ Â¹â€°Ã Â¸Â²'),
         p_idempotency_key
     )
     RETURNING id INTO v_holiday_id;
@@ -1741,10 +1741,14 @@ CREATE POLICY "KMO owner closure read" ON local_service.account_closure_requests
 -- Table privileges: anon/authenticated receive only columns used by active clients.
 REVOKE ALL ON ALL TABLES IN SCHEMA local_service FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON local_service.shop_public_profile TO anon,authenticated;
-GRANT SELECT(id,name,description,duration_minutes,price,deposit_amount,is_active,created_at) ON local_service.services TO anon,authenticated;
-GRANT SELECT(id,shop_id,name,nickname,phone,is_active,created_at) ON local_service.staff TO anon,authenticated;
-GRANT SELECT(id,shop_id,staff_id,day_of_week,is_working_day,work_start,work_end,break_start,break_end,created_at) ON local_service.staff_schedules TO anon,authenticated;
-GRANT SELECT(id,shop_id,staff_id,holiday_date,reason,created_at) ON local_service.shop_holidays TO anon,authenticated;
+GRANT SELECT(id,shop_id,name,description,duration_minutes,price,deposit_amount) ON local_service.services TO anon;
+GRANT SELECT(id,name,description,duration_minutes,price,deposit_amount,is_active,created_at) ON local_service.services TO authenticated;
+GRANT SELECT(id,shop_id,name,nickname) ON local_service.staff TO anon;
+GRANT SELECT(id,shop_id,name,nickname,phone,is_active,created_at) ON local_service.staff TO authenticated;
+GRANT SELECT(staff_id,day_of_week,is_working_day,work_start,work_end,break_start,break_end) ON local_service.staff_schedules TO anon;
+GRANT SELECT(id,shop_id,staff_id,day_of_week,is_working_day,work_start,work_end,break_start,break_end,created_at) ON local_service.staff_schedules TO authenticated;
+GRANT SELECT(staff_id,holiday_date,reason) ON local_service.shop_holidays TO anon;
+GRANT SELECT(id,shop_id,staff_id,holiday_date,reason,created_at) ON local_service.shop_holidays TO authenticated;
 GRANT SELECT(id,name,slug,phone,address,line_oa_id,promptpay_number,promptpay_name,require_deposit,default_deposit_amount,is_active) ON local_service.shops TO authenticated;
 GRANT SELECT(shop_id,user_id,role,created_at) ON local_service.shop_users TO authenticated;
 GRANT SELECT(id,shop_id,customer_id,staff_id,service_id,booking_date,start_time,end_time,status,deposit_status,deposit_price,total_price,slip_url,notes,booking_code,expires_at,service_price,service_duration_minutes,deposit_amount,start_timestamptz,end_timestamptz,created_at,updated_at) ON local_service.bookings TO authenticated;

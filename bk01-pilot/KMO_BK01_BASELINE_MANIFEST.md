@@ -1,6 +1,6 @@
-# KMO BK01 Ã¢â‚¬â€ Gate 4 Baseline Manifest
+# KMO BK01 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Gate 4 Baseline Manifest
 
-Status: **LOCKED INPUT SET Ã¢â‚¬â€ SQL authoring next**
+Status: **LOCKED INPUT SET ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â SQL authoring next**
 Date: 2026-09-06
 Scope: KMO RACKBARCUSTOM controlled copy only
 Upstream copy ref: `82b297df2d42156e750794ac4135852450570264`
@@ -10,9 +10,9 @@ Define the exact database object boundary for the KMO dark-deploy baseline.
 This is an end-state deployment manifest, not permission to replay the upstream migration chain.
 
 ## Schemas
-- `local_service` Ã¢â‚¬â€ BK01 runtime exposed to the booking/admin apps.
-- `kmo_booking` Ã¢â‚¬â€ KMO-only booking detail extension; not exposed directly to browser clients.
-- `kmo_bridge` Ã¢â‚¬â€ mapping/reconciliation/cutover state; not exposed directly to browser clients.
+- `local_service` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â BK01 runtime exposed to the booking/admin apps.
+- `kmo_booking` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â KMO-only booking detail extension; not exposed directly to browser clients.
+- `kmo_bridge` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â mapping/reconciliation/cutover state; not exposed directly to browser clients.
 
 Existing KMO `public.*`, `auth.*` and `storage.*` remain outside baseline ownership.
 ## `local_service` tables
@@ -28,7 +28,7 @@ Required runtime tables:
 - `line_users`
 - `line_notification_logs`
 - `booking_status_history`
-- `subscriptions` Ã¢â‚¬â€ compatibility only; no Stripe runtime
+- `subscriptions` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â compatibility only; no Stripe runtime
 - `booking_recovery_attempts`
 - `audit_events`
 - `account_closure_requests`
@@ -95,7 +95,7 @@ Do not create in KMO baseline:
 ## Manifest verdict
 Dependency closure for the active KMO app is **COMPLETE**.
 Baseline SQL and containment rollback have been authored from final object definitions plus the KMO overrides above.
-Production apply remains **NOT AUTHORIZED** until Gate 5 backup/restore evidence and final pre-apply checks pass.
+Gate 5 backup/restore evidence is **PASS** as of 2026-09-08. Production apply is authorized only after the immediate pre-apply identity/schema/bucket/count checks pass.
 ## Storage object
 Required private bucket: `deposit-slips`.
 - max file size: 5 MiB
@@ -109,10 +109,20 @@ The live KMO project did not contain this bucket at Gate 1, so its creation belo
 - Baseline: `supabase/kmo-baseline/KMO_BK01_BASELINE.sql`
 - Rollback: `supabase/kmo-baseline/KMO_BK01_ROLLBACK.sql`
 - Static verifier: `scripts/verify-kmo-baseline.py`
-- Baseline SHA-256: `3c4546507ec529b9a23363b9c81b6793f6d3e4a9301440ccf26c2168a2caf5ff`
+- Baseline SHA-256: `a79867b65d91a3e7958a6d96b0d002f031f4c1c20cb5bff96683014689da60ea`
 - Rollback SHA-256: `381464103d22d50c6d6d52208027ac849c7417ad10faee25ac33b446ae0c05f9`
-- PostgreSQL parser: baseline 153 statements PASS; rollback 7 statements PASS.
+- PostgreSQL parser: baseline 157 statements PASS; rollback 7 statements PASS.
 - Runtime compatibility readback: KMO search path includes `extensions`; `btree_gist` is currently absent and will be created only at Gate 5.
 - No existing KMO `public.*` mutation is present in baseline or rollback.
 
 Gate 4 verdict: **PASS / LOCKED**.
+
+## Gate 5 backup/restore evidence — 2026-09-08
+- Local-only backup root: `D:\AI-Workspace\backups\kmo-bk01\2026-09-08-pre-gate5`; ACL restricted to the Windows user and SYSTEM.
+- Authoritative public-data backup: one PostgreSQL statement returned a consistent JSON snapshot of all 28 `public` tables / 2,706 rows.
+- Snapshot SHA-256: `e7beb1da1ff3bac1d6412a7259d6f951a49593b26234dcef5c1c35fe4f718c83`.
+- Schema metadata SHA-256: `199f49f554fb12c2b16b03a273e07d5ef229c273b64a8537ca8677ea8ad29601`.
+- Restore validation: 28/28 tables and 2,706/2,706 rows cast successfully through `jsonb_populate_recordset` against live production row types.
+- Emergency restore SQL is fail-closed with final `ROLLBACK`; transaction-local `session_replication_role=replica` was verified and rolled back to suppress operational triggers during an actual recovery incident.
+- Normal Gate 5 rollback does not restore `public.*` because the baseline does not mutate it; use the isolated BK01 containment rollback instead.
+- Anonymous column privileges were minimized to the exact consumer-selected service/staff/schedule/holiday fields before production apply; staff phone is not anonymous-readable.
