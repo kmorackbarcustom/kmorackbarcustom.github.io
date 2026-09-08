@@ -1,0 +1,28 @@
+{
+  "$version": 4,
+  "model": {
+    "maxToolCallsPerTurn": 160,
+    "maxToolCalls": 180,
+    "maxWallTimeSeconds": 600
+  },
+  "tools": {
+    "approvalMode": "yolo",
+    "disabled": [
+      "computer_use__list_apps",
+      "computer_use__launch_app",
+      "computer_use__list_windows",
+      "computer_use__get_window_state",
+      "computer_use__get_accessibility_tree",
+      "computer_use__page",
+      "computer_use__click",
+      "computer_use__set_value",
+      "computer_use__type_text",
+      "computer_use__press_key",
+      "computer_use__hotkey",
+      "computer_use__zoom"
+    ],
+    "computerUse": {
+      "maxImageDimension": 1280
+    }
+  }
+}

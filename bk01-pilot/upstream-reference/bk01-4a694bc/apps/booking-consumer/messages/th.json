@@ -1,0 +1,133 @@
+{
+  "common": {
+    "brandName": "Local Service Booking SaaS",
+    "loading": "กำลังโหลด...",
+    "switchToEnglish": "เปลี่ยนภาษาเป็นอังกฤษ",
+    "switchToThai": "เปลี่ยนภาษาเป็นไทย",
+    "phonePrefix": "โทร:",
+    "timeSuffix": "น.",
+    "currencyAmount": "฿{amount}.00",
+    "durationMinutes": "{minutes} นาที",
+    "back": "ย้อนกลับ"
+  },
+  "landing": {
+    "badge": "Customer Booking Portal",
+    "title": "ระบบจองคิวบริการ & ชำระมัดจำ QR",
+    "subtitle": "จองคิวระบุช่าง โอนมัดจำ PromptPay QR เพื่อล็อกคิวงานอัตโนมัติ พร้อมรับการแจ้งเตือนผ่าน LINE",
+    "featureTime": "เลือกรอบเวลาและช่างผู้ให้บริการได้ทันที",
+    "featureQr": "สร้าง PromptPay QR มัดจำอัตโนมัติตามยอดบริการ",
+    "featureLine": "ตรวจสอบสลิปและยืนยันคิวผ่าน LINE OA ร้านค้า",
+    "demoCta": "ทดลองจองคิวร้าน Demo (Good Cuts Barber)"
+  },
+  "booking": {
+    "fallbackShopName": "ร้านค้าบริการ",
+    "shopPhoneMissing": "ไม่พบเบอร์ติดต่อร้าน",
+    "headerSubtitle": "ระบบจองคิวออนไลน์ • ชำระมัดจำปลอดภัย",
+    "callShopTitle": "โทรสอบถามร้านค้า",
+    "callShop": "โทรสอบถามทางร้าน ({phone})",
+    "callShopEmergency": "โทรสอบถามทางร้านกรณีฉุกเฉิน ({phone})",
+    "loadingShop": "กำลังโหลดข้อมูลร้านค้า...",
+    "blocked": {
+      "title": "ร้านนี้ไม่รับจองคิวออนไลน์ในขณะนี้",
+      "description": "กรุณาติดต่อร้านค้าโดยตรงหากต้องการสอบถามเพิ่มเติม"
+    },
+    "success": {
+      "confirmedTitle": "ยืนยันคิวเรียบร้อย",
+      "reviewTitle": "ได้รับสลิปแล้ว กำลังตรวจสอบการชำระเงิน",
+      "bookingCode": "รหัสการจอง:",
+      "manageBooking": "เลื่อนหรือยกเลิกคิวนี้",
+      "queueStatus": "สถานะคิวจอง",
+      "statusConfirmed": "ยืนยันแล้ว",
+      "statusReview": "รอตรวจสอบสลิป",
+      "service": "บริการ:",
+      "staff": "พนักงาน:",
+      "appointment": "เวลานัด:",
+      "appointmentValue": "{date} @ {time} น.",
+      "deposit": "ยอดมัดจำ:",
+      "noDeposit": "ไม่ต้องชำระมัดจำ",
+      "slipSubmitted": "฿{amount}.00 (ส่งสลิปแล้ว)",
+      "shopDirectPhone": "เบอร์สายตรงร้านค้า:",
+      "lineCta": "รับแจ้งเตือนผ่านไลน์ เพื่อไม่พลาดคิวของท่าน",
+      "lineSubtext": "กดผูกบัญชี LINE กลาง (@{lineId})"
+    },
+    "step1": {
+      "title": "1. เลือกบริการที่คุณต้องการ",
+      "description": "เลือกบริการเพื่อดูรายละเอียดระยะเวลาและค่ามัดจำ",
+      "depositLabel": "มัดจำ ฿{amount}",
+      "next": "ถัดไป: เลือกพนักงาน & วันเวลา"
+    },
+    "step2": {
+      "title": "2. เลือกพนักงาน & นัดหมายวันเวลา",
+      "selectedService": "บริการที่เลือก:",
+      "customerInfo": "ข้อมูลผู้จอง (สำหรับยืนยันสล็อต)",
+      "nameLabel": "ชื่อผู้จอง *",
+      "namePlaceholder": "เช่น คุณสมชาย ใจดี",
+      "phoneLabel": "เบอร์โทรศัพท์ *",
+      "phonePlaceholder": "08X-XXX-XXXX",
+      "staffLabel": "เลือกพนักงานให้บริการ",
+      "anyStaff": "ไม่ระบุช่าง (ช่างคนไหนก็ได้)",
+      "dateLabel": "เลือกวันที่",
+      "timeLabel": "เลือกรอบเวลาที่ว่าง",
+      "available": "ว่าง",
+      "unavailable": "ไม่ว่าง",
+      "shopClosed": "ร้านหยุด",
+      "next": "ถัดไป: ชำระมัดจำ",
+      "locking": "กำลังล็อกสล็อตเวลา..."
+    },
+    "step3": {
+      "title": "3. ชำระมัดจำ PromptPay & ยืนยัน",
+      "description": "สแกน QR Code โอนมัดจำเพื่อล็อกคิวงานอัตโนมัติ",
+      "timer": "กรุณาโอนมัดจำภายใน",
+      "timerUnit": "นาที",
+      "temporaryCode": "รหัสจองคิวชั่วคราว:",
+      "expired": "สล็อตเวลาที่คุณเลือกล็อกไว้หมดอายุแล้ว",
+      "chooseNewSlot": "เลือกรอบเวลาใหม่",
+      "saveQr": "บันทึกรูป QR Code",
+      "savedQr": "บันทึก QR Code แล้ว!",
+      "depositAmountLabel": "ยอดเงินมัดจำล็อกคิว",
+      "accountName": "ชื่อบัญชี:",
+      "promptpayNumber": "เลขพร้อมเพย์:",
+      "copyNumber": "คัดลอกเลข",
+      "copied": "คัดลอกแล้ว",
+      "slipLabel": "แนบสลิปการโอนมัดจำ *",
+      "slipAttached": "แนบสลิปเรียบร้อยแล้ว",
+      "changeSlip": "คลิกเพื่อเปลี่ยนรูป",
+      "uploadSlip": "คลิกเพื่ออัปโหลดสลิปเงินมัดจำ",
+      "supportedFiles": "รองรับไฟล์ JPG, PNG หรือ WebP",
+      "submitting": "กำลังส่งข้อมูล...",
+      "confirmDeposit": "ยืนยันการโอนเงินมัดจำ",
+      "promptpayQrAlt": "PromptPay QR Code",
+      "slipAlt": "สลิปการโอนเงิน"
+    },
+    "staff": {
+      "random": "ไม่ระบุพนักงาน (สุ่มช่าง)"
+    },
+    "footer": "Powered by {brand}",
+    "errors": {
+      "shopBlocked": "ร้านนี้ไม่รับจองคิวออนไลน์ในขณะนี้",
+      "requiredNamePhone": "กรุณากรอกชื่อและเบอร์โทรศัพท์ของผู้จองให้ครบถ้วน",
+      "phoneRequired": "กรุณากรอกเบอร์โทรศัพท์ของผู้จอง",
+      "nameRequired": "กรุณากรอกชื่อผู้จอง",
+      "phoneInvalid": "กรุณากรอกเบอร์มือถือไทยให้ถูกต้อง เช่น 08X-XXX-XXXX",
+      "slotUnavailable": "เวลาที่เลือกอยู่นอกตารางงานหรือเป็นวันหยุด กรุณาเลือกเวลาใหม่",
+      "invalidBookingStatus": "สถานะการจองไม่ถูกต้อง กรุณาติดต่อร้านค้า",
+      "createHoldFailed": "เกิดข้อผิดพลาดในการล็อกรอบเวลา กรุณาลองใหม่อีกครั้ง",
+      "slipRequired": "กรุณาแนบไฟล์สลิปก่อนยืนยันการโอนเงิน",
+      "slipSubmitFailed": "เกิดข้อผิดพลาดในการส่งสลิป",
+      "slipUnsupportedType": "รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP",
+      "slipTooLarge": "ไฟล์สลิปต้องมีขนาดไม่เกิน 5 MB",
+      "slipUrlFailed": "ไม่สามารถสร้าง URL ของสลิปได้",
+      "shopBlockedService": "ร้านนี้ไม่รับจองคิวออนไลน์ในขณะนี้"
+    }
+  },
+  "manageBooking": {
+    "title": "จัดการคิวของคุณ",
+    "policy": "ระบบจะตรวจนโยบายและช่วงเวลาที่ร้านกำหนดจากฝั่งเซิร์ฟเวอร์ หากทำรายการไม่สำเร็จคิวเดิมจะไม่เปลี่ยน",
+    "reason": "เหตุผลที่ต้องการเปลี่ยนคิว",
+    "cancel": "ยกเลิกคิว",
+    "reschedule": "เลื่อนคิว",
+    "cancelled": "ยกเลิกคิวเรียบร้อยแล้ว",
+    "rescheduled": "เลื่อนคิวเรียบร้อยแล้ว",
+    "invalidLink": "ลิงก์จัดการคิวไม่ถูกต้องหรือข้อมูลไม่ครบ"
+  }
+}

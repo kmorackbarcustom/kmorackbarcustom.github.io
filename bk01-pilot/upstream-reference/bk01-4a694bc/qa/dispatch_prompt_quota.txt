@@ -1,0 +1,134 @@
+You are QA-testing a Supabase/Postgres migration that enforces booking/staff/top-up quotas for a booking SaaS. A local Supabase Postgres test DB is ALREADY fully provisioned with the quota migration applied. Your job: write a runnable SQL test suite and RUN it against the live DB via docker exec psql, then produce a PASS/FAIL report. Do NOT modify production code. Do NOT commit/push/db-push. Only write test files under the qa/ directory and run them.
+
+=====================================================================
+TEST DATABASE (live, already has full schema + quota migration applied)
+=====================================================================
+Container: supabase_db_wife-disposal-evidence
+DB name:   booking_qa2
+User:      postgres
+Run SQL via:
+  docker exec supabase_db_wife-disposal-evidence psql -U postgres -d booking_qa2 -v ON_ERROR_STOP=1 -f <path-to-sql-file-inside-container>
+
+NOTE: to run a host-side .sql file, copy it into the container first:
+  docker cp "D:/AI-Workspace/projects/saas-product-hub/products/booking/qa/<file>.sql" supabase_db_wife-disposal-evidence:/tmp/<file>.sql
+  docker exec supabase_db_wife-disposal-evidence psql -U postgres -d booking_qa2 -v ON_ERROR_STOP=1 -f /tmp/<file>.sql
+
+auth.uid() is stubbed to read GUC 'request.jwt.claim.sub'. To act as a user, run each transaction with:
+  SET LOCAL request.jwt.claim.sub = '<owner_user_id>';
+inside the transaction. Roles anon/authenticated/service_role exist cluster-wide.
+
+=====================================================================
+EXISTING FIXTURE DATA in booking_qa2 (do not rely on counts — reset per test)
+=====================================================================
+- shops: id = cca9f6db-48cb-4658-a411-4092c0aec008  (name "Good Cuts Barber", require_deposit=true default)
+- subscriptions: plan='free_trial', current_period_end=2026-09-02 (one row, shop_id same)
+- entitlement_usage: one row for that shop, all zeros, period_end set
+- staff: 3 rows, is_active=true
+- bookings: 0 rows
+- shop_users: 0 rows  (so NO owner exists yet — you must create one)
+- platform_admins: 0 rows
+
+=====================================================================
+QUOTA LOGIC UNDER TEST (from migration 20260819000000_quota_staff_topup_enforcement.sql)
+=====================================================================
+Table local_service.entitlement_usage(shop_id PK, bookings_used INT, bookings_topup_balance INT, auto_slip_used INT, auto_slip_topup_balance INT, period_end timestamptz, updated_at).
+
+get_tier_limits(plan) returns (bookings_limit, staff_limit, auto_slip_limit):
+  basic_490 -> (100, 5, 0)
+  pro_990   -> (500, 10, 100)
+  else (free_trial / unknown) -> (50, 5, 10)   [fail-closed]
+
+Trigger trg_enforce_booking_quota BEFORE INSERT OR UPDATE ON bookings, fires ONLY when NEW.status = 'confirmed' (and status transitioned). Logic (main-then-topup):
+  v_usage = ensure_entitlement_row(shop_id)   -- creates row + monthly reset for paid plans
+  v_plan from subscriptions (COALESCE plan,'free_trial')
+  v_limits = get_tier_limits(v_plan)
+  IF bookings_used < bookings_limit THEN bookings_used += 1
+  ELSIF bookings_topup_balance > 0 THEN bookings_used += 1 AND bookings_topup_balance -= 1
+  ELSE RAISE EXCEPTION ERRCODE='P0001' MESSAGE='BOOKING_QUOTA_EXCEEDED'
+
+Staff gate in create_staff(p_shop_id,p_name,p_phone,p_idempotency_key) and set_staff_active(p_staff_id,p_is_active):
+  requires is_shop_owner(shop_id)  [owner role in shop_users]
+  counts active staff (is_active=true); if count >= staff_limit RAISE ERRCODE='P0001' MESSAGE='STAFF_LIMIT_EXCEEDED'
+  create_staff has idempotency: returns existing staff if creation_idempotency_key matches (unique index staff_shop_creation_idempotency_key where key not null)
+
+Top-up RPCs:
+  apply_topup(p_shop_id, p_bookings_credits INT DEFAULT 0, p_auto_slip_credits INT DEFAULT 0) RETURNS JSON
+     requires auth.uid() not null AND (is_shop_owner OR is_platform_admin); rejects negative credits; adds to topup balances.
+  platform_admin_add_topup(p_shop_id, p_bookings_credits, p_auto_slip_credits) requires is_platform_admin().
+
+get_entitlement_usage(p_shop_id) RETURNS JSON (bookings_limit, bookings_used, bookings_remaining_main, bookings_topup_balance, staff_limit, ...) — use to assert state.
+
+=====================================================================
+RELEVANT SCHEMA
+=====================================================================
+shops: id, name, slug (unique, required), phone, require_deposit bool default true, default_deposit_amount numeric default 100, is_active bool default true, requested_plan. On INSERT a trigger auto-creates a 'free_trial' subscription row.
+subscriptions: shop_id, plan check IN ('free_trial','basic_490','pro_990'), current_period_end, status.
+staff: id, shop_id, name, phone, is_active, creation_idempotency_key (unique per shop where not null).
+shop_users: shop_id, user_id (FK auth.users.id), role check IN ('owner','admin','staff'), unique(shop_id,user_id).
+auth.users: id uuid PK (stub; only id column — there is NO email column).
+local_service.is_shop_owner(shop_id) = exists owner row in shop_users for auth.uid().
+local_service.is_platform_admin() = exists row in local_service.platform_admins(user_id) for auth.uid().
+platform_admins: user_id PK.
+
+bookings (relevant): id, shop_id, customer_id, staff_id, service_id, booking_date, start_time, end_time, status check IN ('hold','pending_review','confirmed','completed','cancelled','no_show','expired'), deposit_status, total_price, start_timestamptz, end_timestamptz, booking_range generated tstzrange. Exclude constraint prevents overlapping staff bookings among hold/pending_review/confirmed.
+  NOTE: booking_date can be any date >= CURRENT_DATE; start_time/end_time; start_timestamptz = (booking_date + start_time) AT TIME ZONE 'Asia/Bangkok'. Use DISTINCT staff + DISTINCT time slots per booking to avoid the overlap exclude constraint.
+
+services: id, shop_id, name, duration_minutes, price, deposit_amount, is_active.
+customers: id, shop_id, name, phone (unique per shop).
+
+Booking RPC (use it — it exercises the real insert path + quota trigger):
+  create_booking_hold(p_shop_id, p_service_id, p_staff_id DEFAULT NULL, p_customer_name, p_customer_phone, p_customer_email DEFAULT NULL, p_booking_date DEFAULT CURRENT_DATE, p_start_time DEFAULT '09:00', p_notes DEFAULT NULL) RETURNS JSON(booking_id, booking_code, status, deposit_status, ...)
+  - If shop.require_deposit=true AND service.deposit_amount>0 -> creates status='hold', deposit_status='awaiting' (quota NOT consumed)
+  - Else -> creates status='confirmed', deposit_status='not_required' (quota CONSUMED at insert)
+
+To go through the real full confirm path you can either:
+  (a) set shop.require_deposit=false OR service.deposit_amount=0 so create_booking_hold yields confirmed directly, OR
+  (b) create holds then UPDATE status='confirmed' (trigger fires on the update). Simpler: use (a) for bulk, and a direct UPDATE to 'confirmed' to assert rejection.
+
+=====================================================================
+REQUIRED TEST CASES (numbers must match PRICING_SPEC: 50/5/10 trial, 100/5/0 basic, 500/10/100 pro)
+=====================================================================
+For each test create an ISOLATED test shop (fresh INSERT into local_service.shops, unique slug) so results don't leak. Then set the plan via UPDATE subscriptions. You may UPDATE entitlement_usage directly to seed bookings_used. Create an owner in shop_users for the shop (owner_user_id = a fresh uuid also inserted into auth.users). For staff/booking tests, create a service + staff as needed.
+
+T1  CONFIRM GATE — Basic tier at limit:
+    Basic shop (plan basic_490), seed entitlement bookings_used=100, bookings_limit should be 100.
+    Create a confirmed booking (or UPDATE a hold to confirmed) -> the 101st confirm MUST be rejected with error 'BOOKING_QUOTA_EXCEEDED'.
+    Assert: exception raised, message contains BOOKING_QUOTA_EXCEEDED, bookings_used stays 100.
+
+T2  TOP-UP EXPANDS LIMIT — Basic beyond 100:
+    Same Basic shop. Call apply_topup(shop, p_bookings_credits=100) (as owner).
+    Now confirm bookings #101..#200 -> each succeeds, bookings_used increments to 200, topup_balance decrements 100->0.
+    Assert: 100 more confirms succeed; get_entitlement_usage shows bookings_used=200, bookings_topup_balance=0.
+    Then confirm #201 -> rejected BOOKING_QUOTA_EXCEEDED.
+
+T3  STAFF LIMIT — Basic 5, Pro 10:
+    Basic shop: create 5 active staff (is_active=true). Attempt 6th via create_staff -> rejected STAFF_LIMIT_EXCEEDED.
+    Verify idempotency: re-calling create_staff with the SAME idempotency_key returns existing id (no error, no duplicate).
+    Then upgrade plan to pro_990. Create staff #6..#10 -> succeeds. Attempt #11 -> rejected STAFF_LIMIT_EXCEEDED.
+    Also test set_staff_active: deactivate one (is_active=false) frees a slot; reactivate when at limit -> rejected.
+
+T4  HOLD DOES NOT CONSUME QUOTA — only confirmed:
+    Basic shop at bookings_used=100 (at limit). Create a booking via create_booking_hold with deposit required (hold status) -> SUCCEEDS, quota unchanged (bookings_used stays 100).
+    Confirm a booking from hold -> rejected BOOKING_QUOTA_EXCEEDED (confirmed consumes).
+    This proves hold does not consume, only confirmed.
+
+T5  TRIAL LIMIT (sanity): trial shop (plan free_trial), bookings_limit=50, staff_limit=5. Seed bookings_used=50 -> confirm #51 rejected. Optionally check get_tier_limits correctness for all 3 plans.
+
+=====================================================================
+DELIVERABLES
+=====================================================================
+Write these files to the ABSOLUTE path:
+  D:/AI-Workspace/projects/saas-product-hub/products/booking/qa/quota_enforcement_test.sql
+  D:/AI-Workspace/projects/saas-product-hub/products/booking/qa/run_tests.sh
+The .sql must be a self-contained, idempotent, re-runnable script. Use a DO $$ ... $$ block or a PL/pgSQL helper that runs each test case, catches exceptions with EXCEPTION WHEN OTHERS, and RAISE NOTICE a clear PASS/FAIL line per case (e.g. 'T1_CONFIRM_GATE: PASS' or '... FAIL: expected BOOKING_QUOTA_EXCEEDED but got <err>'). The script must exit nonzero if any case FAILs, or better: print a final summary and rely on the NOTICE lines for PASS/FAIL. Make the output greppable.
+
+Also create run_tests.sh (bash) that: docker cp's the .sql into the container, runs psql with -v ON_ERROR_STOP=1, and prints PASS/FAIL summary.
+
+Then EXECUTE run_tests.sh against booking_qa2 and capture the REAL output. Confirm every required case above actually runs and reports PASS/FAIL. If a case FAILs because of a genuine bug in the quota migration, that is a VALID finding — report it as FAIL with evidence (do NOT patch production code). If it FAILs because of a test-harness bug, fix the harness.
+
+Finally, write a QA report to:
+  D:/AI-Workspace/projects/saas-product-hub/products/booking/qa/quota_qa_report.md
+Containing: environment, test list, real PASS/FAIL per case, the actual exception messages observed, and any bugs/observations. Base every statement on REAL tool output you produced, not assumptions.
+
+WORK IN THIS DIRECTORY: D:/AI-Workspace/projects/saas-product-hub/products/booking
+Run docker/docker cp/psql via bash. Do not commit or push anything.

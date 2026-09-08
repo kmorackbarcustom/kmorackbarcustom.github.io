@@ -1,0 +1,1358 @@
+{
+  "canonical_commit": "4a694bcf1cd7c167c12036e89f999e04b969f7b9",
+  "previous_kmo_import_ref": "82b297df2d42156e750794ac4135852450570264",
+  "archive_sha256": "8e0ba26f78f4caff5419fa7c4355d3ab3f245442113b6816c5ba3052482e0df2",
+  "file_count": 270,
+  "files": [
+    {
+      "path": ".claude/launch.json",
+      "sha256": "652ed85cfe6b507fc2710c8d4704ad510df2ac5becc52f059f3e07e02729adc8",
+      "bytes": 350
+    },
+    {
+      "path": ".env.example",
+      "sha256": "97dafef17cdd8f4b0e5214900348a28b94fbbf3f2bd46e59c836f5b3391729ea",
+      "bytes": 1394
+    },
+    {
+      "path": ".env.staging.example",
+      "sha256": "04c7e318e2768d2bf93174456016ea5cc114c9f9eafdf3432b687eb59c5802ce",
+      "bytes": 891
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "edb6ecfbb205fa3d2568486bafc0bb320e0a12db2649a7e4d4c37dd7fc4161ed",
+      "bytes": 690
+    },
+    {
+      "path": ".qwen/settings.json",
+      "sha256": "4790ef71fe49c1b229e48b0f58d240831071b5e009383413690763755ce942f9",
+      "bytes": 685
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "1ebc2f58470bc9e1c7095437d50b3752b9a605f5a2b2b9c7749fba8e5e2965f8",
+      "bytes": 4295
+    },
+    {
+      "path": "apps/booking-admin/.gitignore",
+      "sha256": "cfdbd5a321f3ba279e434c025fc9a44bf2d3bd3a1af5affb8429d79bd18af054",
+      "bytes": 521
+    },
+    {
+      "path": "apps/booking-admin/AGENTS.md",
+      "sha256": "ec1b6e023814ae1a510b02ea62229e5eb035d75e39e3335d5ea7f5ce5654d567",
+      "bytes": 687
+    },
+    {
+      "path": "apps/booking-admin/CLAUDE.md",
+      "sha256": "d631d88045f74623d568adfb4783b72e3d1b732330d749bc6c72e6648d4581d3",
+      "bytes": 12
+    },
+    {
+      "path": "apps/booking-admin/eslint.config.mjs",
+      "sha256": "ad0f4040f0afaa39117a6983f880353d3bc75dfe6e11ba76b96b87e32c18798d",
+      "bytes": 505
+    },
+    {
+      "path": "apps/booking-admin/messages/en.json",
+      "sha256": "2f400b4ea9c818548b1060bd3cd70636863d907cddb01bef9cc0d098100417a4",
+      "bytes": 24562
+    },
+    {
+      "path": "apps/booking-admin/messages/th.json",
+      "sha256": "0624f6321988adb531f0d7a7f37720dbdab556c4f084068e958b7c8fe14019d9",
+      "bytes": 44702
+    },
+    {
+      "path": "apps/booking-admin/next.config.ts",
+      "sha256": "1c78e781dcc9adf3b4a83193962199d44721d61f05b0ed69fa2f9a644b08f2ad",
+      "bytes": 456
+    },
+    {
+      "path": "apps/booking-admin/open-next.config.ts",
+      "sha256": "1181974d0229f8e552c07ff28d459bf20d2e49b13c7bcae20bc57db8bdc301f7",
+      "bytes": 110
+    },
+    {
+      "path": "apps/booking-admin/package.json",
+      "sha256": "c4552afe98516855893dd6774f9a9e39bcc8dc86ab29ef95b7c1d8ee22e2552d",
+      "bytes": 1158
+    },
+    {
+      "path": "apps/booking-admin/postcss.config.mjs",
+      "sha256": "7b299d3d3b16699ddda397c0b2373b3af4f25f8fc9ccc9b3d9e64ef083bc1c21",
+      "bytes": 101
+    },
+    {
+      "path": "apps/booking-admin/public/file.svg",
+      "sha256": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4",
+      "bytes": 391
+    },
+    {
+      "path": "apps/booking-admin/public/globe.svg",
+      "sha256": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf",
+      "bytes": 1035
+    },
+    {
+      "path": "apps/booking-admin/public/next.svg",
+      "sha256": "55995dfad6ecb4945a1e856ddca03c5e16aa5bf13fd21b4df6a74ae79357bcfc",
+      "bytes": 1375
+    },
+    {
+      "path": "apps/booking-admin/public/vercel.svg",
+      "sha256": "f081337b2fee635b455b63275406a3e7f39d6a014e25ad90dab5a67e62a12ac4",
+      "bytes": 128
+    },
+    {
+      "path": "apps/booking-admin/public/window.svg",
+      "sha256": "644768c4aaeb4767bce293344eeb0c125fb804a94d801440424072202d85e3a1",
+      "bytes": 385
+    },
+    {
+      "path": "apps/booking-admin/README.md",
+      "sha256": "3b3ed71ebf50e973209bc634f6849e8ecf235a6c0686c285e1f36af5caa1c2cc",
+      "bytes": 1486
+    },
+    {
+      "path": "apps/booking-admin/src/app/api/billing/checkout/route.ts",
+      "sha256": "acd4d9b6ffcb59fce1f453eab5b5911e65ed62bdaf48e32df4b7f98600fe40c0",
+      "bytes": 2845
+    },
+    {
+      "path": "apps/booking-admin/src/app/api/billing/portal/route.ts",
+      "sha256": "5d288afef08755418f965795c787648a501b3947341cb6ac425dc9533bc748f3",
+      "bytes": 2207
+    },
+    {
+      "path": "apps/booking-admin/src/app/api/line/webhook/route.ts",
+      "sha256": "6658238fd95c2ecaceac42069bdbd496d45ec906d06cd971b7c6885f1e7d647e",
+      "bytes": 522
+    },
+    {
+      "path": "apps/booking-admin/src/app/api/webhooks/stripe/route.ts",
+      "sha256": "80606a7d1de890064fffb304f11ce1115ae68f36c884cdf1c8f591bab3eede46",
+      "bytes": 15732
+    },
+    {
+      "path": "apps/booking-admin/src/app/auth/callback/route.ts",
+      "sha256": "17dd3a590631302caa8642652589bbae02c8ac355f5d10f04b656571bea08ed4",
+      "bytes": 1511
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/actions.ts",
+      "sha256": "9feea586e8bdd9e936dd31c2c739bfe8988f086ef8c7c949e4c6bfb95054961a",
+      "bytes": 256
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/layout.tsx",
+      "sha256": "44ee6fdc42618c26f06e73d3a7aa54e50b0823e58a7b6333b3dcb5bb2406f371",
+      "bytes": 1235
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/page.tsx",
+      "sha256": "7e4c9be4c4afeec2273906b482bfe14e0299344ad5e5dcc76f3162afdddb3a37",
+      "bytes": 91774
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/tickets/[id]/page.tsx",
+      "sha256": "de2d48aae4bebfa1c87963ab930dad645d3a127a6e4d8fce290faa15937a5f26",
+      "bytes": 44363
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/tickets/new/page.tsx",
+      "sha256": "15984317445fd30584bb720c1ff5cbf070b600a058f48dfbc5892c93465331e9",
+      "bytes": 25854
+    },
+    {
+      "path": "apps/booking-admin/src/app/dashboard/tickets/page.tsx",
+      "sha256": "6d320b5cafbd2de6f14703a1c451531dbe64c279908c0bbbc91b795cc986677d",
+      "bytes": 31417
+    },
+    {
+      "path": "apps/booking-admin/src/app/favicon.ico",
+      "sha256": "2b8ad2d33455a8f736fc3a8ebf8f0bdea8848ad4c0db48a2833bd0f9cd775932",
+      "bytes": 25931
+    },
+    {
+      "path": "apps/booking-admin/src/app/forgot-password/page.tsx",
+      "sha256": "10fc4c62ade04fd9f2d1ed1404a9e6b4b3c8425378500972de9e647ed5e45b08",
+      "bytes": 4498
+    },
+    {
+      "path": "apps/booking-admin/src/app/globals.css",
+      "sha256": "94d307fb925a3264dd331975b5e17170b1d887f361669cf839bdf37cc7a40db8",
+      "bytes": 514
+    },
+    {
+      "path": "apps/booking-admin/src/app/layout.tsx",
+      "sha256": "5f5daadcbc338a935e14a08a783c661f007d5eafe11ecdde559740e5b80d8f8e",
+      "bytes": 1079
+    },
+    {
+      "path": "apps/booking-admin/src/app/login/page.tsx",
+      "sha256": "9c465156d0dba91201dee2c2ab81b02b64473abed62a0b4bdb4f0e9e9a865f34",
+      "bytes": 3880
+    },
+    {
+      "path": "apps/booking-admin/src/app/page.tsx",
+      "sha256": "d888abba92783d08697a672c88bde79877828d319b9ee8988f386666eac19a56",
+      "bytes": 2856
+    },
+    {
+      "path": "apps/booking-admin/src/app/platform-admin/layout.tsx",
+      "sha256": "4ec784ab07024e947b2d7d87bdce7ee11c87bce31c9e68093d2c3bb065cd188d",
+      "bytes": 755
+    },
+    {
+      "path": "apps/booking-admin/src/app/platform-admin/page.tsx",
+      "sha256": "bf8ffe166b9ab1beb74e2cda8f998035fddaa8bd306f6aa3b4c51c1d9154e61a",
+      "bytes": 19570
+    },
+    {
+      "path": "apps/booking-admin/src/app/register/page.tsx",
+      "sha256": "c60d6f6a12aba00c018312ddd8e8be2077c0e8ccfc30e03bb5bd676fda5f6759",
+      "bytes": 29049
+    },
+    {
+      "path": "apps/booking-admin/src/components/language-toggle.tsx",
+      "sha256": "b1b3323581be7953b92fb4ef5b9eda4408f1ae9e1e4619b47c83c6f799cfe140",
+      "bytes": 987
+    },
+    {
+      "path": "apps/booking-admin/src/i18n/config.ts",
+      "sha256": "da175144800ca3fe2f8229684306872d27afb905b059083b41f6bec09f78314d",
+      "bytes": 442
+    },
+    {
+      "path": "apps/booking-admin/src/i18n/locale-provider.tsx",
+      "sha256": "d8302f6b3fb034a71ed416edb322ee98300eeef5fb788a53fe05964bae97e276",
+      "bytes": 1977
+    },
+    {
+      "path": "apps/booking-admin/src/i18n/messages.ts",
+      "sha256": "cff364251463179a40b3885dffc7bed36273667b29c2559e4b418af5da9e6622",
+      "bytes": 334
+    },
+    {
+      "path": "apps/booking-admin/src/i18n/ticket-i18n.ts",
+      "sha256": "0d7f321adff475ea64ef2ad451f8236d46b66f07913901873e331a1d6a1834bc",
+      "bytes": 2011
+    },
+    {
+      "path": "apps/booking-admin/src/lib/admin-service.ts",
+      "sha256": "96be0ee891c9797febd79b1261d7708f8b8fa40f549622be94b26ed2a62c69ad",
+      "bytes": 18529
+    },
+    {
+      "path": "apps/booking-admin/src/lib/auto-slip.ts",
+      "sha256": "0c21db318eaae04fb21bf7759480b6ac93076cae241245562a2a8ae7d86adcbd",
+      "bytes": 539
+    },
+    {
+      "path": "apps/booking-admin/src/lib/commercial-contract.ts",
+      "sha256": "ef9e1b28b4e9edf5e0b0378701de23db24c5a7601266122633376f1df8ab2d6c",
+      "bytes": 876
+    },
+    {
+      "path": "apps/booking-admin/src/lib/line-flex.ts",
+      "sha256": "6012ca86ee6de75f1f5d9c0367b2e3745a6e00282bd65dcc6c9abe13ab9bb2c6",
+      "bytes": 5350
+    },
+    {
+      "path": "apps/booking-admin/src/lib/platform-admin-service.ts",
+      "sha256": "d878d0d8723c8bfbd9c05ad2f75bf440c37ffd00ca6c9528c4b21ba27556d235",
+      "bytes": 2650
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase/client.ts",
+      "sha256": "6422b94fcddfa4c5cdd36fcbe0549183710bf4a8f09c56a5a43d0293f6831216",
+      "bytes": 480
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase/config.ts",
+      "sha256": "0af53fab4dc15e3eb3c035744c15aae15f62431b97657d8117249baa373da966",
+      "bytes": 362
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase/proxy.ts",
+      "sha256": "518e32bd1c3444cd7309b9d57e7b79250024dcc9d77fb6cf4d2bdb90b077a0bc",
+      "bytes": 934
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase/server.ts",
+      "sha256": "de8f15ecfd1f804dbb61ac138e1b1b52eed0338c75e53c47e7b10599a5d40856",
+      "bytes": 800
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase-admin.ts",
+      "sha256": "ca8f26f9951a0b4033f92a25258751899ffce93d086cf9789a8421450c8495bf",
+      "bytes": 916
+    },
+    {
+      "path": "apps/booking-admin/src/lib/supabase.ts",
+      "sha256": "f10109b51d6ae674c6c1d2bf06fa090304fd5174c90eb3b412882e706155a307",
+      "bytes": 244
+    },
+    {
+      "path": "apps/booking-admin/src/lib/ticket-domain.ts",
+      "sha256": "cff7d165f2923eec2942589460585f20be0d60f815613d8c9f23eb9241b2d17d",
+      "bytes": 8200
+    },
+    {
+      "path": "apps/booking-admin/src/lib/ticket-service.ts",
+      "sha256": "4da4469ec5fd85d35d6efeb6fbcdc3d76f387a4a613d14452de0c1fb7d950db8",
+      "bytes": 24147
+    },
+    {
+      "path": "apps/booking-admin/src/middleware.ts",
+      "sha256": "042ddf3798e85669d0657111c955e46f65a003cff25e9f4dee44884adec0f0b8",
+      "bytes": 378
+    },
+    {
+      "path": "apps/booking-admin/tsconfig.json",
+      "sha256": "dbacf04aa5f38c1ce4b0f030fbb84e5adff19306fb785b2e4aafef9c58705658",
+      "bytes": 704
+    },
+    {
+      "path": "apps/booking-admin/wrangler.jsonc",
+      "sha256": "74c555d26a08106891f8761dbd36f54d1003ca2719b2f64329a4fa85f359ff45",
+      "bytes": 675
+    },
+    {
+      "path": "apps/booking-consumer/.gitignore",
+      "sha256": "cfdbd5a321f3ba279e434c025fc9a44bf2d3bd3a1af5affb8429d79bd18af054",
+      "bytes": 521
+    },
+    {
+      "path": "apps/booking-consumer/AGENTS.md",
+      "sha256": "ec1b6e023814ae1a510b02ea62229e5eb035d75e39e3335d5ea7f5ce5654d567",
+      "bytes": 687
+    },
+    {
+      "path": "apps/booking-consumer/CLAUDE.md",
+      "sha256": "d631d88045f74623d568adfb4783b72e3d1b732330d749bc6c72e6648d4581d3",
+      "bytes": 12
+    },
+    {
+      "path": "apps/booking-consumer/custom-worker.ts",
+      "sha256": "ee69e5ebe12162ab1c931434e05c0917d4495b9c7fd0d867dd81e8ab33c1ddee",
+      "bytes": 1306
+    },
+    {
+      "path": "apps/booking-consumer/eslint.config.mjs",
+      "sha256": "ad0f4040f0afaa39117a6983f880353d3bc75dfe6e11ba76b96b87e32c18798d",
+      "bytes": 505
+    },
+    {
+      "path": "apps/booking-consumer/messages/en.json",
+      "sha256": "473f8e828d421a5069f54d3deab9b61c8e459a58c9deb21bc9a6519ddebd91dd",
+      "bytes": 6078
+    },
+    {
+      "path": "apps/booking-consumer/messages/th.json",
+      "sha256": "928bb46423d671057ac0338e828ac84a8440e64744ebba60b8b775376a6098ad",
+      "bytes": 10062
+    },
+    {
+      "path": "apps/booking-consumer/next.config.ts",
+      "sha256": "1c78e781dcc9adf3b4a83193962199d44721d61f05b0ed69fa2f9a644b08f2ad",
+      "bytes": 456
+    },
+    {
+      "path": "apps/booking-consumer/open-next.config.ts",
+      "sha256": "1181974d0229f8e552c07ff28d459bf20d2e49b13c7bcae20bc57db8bdc301f7",
+      "bytes": 110
+    },
+    {
+      "path": "apps/booking-consumer/package.json",
+      "sha256": "5de3a4e0418f8f9444f086f5fe4a6a7bdf1bbde98678f04d11a8415494519d71",
+      "bytes": 1097
+    },
+    {
+      "path": "apps/booking-consumer/postcss.config.mjs",
+      "sha256": "7b299d3d3b16699ddda397c0b2373b3af4f25f8fc9ccc9b3d9e64ef083bc1c21",
+      "bytes": 101
+    },
+    {
+      "path": "apps/booking-consumer/public/file.svg",
+      "sha256": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4",
+      "bytes": 391
+    },
+    {
+      "path": "apps/booking-consumer/public/globe.svg",
+      "sha256": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf",
+      "bytes": 1035
+    },
+    {
+      "path": "apps/booking-consumer/public/next.svg",
+      "sha256": "55995dfad6ecb4945a1e856ddca03c5e16aa5bf13fd21b4df6a74ae79357bcfc",
+      "bytes": 1375
+    },
+    {
+      "path": "apps/booking-consumer/public/vercel.svg",
+      "sha256": "f081337b2fee635b455b63275406a3e7f39d6a014e25ad90dab5a67e62a12ac4",
+      "bytes": 128
+    },
+    {
+      "path": "apps/booking-consumer/public/window.svg",
+      "sha256": "644768c4aaeb4767bce293344eeb0c125fb804a94d801440424072202d85e3a1",
+      "bytes": 385
+    },
+    {
+      "path": "apps/booking-consumer/README.md",
+      "sha256": "3b3ed71ebf50e973209bc634f6849e8ecf235a6c0686c285e1f36af5caa1c2cc",
+      "bytes": 1486
+    },
+    {
+      "path": "apps/booking-consumer/src/app/api/deposit-slips/upload-intent/route.ts",
+      "sha256": "a092a1b85072552e5f7578568a647ddedf9afff09e2512c300c05144b4707968",
+      "bytes": 2049
+    },
+    {
+      "path": "apps/booking-consumer/src/app/api/line/webhook/merchant/[shopId]/route.ts",
+      "sha256": "31f7241161a102ee5331f98e7b02d065c6c47faa8a114738baa6e00abef82a72",
+      "bytes": 717
+    },
+    {
+      "path": "apps/booking-consumer/src/app/api/line/webhook/route.ts",
+      "sha256": "ad7cd2ca1c60de953e84c8826e6c8a8dfef595683d5a9bc017c6f9d0b3124939",
+      "bytes": 11734
+    },
+    {
+      "path": "apps/booking-consumer/src/app/api/notifications/dispatch/route.ts",
+      "sha256": "ae7302ec55b499d27a1980c2dca0e7a3029d6392732609f5de3c411e91f3c160",
+      "bytes": 5553
+    },
+    {
+      "path": "apps/booking-consumer/src/app/book/[slug]/page.tsx",
+      "sha256": "3b5213cf6139b113463c9986d8787f0c09d078659dfa79e4c5e63e91a600f4b0",
+      "bytes": 38802
+    },
+    {
+      "path": "apps/booking-consumer/src/app/favicon.ico",
+      "sha256": "2b8ad2d33455a8f736fc3a8ebf8f0bdea8848ad4c0db48a2833bd0f9cd775932",
+      "bytes": 25931
+    },
+    {
+      "path": "apps/booking-consumer/src/app/globals.css",
+      "sha256": "94d307fb925a3264dd331975b5e17170b1d887f361669cf839bdf37cc7a40db8",
+      "bytes": 514
+    },
+    {
+      "path": "apps/booking-consumer/src/app/layout.tsx",
+      "sha256": "5f5daadcbc338a935e14a08a783c661f007d5eafe11ecdde559740e5b80d8f8e",
+      "bytes": 1079
+    },
+    {
+      "path": "apps/booking-consumer/src/app/manage-booking/page.tsx",
+      "sha256": "80802e1bbf2d727e36e3c3a093ab612a62e2388dcddbdff6b3e329969defe57e",
+      "bytes": 3312
+    },
+    {
+      "path": "apps/booking-consumer/src/app/page.tsx",
+      "sha256": "3ae76a25c7de81d0d6274a9432b6e3d851c47185b4d9799a08a15cb751d97be7",
+      "bytes": 2269
+    },
+    {
+      "path": "apps/booking-consumer/src/components/language-toggle.tsx",
+      "sha256": "9e884122ac87f4694fb3b73ff62b9d8c2ac6a73db64607dbfd7bd544f979fad1",
+      "bytes": 1311
+    },
+    {
+      "path": "apps/booking-consumer/src/i18n/config.ts",
+      "sha256": "da175144800ca3fe2f8229684306872d27afb905b059083b41f6bec09f78314d",
+      "bytes": 442
+    },
+    {
+      "path": "apps/booking-consumer/src/i18n/locale-provider.tsx",
+      "sha256": "d8302f6b3fb034a71ed416edb322ee98300eeef5fb788a53fe05964bae97e276",
+      "bytes": 1977
+    },
+    {
+      "path": "apps/booking-consumer/src/i18n/messages.ts",
+      "sha256": "cff364251463179a40b3885dffc7bed36273667b29c2559e4b418af5da9e6622",
+      "bytes": 334
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/booking-service.ts",
+      "sha256": "f6b477223bb65f96851baed23d5c10b48602014ac74857f10f5b85aae4b4ef91",
+      "bytes": 7951
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/deposit-slip-contract.ts",
+      "sha256": "525321a21af138d83ec26d506289379867957e40922a4a52a675cfeca2ef427a",
+      "bytes": 1201
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/line-channel-config.ts",
+      "sha256": "53b4eb2524c55dce3db65c495026ba92a84e5e143b13b669c97208d1403e64c1",
+      "bytes": 959
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/line-flex-templates.ts",
+      "sha256": "dd964bcef2ed6d8d98a1131965360cfdbbc86a4f3b59dff2c44f45e293ebddf3",
+      "bytes": 5881
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/line-flex.ts",
+      "sha256": "1b980ce70df0cfbf54fb265555cebea499611d49feda5d399421c0a22ba585f8",
+      "bytes": 5473
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/line-link.ts",
+      "sha256": "9aae9f095abd5f62ae95ab585f57ef29b1acda60d6fc8b8b2043d02abab3c4a9",
+      "bytes": 588
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/merchant-line-config.ts",
+      "sha256": "021572ad6581944e760fb2e2b3ddd7f84d4e26b09688fecfab96ab755ec11d7a",
+      "bytes": 684
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/notification-policy.ts",
+      "sha256": "ac9616932c96715d144388f265a92cbdf9a9350388638cca6301ef931458bf94",
+      "bytes": 588
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/promptpay.ts",
+      "sha256": "200d24ab21ac9744fc03a68635f08bfbcb92f56e9dd61ce22f60381351912f61",
+      "bytes": 1598
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/supabase-admin.ts",
+      "sha256": "20f6b0884256f7f821f863e835eb4ffce6a19cce9e1ad00f6f37693520a5bcdb",
+      "bytes": 918
+    },
+    {
+      "path": "apps/booking-consumer/src/lib/supabase.ts",
+      "sha256": "3fb68a8ad94fa5ddfacdfaab774f680075a392e6296c4e09b9462b051775a058",
+      "bytes": 375
+    },
+    {
+      "path": "apps/booking-consumer/tsconfig.json",
+      "sha256": "dbacf04aa5f38c1ce4b0f030fbb84e5adff19306fb785b2e4aafef9c58705658",
+      "bytes": 704
+    },
+    {
+      "path": "apps/booking-consumer/wrangler.jsonc",
+      "sha256": "2d428640b306446c309a7f83ee80388756103396bec6a94ed3bf384fd60074d7",
+      "bytes": 799
+    },
+    {
+      "path": "BRIEF-BK-A-CONT-01-SECURITY-DB-STATIC-2026-08-29.md",
+      "sha256": "ec6f00fadcaf2b57965c1acfdee7ba1afa4b700ec2e007602685b104fbf3b9a6",
+      "bytes": 3448
+    },
+    {
+      "path": "BRIEF-BK-A-CONT-02-FLOWS-COMMERCIAL-2026-08-29.md",
+      "sha256": "1bf167e04cdf869bba8836d8ad8f84c889e68ad1b885337ff37351f7c515dbf3",
+      "bytes": 3645
+    },
+    {
+      "path": "BRIEF-BK-A-CONT-03-INTEGRATED-REVIEW-2026-08-29.md",
+      "sha256": "e5d352723a225be9cf545db31edb4cb754549cc130a86bf2e2fd820b8f96d719",
+      "bytes": 3861
+    },
+    {
+      "path": "BRIEF-BK-A-CONT-04-DB-RUNTIME-GATES-2026-08-29.md",
+      "sha256": "650e4811ce0de390bce4536e6a7df458a01ef97bdc20495770dda2dcf022d768",
+      "bytes": 2999
+    },
+    {
+      "path": "BRIEF-BK-A-V1-CONTRACT-REMEDIATION-2026-08-29.md",
+      "sha256": "748322ec9e331d6d9051e63df1cc8b5b87703aa6fd409d16fcdab0cbbe56ae29",
+      "bytes": 21611
+    },
+    {
+      "path": "BRIEF-BK0-FINAL-DOCUMENTATION-REMEDIATION-AND-ROUND4-2026-08-29.md",
+      "sha256": "4a31c8805921da38de116b3a99c99912550a06f375da9d2a0d9c8fb939dcbe58",
+      "bytes": 12379
+    },
+    {
+      "path": "BRIEF-BK0-PRODUCT-DOCUMENTATION-AND-MARKET-LOCK-2026-08-28.md",
+      "sha256": "e2d23b82b767ebde9732fc7f1127805f3dfc20bec26ed9f077dc29ad238e5add",
+      "bytes": 24571
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "1ebc2f58470bc9e1c7095437d50b3752b9a605f5a2b2b9c7749fba8e5e2965f8",
+      "bytes": 4295
+    },
+    {
+      "path": "docs/00_PRODUCT_VISION.md",
+      "sha256": "c9bf24d18474a063ef4dff6d7b1116513fa71aed53adf0ae7c13ee3f5e8d3966",
+      "bytes": 4157
+    },
+    {
+      "path": "docs/01_PRD.md",
+      "sha256": "7f61e79171fb5c3d570068b1259fdb8f57c0cd51a20f11ab712b0423d68c531a",
+      "bytes": 6834
+    },
+    {
+      "path": "docs/02_SYSTEM_ARCHITECTURE.md",
+      "sha256": "912f4dab5b1462c0fb09e74f5b8ae239f3500a82d69086883ba368d2202e67b5",
+      "bytes": 2408
+    },
+    {
+      "path": "docs/03_DATA_SECURITY_TENANCY.md",
+      "sha256": "fc451bdda6e59c3af4c9688e416574e13ede13e51554b30a4fa0956326fbd1bf",
+      "bytes": 4621
+    },
+    {
+      "path": "docs/04_PRICING_ENTITLEMENTS.md",
+      "sha256": "3814d9506d1bbd4371c2abf65fe7c66cd0254b37cb59d40bae2ae94c24729fb9",
+      "bytes": 5101
+    },
+    {
+      "path": "docs/05_BOOKING_DOMAIN_RULES.md",
+      "sha256": "9d5d3be50a8849f1e2807c2f61fb9c6dc7e119a698ddaa58df2dc3b9aebc5016",
+      "bytes": 5358
+    },
+    {
+      "path": "docs/06_UX_USER_FLOWS.md",
+      "sha256": "8e2e51f3daf2bc6c59e7858015e18247d11d8384e2bdfd9ec462b537d7015f13",
+      "bytes": 2640
+    },
+    {
+      "path": "docs/07_ANALYTICS_KPI_SPEC.md",
+      "sha256": "961f78754cbecd05fc041be7709f0338ed87576c3720701bbf00128650494dd2",
+      "bytes": 4923
+    },
+    {
+      "path": "docs/08_EXTERNAL_DEPENDENCIES.md",
+      "sha256": "50db552facea19907c93aee7de9b63daa46b0d81d682b3796348fb0812d3ce2c",
+      "bytes": 2520
+    },
+    {
+      "path": "docs/09_TEST_RELEASE_GATES.md",
+      "sha256": "888873772cbdca7c9d24deacefb90ac9ff5caef361ad62f03deacfbd03c99861",
+      "bytes": 3035
+    },
+    {
+      "path": "docs/10_DEVELOPMENT_ROADMAP.md",
+      "sha256": "e3d5df7ddcc55a73b5b1eb77efcf6fd913bea958326bca91b1bb814201bce772",
+      "bytes": 8221
+    },
+    {
+      "path": "docs/ADR_TEMPLATE.md",
+      "sha256": "22342b19a7624a0a68d47296668235fdc56646703fb5b0b2f8d7cc1f7ea80f96",
+      "bytes": 1193
+    },
+    {
+      "path": "docs/architecture/BK01-SHARED-RUNTIME-PREBUILD-GATE-2026-09-08.md",
+      "sha256": "eaff4f7585c6da99dde25684080edd670fee53b167135e3df9ea66741c76985f",
+      "bytes": 4663
+    },
+    {
+      "path": "docs/archive/CHECKPOINT_V1.md",
+      "sha256": "69033f73ed0581832a8423828ff5ac0b6488ddec63092b177a6206cdc63a0d62",
+      "bytes": 4851
+    },
+    {
+      "path": "docs/archive/CHECKPOINT_V2.md",
+      "sha256": "3439bfe1fdc7f5d610043a5965f3ecefc7861fc5e95c0e8ee193fe0ece6c7f4c",
+      "bytes": 4519
+    },
+    {
+      "path": "docs/archive/CHECKPOINT_V3.md",
+      "sha256": "06c67adb59bbf1fd17d19c2217f0bdb924ec53b7e8c1f988a9cf25e28f30c6db",
+      "bytes": 3088
+    },
+    {
+      "path": "docs/archive/HANDOFF_TRANSFER_GUIDE.md",
+      "sha256": "21e2b5e337e174a590523030da480bc07b643429c8e628c89ed342c8eb37a03f",
+      "bytes": 7313
+    },
+    {
+      "path": "docs/archive/ROADMAP_V2_V4.md",
+      "sha256": "c7415fe6c6f2a44ab6235750627582aca4c17464e86c405e3ec8d3ff7f1cec34",
+      "bytes": 4090
+    },
+    {
+      "path": "docs/audit/BK-A-IMPLEMENTATION-EVIDENCE-2026-08-29.md",
+      "sha256": "ba5e4d11c3ba8d80b3ffd98d7a00afa4a4c9b48a4d2b9ad48f86b87801b034e0",
+      "bytes": 5392
+    },
+    {
+      "path": "docs/audit/BK-SR-02-RELEASE-READINESS-EVIDENCE-2026-09-06.md",
+      "sha256": "a0c67143b99b5e363d9d7f96f3cca6688addbe7924581981809922f92350eb03",
+      "bytes": 3315
+    },
+    {
+      "path": "docs/audit/BK-SR-03-CHECKPOINT-2026-09-07.md",
+      "sha256": "f5388146fe5b00b70b2a2aa36a58db05d6b43091877043c830d819bccaef0dac",
+      "bytes": 6198
+    },
+    {
+      "path": "docs/audit/BK-SR-03-STAGING-REHEARSAL-EVIDENCE-2026-09-06.md",
+      "sha256": "6a9f7b2d451c15c4e128b711a21dcd97eafbc7189ddc65a138481d10428e350e",
+      "bytes": 13483
+    },
+    {
+      "path": "docs/audit/BK01-SHARED-RUNTIME-COEXISTENCE-ASSESSMENT-2026-09-08.md",
+      "sha256": "9099b5393b7b639e21d1ae53964a09e90c53d67287c45433768ee0700df7574a",
+      "bytes": 24017
+    },
+    {
+      "path": "docs/audit/BK01-SHARED-RUNTIME-SCHEMA-ALIGNMENT-ASSESSMENT-2026-09-08.md",
+      "sha256": "ea03a4a714a22551c504e624e910b36419631c5333ccdc98cf88014043120eda",
+      "bytes": 42128
+    },
+    {
+      "path": "docs/audit/CONT04-CLOSURE-EVIDENCE-2026-09-06.md",
+      "sha256": "a40bdfa039c922b5be34635c04e5526f66c4505c71a1cf7f366da3f66378d5f9",
+      "bytes": 1941
+    },
+    {
+      "path": "docs/audit/CURRENT_TRUTH_AND_CONTRADICTIONS.md",
+      "sha256": "d71319b3e371a2ed5cb89507dcc7e9ecd3ff678b8a35df19949684b0e1edd2f2",
+      "bytes": 12401
+    },
+    {
+      "path": "docs/audit/DOCUMENTATION_AUDIT.md",
+      "sha256": "74126b6153a638300eb361bbab95884ee4df1ce273903ed10a79260137d87523",
+      "bytes": 9073
+    },
+    {
+      "path": "docs/audit/FEATURE_REQUIREMENT_TRACEABILITY.md",
+      "sha256": "e072e499ccc6a4272d57091292fca03ed1729a860a2975afde1151ca3236ca17",
+      "bytes": 11473
+    },
+    {
+      "path": "docs/audit/INDEPENDENT_REVIEW_CODEX_2026-08-28.md",
+      "sha256": "a4f2749adb1effd6e92ab8cbb34ea5c76fb4c8912939a54d85f1e2d5a5d1ef8c",
+      "bytes": 10030
+    },
+    {
+      "path": "docs/audit/INDEPENDENT_REVIEW_CODEX_BK-A_2026-08-29.md",
+      "sha256": "0145612fa8ca6f6b4007cd378c2385830fdf0dcef4d7ece335598c57d60ca958",
+      "bytes": 9873
+    },
+    {
+      "path": "docs/audit/INDEPENDENT_REVIEW_CODEX_ROUND2_2026-08-28.md",
+      "sha256": "c984815c6198ff536f01febda134397b67b37d2ab78f0bdd52a31379da9d7cd1",
+      "bytes": 1158
+    },
+    {
+      "path": "docs/audit/INDEPENDENT_REVIEW_CODEX_ROUND3_2026-08-28.md",
+      "sha256": "ba878409872e0dc79024dbb14506753e36fd8022f6f217408f3cd18d93074947",
+      "bytes": 1149
+    },
+    {
+      "path": "docs/audit/INDEPENDENT_REVIEW_CODEX_ROUND4_2026-08-29.md",
+      "sha256": "b4e59cb2a496a286c0d3810595d90def21f94532331d034351a8555df4457a31",
+      "bytes": 1717
+    },
+    {
+      "path": "docs/audit/MARKET_SOURCE_LEDGER.md",
+      "sha256": "b2052802c076c871961d2be45e7e36d4cc2c2851ef83cd4953637a536c24f8ee",
+      "bytes": 10071
+    },
+    {
+      "path": "docs/BUILD-TO-SELL-EXECUTION-2026-09-06.md",
+      "sha256": "52f3dbf7011720820d0ea7219bdb38e9f19543b32cd2752a98fdb95ae96608b6",
+      "bytes": 5895
+    },
+    {
+      "path": "docs/business/OFFICIAL_BUSINESS_MODEL.md",
+      "sha256": "a28e44ebaf8e66052bb95ac0a181c7f383ee3afaecf597530be01d7d13eaca51",
+      "bytes": 10829
+    },
+    {
+      "path": "docs/business/PRICING_SPEC.md",
+      "sha256": "7d6978941647fa10a4013d580b55280a7a0d82b24c17e3f62ee612ab420efe5e",
+      "bytes": 8528
+    },
+    {
+      "path": "docs/CURRENT_STATUS.md",
+      "sha256": "c34e79fecf62671083c69c61b45727b60ccfdca526a498df8b34e6a9b1547776",
+      "bytes": 5293
+    },
+    {
+      "path": "docs/daily/2026-08-30.md",
+      "sha256": "b3c3d14c2519894c4c2af505c096126fdd5fda34714e56bc2cbd41a9b5c993e2",
+      "bytes": 4041
+    },
+    {
+      "path": "docs/daily/2026-08-31.md",
+      "sha256": "d11390f2d3de164c3dcb6d09e064ce4492af88d4393eb97ae382f24a41e46b93",
+      "bytes": 4225
+    },
+    {
+      "path": "docs/daily/2026-09-02.md",
+      "sha256": "6ae32caa7ace4fc2aa1619aa57d07388e8be39e89d5d195d6dc7a6db1790b12e",
+      "bytes": 2644
+    },
+    {
+      "path": "docs/daily/2026-09-03.md",
+      "sha256": "cf0837b82b06d0df7732af47ef488fb6f3378388dc54fa96223ece4c541dc3f9",
+      "bytes": 4391
+    },
+    {
+      "path": "docs/daily/2026-09-05.md",
+      "sha256": "1cdc3efc5599a03cd5ce8f44437640b2c619440d52b5117d1b519d3e3eca2655",
+      "bytes": 2772
+    },
+    {
+      "path": "docs/daily/2026-09-06.md",
+      "sha256": "0797204f865a7c550ea927ea42e811975d1d1d7d20f0b24dc7417355a89129a0",
+      "bytes": 8004
+    },
+    {
+      "path": "docs/daily/_TEMPLATE.md",
+      "sha256": "52439010a81dd31e34164228cbe51b14a058d41b60dff61de2f8d96dac2461c9",
+      "bytes": 2593
+    },
+    {
+      "path": "docs/daily/BRIEF-BK01-SHARED-RUNTIME-COEXISTENCE-GATE-2026-09-08.md",
+      "sha256": "7924c5ddbd09467b70ffb52af0f38acdcfe5037c7f8edebfa982a23cc288a80b",
+      "bytes": 11819
+    },
+    {
+      "path": "docs/daily/WORK-BRIEF-2026-08-31.md",
+      "sha256": "8ef0c3eee19625df0da26f7636035e31efe6ab1750091d334661e21b757ea78b",
+      "bytes": 3210
+    },
+    {
+      "path": "docs/daily/WORK-BRIEF-2026-09-02.md",
+      "sha256": "7a40e954c83c2b53dc4c33151b37c6360b8d1ed69d1b64ab9b0e0b35af5a38d7",
+      "bytes": 2068
+    },
+    {
+      "path": "docs/daily/WORK-BRIEF-2026-09-03.md",
+      "sha256": "f87e218ce54517c59eede1d9db3fa2d80b337e129f657caff53c36272b67b817",
+      "bytes": 1210
+    },
+    {
+      "path": "docs/daily/WORK-BRIEF-2026-09-05.md",
+      "sha256": "e41501cd34f791ddd513d2c37340b669307bce7dd027923a62eafeed22f38068",
+      "bytes": 3056
+    },
+    {
+      "path": "docs/DOCUMENTATION_INDEX.md",
+      "sha256": "18064818b01cdb36c230af1f4b6a855cd1bb56e6f16d8038a22f16a2f015e17d",
+      "bytes": 3562
+    },
+    {
+      "path": "docs/market/COMPETITIVE_LANDSCAPE_2026.md",
+      "sha256": "877a80f0d923d1b1dd24392520eec40ca4fcc8adde862f11d27c292c6bc9710e",
+      "bytes": 21077
+    },
+    {
+      "path": "docs/market/ICP_JTBD.md",
+      "sha256": "bb30de9fe76553bf4478beecbb8b57b542b6c152e16510bb3e494a75545bded2",
+      "bytes": 5373
+    },
+    {
+      "path": "docs/market/MARKET_AND_SEGMENTATION_2026.md",
+      "sha256": "4269eaa87358e1da71199edd81b8c52e3d54236499ca28ca35b455ad21f99ded",
+      "bytes": 6285
+    },
+    {
+      "path": "docs/marketing/GO_TO_MARKET.md",
+      "sha256": "3a920aac772218d2a20be09242cb6fcae28ab4cce1f39274c223cfb90c6b81b7",
+      "bytes": 2159
+    },
+    {
+      "path": "docs/marketing/KPI_METRICS.md",
+      "sha256": "354002c8394122c56861076e34c387297e915ac5118effa16f17cf6e681c3500",
+      "bytes": 1550
+    },
+    {
+      "path": "docs/marketing/LAUNCH_PLAN.md",
+      "sha256": "a43c4c9559103d29166bd281c4828422b13cecf4cc71c4da72944709251cd830",
+      "bytes": 1739
+    },
+    {
+      "path": "docs/marketing/POSITIONING_MESSAGING.md",
+      "sha256": "3067d24ef8c5b2d8e5b8786d9a33e7815b6d7039d81c62827d0a7b5dbff16ed1",
+      "bytes": 3902
+    },
+    {
+      "path": "docs/MASTER_CHECKLIST.md",
+      "sha256": "1e35ced567ff6dfd38726f4ff6d8c9823cde1fadf691102f389937de962d27e2",
+      "bytes": 8483
+    },
+    {
+      "path": "docs/operations/BACKUP_RESTORE_RUNBOOK.md",
+      "sha256": "4e2e2a7670a58eb71a22da61ff5d72b7321b718e8d89981c19be2a7d064c9d3f",
+      "bytes": 3468
+    },
+    {
+      "path": "docs/operations/DEPLOYMENT_RUNBOOK.md",
+      "sha256": "91b27446d839039192947adb553c8278f49bda04e5ea694171d823234135f5eb",
+      "bytes": 1805
+    },
+    {
+      "path": "docs/operations/INCIDENT_RUNBOOK.md",
+      "sha256": "727aa3988a9b915bdccd437152b6f68f1febe50c09c6e89a26c1648f35a05f69",
+      "bytes": 3236
+    },
+    {
+      "path": "docs/operations/LEGAL_PRIVACY_CHECKLIST.md",
+      "sha256": "5e41e3cb9bb90ff67b5b430dde67df2b25fd20d367a6668f98ecf8d169f99264",
+      "bytes": 3123
+    },
+    {
+      "path": "docs/operations/SUPPORT_RUNBOOK.md",
+      "sha256": "ed6ad57e180cd1138efa4693e03b3fbe9058eef879d9cc30dabb05f2ab2d2993",
+      "bytes": 3240
+    },
+    {
+      "path": "docs/order/00_PRODUCT_BOUNDARY_DECISION_2026-09-05.md",
+      "sha256": "1f49b81ea0492679e890f13cf3b8da6755f8bcb88904a3a297e35cdbe979c24b",
+      "bytes": 3346
+    },
+    {
+      "path": "docs/order/01_ORDER_V1_CONTRACT.md",
+      "sha256": "7bf421382cae91424cf7759b45538169d5f2fb943e194a0f85d3b49aa34a46b5",
+      "bytes": 10177
+    },
+    {
+      "path": "docs/order/02_MODULE_REUSE_CHECK.md",
+      "sha256": "278493af26f9a7a23c0c92144bcc746c17c56f520770b709a0a2438b8e40a4db",
+      "bytes": 5152
+    },
+    {
+      "path": "docs/order/03_MT01_BOOTSTRAP_CHECK.md",
+      "sha256": "61c240cb309dc560bda4dc2696976327bebebbc33f3201f2587a6380e63356f7",
+      "bytes": 1649
+    },
+    {
+      "path": "docs/order/04_PHASE0_HANDOFF.md",
+      "sha256": "0d4c059d70870dad77d40f8633955032234f14e52e9fd551f1f79c95c867fa15",
+      "bytes": 1681
+    },
+    {
+      "path": "docs/platform/PHASE_0_BASELINE_SNAPSHOT_2026-08-20.md",
+      "sha256": "98297200718b93eae539348576bfd7e28a672308e5fb3c80acb23b61c4935e38",
+      "bytes": 4516
+    },
+    {
+      "path": "docs/PRODUCT_DECISIONS.md",
+      "sha256": "ef215709ecfc54c1402cd337af5937f5232d06448aacccdfb2607b1fd0fc8047",
+      "bytes": 11816
+    },
+    {
+      "path": "docs/proposals/PROPOSAL_MODULE_HUB_INTEGRATION.md",
+      "sha256": "7643240dab0125a218359c359161f5ce5f3f9c30d83853564be767567361aa8f",
+      "bytes": 6970
+    },
+    {
+      "path": "docs/technical/ARCHITECTURE_SECURITY_STANDARD.md",
+      "sha256": "df038c1dc9189c77a8f4aaf4f6d3dfed95ebcd88ed2426f5eaabdd4d8359cb47",
+      "bytes": 4285
+    },
+    {
+      "path": "docs/technical/BRIEF_PHASE1_AGY.md",
+      "sha256": "111295a4966146806304cd7613f838e37935bca293f2ff1814f691e5eb7de36f",
+      "bytes": 11016
+    },
+    {
+      "path": "docs/technical/BRIEF_PHASE2_HARDENING_A_TO_E.md",
+      "sha256": "5b5acfdffa86fc807d26d130fecdfec558cbe18349771491c780389d6ac064dc",
+      "bytes": 9927
+    },
+    {
+      "path": "docs/technical/BRIEF_PHASE_E4_STRIPE_BILLING.md",
+      "sha256": "2d99fd935ac60922e4857cf0bd068585fe5330875f13f6edad6338251ed6c34f",
+      "bytes": 13153
+    },
+    {
+      "path": "docs/technical/PHASE_A_COMPLETION_REPORT_2026-08-07.md",
+      "sha256": "eb1392ad0a6d3aefef76c150938e1a7b66e29fa8cd53b1ffac5e3dcc3b3c1050",
+      "bytes": 3019
+    },
+    {
+      "path": "docs/technical/PHASE_E1_CHECKPOINT_REPORT_2026-08-07.md",
+      "sha256": "2af2df592d405fe5fc35e1ee9f8e1a36919bb8816059721908e51480b92647e2",
+      "bytes": 3428
+    },
+    {
+      "path": "docs/technical/PHASE_E2_LOCAL_CHECKPOINT_REPORT_2026-08-07.md",
+      "sha256": "47a2e46e391dca2b2f854f3cedc55d6ac37556d188f35a3be4f12395e3a8b735",
+      "bytes": 2995
+    },
+    {
+      "path": "docs/technical/PHASE_E3_1_LOCAL_CHECKPOINT_REPORT_2026-08-08.md",
+      "sha256": "e4cd58097e7a9ad6a6c3672fb8bf5367286a635bf9d365d8fec864d928e1add3",
+      "bytes": 2952
+    },
+    {
+      "path": "docs/technical/PHASE_E3_2_LOCAL_CHECKPOINT_REPORT_2026-08-08.md",
+      "sha256": "a7fd3f914de1ce484582fa6347137cc84d81ae5829d4679faa8808eee4cf54af",
+      "bytes": 2741
+    },
+    {
+      "path": "docs/technical/PHASE_E3_3_COMPLETION_REPORT_2026-08-08.md",
+      "sha256": "e128e77cb1162f0cf3c5fa51130207de759be59e25a767b164940007823dcea6",
+      "bytes": 7434
+    },
+    {
+      "path": "docs/technical/PHASE_LAUNCH_1_COMPLETION_REPORT_2026-08-12.md",
+      "sha256": "d7c7818190b058b26a4f30152d75e64d7ecb69a37fd374d5ee65435e88ba3683",
+      "bytes": 10643
+    },
+    {
+      "path": "docs/technical/QWEN_E4_3_E4_4_HANDOFF.md",
+      "sha256": "ddf8bd2f507b76572882c2d54abf9b427a0a4ec1ea3234ee6b5b2f55173bb9a3",
+      "bytes": 8605
+    },
+    {
+      "path": "docs/technical/STRIPE_SUBSCRIPTION_STATE_MACHINE.md",
+      "sha256": "70dffc3eac455acbd20a63a80d77dfe564e16518d7c2b4be5b3923c66103b2f4",
+      "bytes": 19589
+    },
+    {
+      "path": "I18N_PHASE4_EVIDENCE.md",
+      "sha256": "8a9dd253d202b5ac10c7b8c52084f52fc87fffb3086ee48ea83f5aef4366436b",
+      "bytes": 2124
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "1d7363357741d5f2b3675e7da76ffedbb5c1c87382a81c5fe49043334a2fb476",
+      "bytes": 494845
+    },
+    {
+      "path": "package.json",
+      "sha256": "3a7a7c74e0e56cccc4b72ed9ca48d6db35249ab9f5397d830d2861b3d6b5df3a",
+      "bytes": 1707
+    },
+    {
+      "path": "PRODUCT_RULES_V1.md",
+      "sha256": "b58c680b7f8d1b238e7864426db219a75b92471cecb902e52c715401b12ee89a",
+      "bytes": 42387
+    },
+    {
+      "path": "PROJECT_HANDOVER_BRIEF.md",
+      "sha256": "02c9f01052d709b5c66a32c6f81d344ff73ded61a3bebd3f7cf5f31a9cbcc123",
+      "bytes": 28853
+    },
+    {
+      "path": "qa/00_auth_stub.sql",
+      "sha256": "2364ad6dbbdaefb43cadc79c2ff3a6b6ab50829ced9340d7610ad7367e9f6c51",
+      "bytes": 1471
+    },
+    {
+      "path": "qa/01_storage_stub.sql",
+      "sha256": "453b0f76b89906bbc0c7aabdbe94a8da1595a735e37fdef770a8c0cbed499c33",
+      "bytes": 1254
+    },
+    {
+      "path": "qa/dispatch_prompt_quota.txt",
+      "sha256": "2fa1396500ff4ddf653ed5267d1e54582898a7e8b904275e19b2d531b310dc1d",
+      "bytes": 11494
+    },
+    {
+      "path": "qa/quota_enforcement_test.sql",
+      "sha256": "95c1dab70095b8ebd095984f70b944de3a90278b357a9df3b4de2bf14bcb5cb7",
+      "bytes": 27379
+    },
+    {
+      "path": "qa/run_tests.sh",
+      "sha256": "db240cf70ec8787380844dc4d23ffb200ce1b5ac382a9d1517bce6000fe0d999",
+      "bytes": 2083
+    },
+    {
+      "path": "qa/staff_gate_manual_test.sql",
+      "sha256": "b105a3a61b274f78d3c4355693c31f754f0afe97001d2262a59b9ce38f24a834",
+      "bytes": 3378
+    },
+    {
+      "path": "qa/STAGE1_EVIDENCE_REPORT.md",
+      "sha256": "56f417a9264cda1cc9132f85c1d6a7a2e1086229ab6ea9914a0564ddc3d238cc",
+      "bytes": 10886
+    },
+    {
+      "path": "README.md",
+      "sha256": "5a4d8ed787300d86ec80beeef7355bf7d3a38b47686da4c9ed36cb9ce017e1a7",
+      "bytes": 3483
+    },
+    {
+      "path": "relay/HERMES_PLATFORM_ADMIN_LIVE_VERIFY_REPORT.md",
+      "sha256": "f10631ad9e23ce80491745ff72079c74613a4866105daba1ca3e0a35fa66766c",
+      "bytes": 4854
+    },
+    {
+      "path": "relay/QWEN_PLATFORM_ADMIN_VERIFY.md",
+      "sha256": "2344c09743d36695603a4eb57555cd06dfd8fe675981ac8215817b47e313c32d",
+      "bytes": 12585
+    },
+    {
+      "path": "scripts/bk01-migrate.mjs",
+      "sha256": "64b6e614d4f922f6b0e29350774d9c9ab007647071acf7b8451710b0a17fd59c",
+      "bytes": 7994
+    },
+    {
+      "path": "scripts/generate-bk01-shared-runtime.mjs",
+      "sha256": "e68a2b009fb4a8e9e529113ef3bfa99eba9fb65b8be524b6b718542865d5f633",
+      "bytes": 11276
+    },
+    {
+      "path": "scripts/lib/bk01-migration-policy.mjs",
+      "sha256": "9f067ed97cc8e3f5c054df08817f296da49cd8719bad5eaaee80a7209f9daae2",
+      "bytes": 4935
+    },
+    {
+      "path": "scripts/sync-env.js",
+      "sha256": "739e18ad5d0653ab3836ce6fd971a72daddcc41a8259b73c7cd67c6c62993094",
+      "bytes": 1571
+    },
+    {
+      "path": "scripts/verify-bk01-shared-runtime.mjs",
+      "sha256": "e57dab3bff928e66dba962fcc8901e667d3a426ffbf7ed66241f008c78ba304d",
+      "bytes": 4187
+    },
+    {
+      "path": "STAGE4_INVESTIGATION.md",
+      "sha256": "370cf0975ae5d0bfdd5eb031f0f8c1b1d3719b92074edd1659e5aa4e59bbb3d3",
+      "bytes": 11729
+    },
+    {
+      "path": "STAGE4_RECONCILIATION_EXECUTION.md",
+      "sha256": "489b3fb8748b25ba3745ba9a62c797f2239c2ea6cbfbdec654f413d8375d40ed",
+      "bytes": 12039
+    },
+    {
+      "path": "STAGE4_RECONCILIATION_PLAN.md",
+      "sha256": "1901db91f3251be59c6bb3bc2f4782603e500672a1e54ec82cab15e1e2c43f51",
+      "bytes": 14428
+    },
+    {
+      "path": "supabase/bk01-migrations/README.md",
+      "sha256": "a4e8d95aca77c3a662e6c61aaf2bd0c93b6832024fad2a1872ff175576ab911d",
+      "bytes": 1229
+    },
+    {
+      "path": "supabase/config.toml",
+      "sha256": "c3ad0374b0b6c2ddee2c0256cda747882abd3aa58d723065ec129da9ff5b9e06",
+      "bytes": 15705
+    },
+    {
+      "path": "supabase/migrations/20260807051615_local_service_initial_schema.sql",
+      "sha256": "5e3aafcf8bcb00e40716a392377dab0b9a908ecadb46b1036821c6542d0d4870",
+      "bytes": 6009
+    },
+    {
+      "path": "supabase/migrations/20260807051629_staff_schedules.sql",
+      "sha256": "6d0b34ccb37dbdd79d37f1caa482ad59b95889af02dfe4476d69aaf409bc566f",
+      "bytes": 2221
+    },
+    {
+      "path": "supabase/migrations/20260807051642_line_notifications.sql",
+      "sha256": "ddf486f87e686c9bf1b0fb2cbc62c8d1e174f099d35b7cc0c61e4daf29d72c6f",
+      "bytes": 2171
+    },
+    {
+      "path": "supabase/migrations/20260807051755_product_rules_v1.sql",
+      "sha256": "b844256a25507408854c64ea1b2ab8003cfac2924f5b61a10ddbbf5f4ab3e07f",
+      "bytes": 17594
+    },
+    {
+      "path": "supabase/migrations/20260807051839_booking_submission_and_availability_guards.sql",
+      "sha256": "557a491fa4af4259ea92d4e6517246d5919cadabc0f4fde6dc81c9af144c58ee",
+      "bytes": 10953
+    },
+    {
+      "path": "supabase/migrations/20260807051914_harden_function_search_paths.sql",
+      "sha256": "9b52ef19c430e401de6d14aa7892c8de877c206bcee7a17b2305cd3de3228a82",
+      "bytes": 845
+    },
+    {
+      "path": "supabase/migrations/20260807052218_seed_demo_shop.sql",
+      "sha256": "68e2a37cd736d021286eddb15672ae1822d7280c11935d324006a27ff846cc3c",
+      "bytes": 67
+    },
+    {
+      "path": "supabase/migrations/20260807052329_fix_service_deposit_override.sql",
+      "sha256": "756f992c285f61429d4895327e71ef2811936d664984cee6a6a2e5df850a8463",
+      "bytes": 8605
+    },
+    {
+      "path": "supabase/migrations/20260807052408_fix_booking_history_trigger_timing.sql",
+      "sha256": "fa24514df8bcf912b075dd08a2ee4dca2a9e22e1b4f8a0991bd73106628a3e2a",
+      "bytes": 780
+    },
+    {
+      "path": "supabase/migrations/20260807054727_fix_link_token_volatility.sql",
+      "sha256": "39e0b625e1120958627eed9f4c200be724214796081b2b2f2b3e963de9ba2071",
+      "bytes": 1072
+    },
+    {
+      "path": "supabase/migrations/20260807101942_phase_a_data_integrity_and_authorization.sql",
+      "sha256": "7e05f29ceb231ebdc59d2d4cd6ebdd5cfa97f7ec9d0f2ffcaf1c83d4ac29b34a",
+      "bytes": 17203
+    },
+    {
+      "path": "supabase/migrations/20260807104205_phase_a_data_integrity_and_authorization.sql",
+      "sha256": "edc30f3d9d4be89f16de17846a52731e71a5a3cf2aec6c823adfa4f37a7f0bc1",
+      "bytes": 17999
+    },
+    {
+      "path": "supabase/migrations/20260807135141_phase_c_fail_closed_staff_schedules.sql",
+      "sha256": "f95f7ab8700ea1c770db725b96af634fdc9286bdd43ae3ca8e68fa1430c9464c",
+      "bytes": 10228
+    },
+    {
+      "path": "supabase/migrations/20260807161412_phase_e1_owner_auth_and_provisioning.sql",
+      "sha256": "c0d2d0526633fa1cbf4ecf957f8eaa0848a55d21f2a048171366c8a4834a4a8c",
+      "bytes": 4446
+    },
+    {
+      "path": "supabase/migrations/20260807170901_phase_e2_admin_booking_actions.sql",
+      "sha256": "753291e92a123406002875d03f40be2825f95192633d85da4674c44be09a2548",
+      "bytes": 4294
+    },
+    {
+      "path": "supabase/migrations/20260807175455_phase_e3_1_services_staff_authorization.sql",
+      "sha256": "53e0bd049533385b299b7235aefbac1ef29c8dc878a78d26de3e70326ea156dc",
+      "bytes": 9638
+    },
+    {
+      "path": "supabase/migrations/20260807181852_phase_e3_2_schedules_holidays_authorization.sql",
+      "sha256": "36bc4fd548972ed79d4be3ef9e78f34d4ab2c24cc949d06a4f6884482b728810",
+      "bytes": 7269
+    },
+    {
+      "path": "supabase/migrations/20260807191046_phase_e3_3_shop_settings_authorization.sql",
+      "sha256": "fa44bb010896c7ef8e80ea3cd7870910d9b0c6ae3b5befc5d191826f4755cb51",
+      "bytes": 4057
+    },
+    {
+      "path": "supabase/migrations/20260807191259_phase_e3_3_fix_public_profile_view.sql",
+      "sha256": "db50b5e191c81f2e403572aa8308530561fff6d6b3b2441f3994c3e06e0e5b05",
+      "bytes": 1208
+    },
+    {
+      "path": "supabase/migrations/20260809002422_phase_e4_1_subscriptions_schema.sql",
+      "sha256": "30a0c26e9c4e433ae83ef803b44558c4c1054550f8eb9f497d2e7f711019e4d7",
+      "bytes": 1693
+    },
+    {
+      "path": "supabase/migrations/20260810094413_phase_e4_3_stripe_webhook_events.sql",
+      "sha256": "c91baca61016772c0567f31592f9e88896ad7bf05bdce25a32185119cbaf0365",
+      "bytes": 1118
+    },
+    {
+      "path": "supabase/migrations/20260810094434_phase_e4_4_sync_subscription_state_rpc.sql",
+      "sha256": "72a960d3e34f947a457a2f8861074ff22f21b95ac5a4cb50536676740da3e3d2",
+      "bytes": 7488
+    },
+    {
+      "path": "supabase/migrations/20260810122551_phase_e4_4_fix_sync_subscription_state_ambiguous_column.sql",
+      "sha256": "6fd14aa69a3958c193840f0fc95db97689208ee9d7ab4b72caf71cbdfe476977",
+      "bytes": 6627
+    },
+    {
+      "path": "supabase/migrations/20260810122817_phase_e4_4_fix_sync_subscription_state_rename_out_param_v2.sql",
+      "sha256": "9cb64431698479fc08c118b5a1ab8c4070016ff462c787c12392017a0d0f8032",
+      "bytes": 6035
+    },
+    {
+      "path": "supabase/migrations/20260813081349_launch_1_billing_truth_and_booking_gate.sql",
+      "sha256": "521b8c28d0a1968fb0244e3d4654d51aa8c67c49c590c83c54b981a9215ec4a0",
+      "bytes": 6602
+    },
+    {
+      "path": "supabase/migrations/20260813092245_platform_admin_authorization.sql",
+      "sha256": "8aa7b04161a4f749aca32de1929a140cf37bbdd4dfae26f632dfaeaffd804c18",
+      "bytes": 6330
+    },
+    {
+      "path": "supabase/migrations/20260818000000_local_service_tickets.sql",
+      "sha256": "a73c72efcfb1e575d87a852af36c39ab5c422e60465f6c8eb85490c19ef5ca06",
+      "bytes": 23287
+    },
+    {
+      "path": "supabase/migrations/20260819000000_quota_staff_topup_enforcement.sql",
+      "sha256": "e188ea4d77e86b2462923959b8e82690ab1f65ff4b72a339fc98eabf8e486b81",
+      "bytes": 21979
+    },
+    {
+      "path": "supabase/migrations/20260829105155_bk_a_v1_contract_remediation.sql",
+      "sha256": "cd05c85bb7878f3a028a92035aebe328cf2234d4b1276ee9581a78e3bd00ce63",
+      "bytes": 40693
+    },
+    {
+      "path": "supabase/migrations/20260907181500_skip_overdue_line_reminders.sql",
+      "sha256": "a5e678fcb70525353f7f8df5b1daef49e9f46c345d6df869289d85deec8a470d",
+      "bytes": 1002
+    },
+    {
+      "path": "supabase/shared-runtime/bk01-legacy-baseline.json",
+      "sha256": "49db987ad9bf2d66b3ff1a085da6894cf38667b632efc582e8913e345c46afc8",
+      "bytes": 264
+    },
+    {
+      "path": "supabase/shared-runtime/bk01-platform-bootstrap-rollback.sql",
+      "sha256": "4c60d5290ebba34b6c0c0d1abd3b31c396e55f6563460baa14f68ae94adcb567",
+      "bytes": 2817
+    },
+    {
+      "path": "supabase/shared-runtime/bk01-platform-bootstrap.sql",
+      "sha256": "09597342f72475994e9df6c90fdcefffd23ba1576acc6d141e329a228382dc77",
+      "bytes": 9225
+    },
+    {
+      "path": "supabase/tests/bk_a_contract.sql",
+      "sha256": "62b1e4adecacc51d5b1366d73650cd79e4642221cc7a966af8b2dd2f788f3b3a",
+      "bytes": 4238
+    },
+    {
+      "path": "tests/auto-slip.test.ts",
+      "sha256": "2c4c1431478aea762afdca7e8bc939814e8e3a0778f94cca4a7a877b03948c5a",
+      "bytes": 935
+    },
+    {
+      "path": "tests/commercial-contract.test.ts",
+      "sha256": "cb535184c86e24bdd5843b215d636b07d71c1ec6fb7dea81c68e3ccd1e8b1e00",
+      "bytes": 1091
+    },
+    {
+      "path": "tests/deposit-slip-contract.test.ts",
+      "sha256": "fc6210e383ba017c0d27a4ea5da7835d7a1551b33753e05950a9657b13c24cfd",
+      "bytes": 1197
+    },
+    {
+      "path": "tests/line-config.test.ts",
+      "sha256": "1664d00fa2ec8e1f3e14e79251a79007d2f46e8179a9ba2995b3f5e685ef6667",
+      "bytes": 961
+    },
+    {
+      "path": "tests/notification-policy.test.ts",
+      "sha256": "0f9af5dec81e14cd202f323dedecb43acf667c9b0526eb24011faf8ba851e6e8",
+      "bytes": 1020
+    },
+    {
+      "path": "tests/notification-scheduling-contract.test.ts",
+      "sha256": "b7778ded299906e69f2d7cd9749d87d3be17b7a2a75c88616ed0ea0e530d96f3",
+      "bytes": 723
+    },
+    {
+      "path": "tests/promptpay.test.ts",
+      "sha256": "01179e3e25b5807ff91a41baa4f76f45a9157d6a81f9a4be2074948dbe52bee5",
+      "bytes": 1168
+    },
+    {
+      "path": "tests/public-contract.test.ts",
+      "sha256": "b468598f8e4663e15b68f576a27166678f348c2fe918a6b2398c9dd22be887cb",
+      "bytes": 3545
+    },
+    {
+      "path": "tests/shared-runtime-migration.test.ts",
+      "sha256": "e6a1affe9c43101376c4e64065fdb7ff588452b1cb6faa23906af93b1029dcdb",
+      "bytes": 3199
+    },
+    {
+      "path": "TICKET_MIGRATION_HANDOFF.md",
+      "sha256": "8eba04e162aadc586d16b7a5e731ce831e8af65bf4ab6e5d60314d6779de978c",
+      "bytes": 6788
+    },
+    {
+      "path": "TICKET_SERVICE_HANDOFF.md",
+      "sha256": "6e519ee0b55128057b59d9917e3f37f59c11af4fca15e0f8d9a5b252b28cab77",
+      "bytes": 6107
+    }
+  ]
+}

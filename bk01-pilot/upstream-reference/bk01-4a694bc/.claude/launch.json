@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "booking-consumer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:shop"],
+      "port": 3000
+    },
+    {
+      "name": "booking-admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:admin"],
+      "port": 3001
+    }
+  ]
+}

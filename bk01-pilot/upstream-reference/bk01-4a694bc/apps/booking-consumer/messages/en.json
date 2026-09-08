@@ -1,0 +1,133 @@
+{
+  "common": {
+    "brandName": "Local Service Booking SaaS",
+    "loading": "Loading...",
+    "switchToEnglish": "Switch language to English",
+    "switchToThai": "Switch language to Thai",
+    "phonePrefix": "Call:",
+    "timeSuffix": "",
+    "currencyAmount": "฿{amount}.00",
+    "durationMinutes": "{minutes} min",
+    "back": "Back"
+  },
+  "landing": {
+    "badge": "Customer Booking Portal",
+    "title": "Service Booking & QR Deposit",
+    "subtitle": "Choose a service, reserve a staff member, pay a PromptPay QR deposit, and receive LINE reminders automatically.",
+    "featureTime": "Pick an available time slot and preferred staff member instantly.",
+    "featureQr": "Generate a PromptPay deposit QR based on the selected service.",
+    "featureLine": "Submit your slip and get booking updates through the shop LINE OA.",
+    "demoCta": "Try the demo booking flow (Good Cuts Barber)"
+  },
+  "booking": {
+    "fallbackShopName": "Service shop",
+    "shopPhoneMissing": "Shop phone unavailable",
+    "headerSubtitle": "Online booking • Secure deposit payment",
+    "callShopTitle": "Call the shop",
+    "callShop": "Call the shop ({phone})",
+    "callShopEmergency": "Call the shop for urgent help ({phone})",
+    "loadingShop": "Loading shop details...",
+    "blocked": {
+      "title": "This shop is not accepting online bookings right now",
+      "description": "Please contact the shop directly for more information."
+    },
+    "success": {
+      "confirmedTitle": "Booking confirmed",
+      "reviewTitle": "Slip received, payment is being reviewed",
+      "bookingCode": "Booking code:",
+      "manageBooking": "Reschedule or cancel this booking",
+      "queueStatus": "Booking status",
+      "statusConfirmed": "Confirmed",
+      "statusReview": "Slip under review",
+      "service": "Service:",
+      "staff": "Staff:",
+      "appointment": "Appointment:",
+      "appointmentValue": "{date} @ {time}",
+      "deposit": "Deposit:",
+      "noDeposit": "No deposit required",
+      "slipSubmitted": "฿{amount}.00 (slip submitted)",
+      "shopDirectPhone": "Direct shop phone:",
+      "lineCta": "Get LINE reminders so you do not miss your booking",
+      "lineSubtext": "Link with the central LINE account (@{lineId})"
+    },
+    "step1": {
+      "title": "1. Select a service",
+      "description": "Choose a service to see duration and deposit details.",
+      "depositLabel": "Deposit ฿{amount}",
+      "next": "Next: Staff & time"
+    },
+    "step2": {
+      "title": "2. Select staff, date, and time",
+      "selectedService": "Selected service:",
+      "customerInfo": "Customer details for slot confirmation",
+      "nameLabel": "Customer name *",
+      "namePlaceholder": "Example: Somchai Jaidee",
+      "phoneLabel": "Phone number *",
+      "phonePlaceholder": "08X-XXX-XXXX",
+      "staffLabel": "Select service staff",
+      "anyStaff": "No preference (any available staff)",
+      "dateLabel": "Select date",
+      "timeLabel": "Select available time",
+      "available": "Available",
+      "unavailable": "Unavailable",
+      "shopClosed": "Shop closed",
+      "next": "Next: Pay deposit",
+      "locking": "Locking the time slot..."
+    },
+    "step3": {
+      "title": "3. Pay PromptPay deposit & confirm",
+      "description": "Scan the QR Code and pay the deposit to lock your booking.",
+      "timer": "Please pay the deposit within",
+      "timerUnit": "minutes",
+      "temporaryCode": "Temporary booking code:",
+      "expired": "The time slot hold has expired",
+      "chooseNewSlot": "Choose a new time",
+      "saveQr": "Save QR Code image",
+      "savedQr": "QR Code saved!",
+      "depositAmountLabel": "Deposit amount to lock booking",
+      "accountName": "Account name:",
+      "promptpayNumber": "PromptPay number:",
+      "copyNumber": "Copy number",
+      "copied": "Copied",
+      "slipLabel": "Upload deposit slip *",
+      "slipAttached": "Slip attached",
+      "changeSlip": "Click to change image",
+      "uploadSlip": "Click to upload the deposit slip",
+      "supportedFiles": "JPG, PNG, or WebP supported",
+      "submitting": "Submitting...",
+      "confirmDeposit": "Confirm deposit payment",
+      "promptpayQrAlt": "PromptPay QR Code",
+      "slipAlt": "Payment slip"
+    },
+    "staff": {
+      "random": "No staff preference (random assignment)"
+    },
+    "footer": "Powered by {brand} • Secure booking",
+    "errors": {
+      "shopBlocked": "This shop is not accepting online bookings right now",
+      "requiredNamePhone": "Please enter the customer name and phone number.",
+      "phoneRequired": "Please enter the customer phone number.",
+      "nameRequired": "Please enter the customer name.",
+      "phoneInvalid": "Please enter a valid Thai mobile number, for example 08X-XXX-XXXX.",
+      "slotUnavailable": "The selected time is outside the work schedule or falls on a holiday. Please choose another time.",
+      "invalidBookingStatus": "Invalid booking status. Please contact the shop.",
+      "createHoldFailed": "Could not lock the time slot. Please try again.",
+      "slipRequired": "Please attach the payment slip before confirming the transfer.",
+      "slipSubmitFailed": "Could not submit the slip.",
+      "slipUnsupportedType": "Only JPG, PNG, or WebP files are supported.",
+      "slipTooLarge": "The slip file must be 5 MB or smaller.",
+      "slipUrlFailed": "Could not create the slip URL.",
+      "shopBlockedService": "This shop is not accepting online bookings right now."
+    }
+  },
+  "manageBooking": {
+    "title": "Manage your booking",
+    "policy": "The server enforces the merchant's policy window. If a change fails, the original booking remains unchanged.",
+    "reason": "Reason for changing the booking",
+    "cancel": "Cancel booking",
+    "reschedule": "Reschedule",
+    "cancelled": "Booking cancelled",
+    "rescheduled": "Booking rescheduled",
+    "invalidLink": "This booking-management link is invalid or incomplete"
+  }
+}
