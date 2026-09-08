@@ -85,3 +85,31 @@ Pre-deploy vs post-deploy object comparison of legacy `public.*` is exact: 28 ta
 **CUSTOMER CUTOVER: NOT STARTED**
 
 Do not route customer traffic to BK01 yet. The remaining real-user prerequisites are an intentional KMO Auth owner identity plus a verified supported PromptPay recipient before admin/deposit end-to-end smoke and later shadow/cutover gates.
+## Admin owner binding and RLS smoke — 2026-09-08
+
+The Owner created the KMO BK01 Auth user manually in Supabase Dashboard and confirmed the email.
+The user was linked to the `kmo-rackbarcustom` tenant with `shop_users.role = owner`.
+
+Authenticated-role simulation verified:
+- owner JWT subject resolves through `auth.uid()`;
+- owner can see exactly one KMO shop and one membership;
+- `has_shop_role(..., ['owner']) = true`;
+- unrelated authenticated UUID sees zero KMO shops and zero memberships;
+- unrelated UUID returns `has_shop_role = false`.
+
+No password, email address, token, or service key is recorded in this evidence file.
+The existing local booking-admin server responds HTTP 200 at `/login` on port 3001.
+PromptPay remains intentionally unconfigured pending a real recipient identifier or an approved static-QR fallback.
+
+## PromptPay fail-closed mitigation
+
+A generic BK01 defect was discovered in both canonical and KMO controlled-copy consumer code: missing merchant PromptPay configuration could fall back to an example recipient instead of failing closed.
+
+KMO mitigation now:
+- removes the example-recipient fallback;
+- generates dynamic PromptPay only from an actual merchant recipient;
+- permits an optional static QR only through explicit KMO env configuration;
+- accepts static QR URLs only as same-site paths or HTTPS URLs;
+- blocks deposit-required hold creation when neither payment method is configured.
+
+Regression coverage locks this behavior. Canonical BK01 was inspected read-only and was not modified. Upstream evidence is recorded in `docs/UPSTREAM-DEFECT-BK01-PROMPTPAY-FAKE-FALLBACK-2026-09-08.md`.

@@ -18,6 +18,12 @@ import { QRCodeSVG } from 'qrcode.react';
 import { createPromptPayPayload } from '../../../lib/promptpay';
 
 const CENTRAL_LINE_OA_ID = process.env.NEXT_PUBLIC_CENTRAL_LINE_OA_ID || 'central_booking_oa';
+const KMO_STATIC_PROMPTPAY_QR_CANDIDATE = process.env.NEXT_PUBLIC_KMO_STATIC_PROMPTPAY_QR_URL?.trim() || '';
+const KMO_STATIC_PROMPTPAY_QR_URL =
+  ((KMO_STATIC_PROMPTPAY_QR_CANDIDATE.startsWith('/') && !KMO_STATIC_PROMPTPAY_QR_CANDIDATE.startsWith('//')) ||
+    KMO_STATIC_PROMPTPAY_QR_CANDIDATE.startsWith('https://'))
+    ? KMO_STATIC_PROMPTPAY_QR_CANDIDATE
+    : '';
 
 const ALL_TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'];
 const thaiMobilePhonePattern = /^0[689]\d{8}$/;
@@ -121,7 +127,7 @@ export default function BookingPage() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const promptpayNumber = shop?.promptpay_number || '0812345678';
+  const promptpayNumber = shop?.promptpay_number?.trim() || '';
   const promptpayName = shop?.promptpay_name || shop?.name || t('fallbackShopName');
   const shopPhone = shop?.phone?.trim() || t('shopPhoneMissing');
   const shopPhoneHref = shop?.phone?.trim()
@@ -130,14 +136,18 @@ export default function BookingPage() {
   const isBookingBlocked = shop?.is_accepting_online_bookings === false;
   const depositAmount = selectedService?.deposit_amount ?? shop?.default_deposit_amount ?? 100;
   const promptpayPayload = useMemo(() => {
+    if (!promptpayNumber) return null;
     try {
       return createPromptPayPayload({ recipient: promptpayNumber, amount: depositAmount });
     } catch {
       return null;
     }
   }, [promptpayNumber, depositAmount]);
+  const staticQrUrl = KMO_STATIC_PROMPTPAY_QR_URL;
+  const paymentMethodAvailable = Boolean(promptpayPayload || staticQrUrl);
 
   const handleCopyPromptpay = () => {
+    if (!promptpayNumber) return;
     setCopiedPromptpay(true);
     if (navigator.clipboard?.writeText) {
       void navigator.clipboard
@@ -148,13 +158,19 @@ export default function BookingPage() {
   };
 
   const handleSaveQr = () => {
-    const svg = qrContainerRef.current?.querySelector('svg');
-    if (!svg) return;
-    setSavedQrNotice(true);
-    const qrData = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.outerHTML)}`;
     const link = document.createElement('a');
-    link.href = qrData;
-    link.download = `PromptPay-QR-Deposit-${depositAmount}THB.svg`;
+    if (promptpayPayload) {
+      const svg = qrContainerRef.current?.querySelector('svg');
+      if (!svg) return;
+      link.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.outerHTML)}`;
+      link.download = `PromptPay-QR-Deposit-${depositAmount}THB.svg`;
+    } else if (staticQrUrl) {
+      link.href = staticQrUrl;
+      link.download = 'KMO-PromptPay-QR.png';
+    } else {
+      return;
+    }
+    setSavedQrNotice(true);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -224,6 +240,10 @@ export default function BookingPage() {
     }
     if (!shop || !selectedService || !customerName.trim() || !customerPhone.trim()) {
       setErrorMessage(t('errors.requiredNamePhone'));
+      return;
+    }
+    if (shop.require_deposit && depositAmount > 0 && !paymentMethodAvailable) {
+      setErrorMessage(t('errors.paymentMethodMissing'));
       return;
     }
     if (!customerName.trim()) {
@@ -675,13 +695,28 @@ export default function BookingPage() {
                   
                   <div className="pt-2">
                     <div ref={qrContainerRef} className="w-44 h-44 bg-white rounded-2xl p-2 mx-auto mb-2 flex items-center justify-center border border-slate-300 shadow-xl" aria-label={t('step3.promptpayQrAlt')}>
-                      {promptpayPayload ? <QRCodeSVG value={promptpayPayload} size={160} level="M" /> : <AlertTriangle className="w-10 h-10 text-rose-500" />}
+                      {promptpayPayload ? (
+                        <QRCodeSVG value={promptpayPayload} size={160} level="M" />
+                      ) : staticQrUrl ? (
+                        <div
+                          className="w-40 h-40 bg-center bg-contain bg-no-repeat"
+                          style={{ backgroundImage: `url("${staticQrUrl}")` }}
+                          role="img"
+                          aria-label={t('step3.staticQrAlt')}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 px-3 text-center">
+                          <AlertTriangle className="w-10 h-10 text-rose-500" />
+                          <span className="text-[11px] text-rose-600">{t('step3.paymentMethodMissing')}</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
                       onPointerDown={() => setSavedQrNotice(true)}
                       onClick={handleSaveQr}
-                      className="inline-flex items-center gap-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700 font-medium"
+                      disabled={!paymentMethodAvailable}
+                      className="inline-flex items-center gap-1 text-[11px] bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-400 px-3 py-1 rounded-lg border border-slate-700 font-medium"
                     >
                       <Download className="w-3.5 h-3.5" />
                       {savedQrNotice ? t('step3.savedQr') : t('step3.saveQr')}
@@ -693,18 +728,24 @@ export default function BookingPage() {
                     <p className="text-2xl font-extrabold text-emerald-400 font-mono my-0.5">{tc('currencyAmount', { amount: selectedService?.deposit_amount ?? shop?.default_deposit_amount ?? 100 })}</p>
                     <p className="text-[11px] text-slate-400">{t('step3.accountName')} <span className="text-white font-medium">{promptpayName}</span></p>
                     
-                    <div className="flex items-center justify-center gap-2 mt-1">
-                      <span className="text-xs text-slate-400">{t('step3.promptpayNumber')} <span className="font-mono text-white font-bold">{promptpayNumber}</span></span>
-                      <button
-                        type="button"
-                        onPointerDown={() => setCopiedPromptpay(true)}
-                        onClick={handleCopyPromptpay}
-                        className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/40 text-[10px] flex items-center gap-1 font-semibold"
-                      >
-                        {copiedPromptpay ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        {copiedPromptpay ? t('step3.copied') : t('step3.copyNumber')}
-                      </button>
-                    </div>
+                    {promptpayNumber ? (
+                      <div className="flex items-center justify-center gap-2 mt-1">
+                        <span className="text-xs text-slate-400">{t('step3.promptpayNumber')} <span className="font-mono text-white font-bold">{promptpayNumber}</span></span>
+                        <button
+                          type="button"
+                          onPointerDown={() => setCopiedPromptpay(true)}
+                          onClick={handleCopyPromptpay}
+                          className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/40 text-[10px] flex items-center gap-1 font-semibold"
+                        >
+                          {copiedPromptpay ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {copiedPromptpay ? t('step3.copied') : t('step3.copyNumber')}
+                        </button>
+                      </div>
+                    ) : staticQrUrl ? (
+                      <p className="text-[11px] text-amber-300 mt-1">{t('step3.staticQrNotice')}</p>
+                    ) : (
+                      <p className="text-[11px] text-rose-400 mt-1">{t('step3.paymentMethodMissing')}</p>
+                    )}
                   </div>
                 </div>
 

@@ -61,3 +61,15 @@ test('consumer Worker has an actual reminder schedule', () => {
   assert.match(worker, /\/api\/notifications\/dispatch/);
   assert.match(worker, /NOTIFICATION_DISPATCH_SECRET/);
 });
+
+test('consumer payment fails closed without a real PromptPay recipient or explicit static QR', () => {
+  const page = read('apps/booking-consumer/src/app/book/[slug]/page.tsx');
+  const envTemplate = read('.env.example');
+
+  assert.doesNotMatch(page, /0812345678/);
+  assert.match(page, /promptpay_number\?\.trim\(\) \|\| ''/);
+  assert.match(page, /NEXT_PUBLIC_KMO_STATIC_PROMPTPAY_QR_URL/);
+  assert.match(page, /paymentMethodAvailable/);
+  assert.match(page, /shop\.require_deposit && depositAmount > 0 && !paymentMethodAvailable/);
+  assert.match(envTemplate, /^NEXT_PUBLIC_KMO_STATIC_PROMPTPAY_QR_URL=$/m);
+});

@@ -97,7 +97,10 @@
       "submitting": "Submitting...",
       "confirmDeposit": "Confirm deposit payment",
       "promptpayQrAlt": "PromptPay QR Code",
-      "slipAlt": "Payment slip"
+      "slipAlt": "Payment slip",
+      "staticQrNotice": "Use the shop QR and verify the deposit amount shown above before paying.",
+      "staticQrAlt": "Shop deposit payment QR Code",
+      "paymentMethodMissing": "The shop has not configured an online deposit payment method yet."
     },
     "staff": {
       "random": "No staff preference (random assignment)"
@@ -117,7 +120,8 @@
       "slipUnsupportedType": "Only JPG, PNG, or WebP files are supported.",
       "slipTooLarge": "The slip file must be 5 MB or smaller.",
       "slipUrlFailed": "Could not create the slip URL.",
-      "shopBlockedService": "This shop is not accepting online bookings right now."
+      "shopBlockedService": "This shop is not accepting online bookings right now.",
+      "paymentMethodMissing": "The shop has not configured PromptPay or a deposit QR yet. Please contact the shop before booking."
     }
   },
   "manageBooking": {

@@ -97,7 +97,10 @@
       "submitting": "กำลังส่งข้อมูล...",
       "confirmDeposit": "ยืนยันการโอนเงินมัดจำ",
       "promptpayQrAlt": "PromptPay QR Code",
-      "slipAlt": "สลิปการโอนเงิน"
+      "slipAlt": "สลิปการโอนเงิน",
+      "staticQrNotice": "ใช้ QR ของร้าน โปรดตรวจสอบยอดมัดจำด้านบนก่อนโอน",
+      "staticQrAlt": "QR Code รับชำระมัดจำของร้าน",
+      "paymentMethodMissing": "ร้านยังไม่ได้ตั้งค่าช่องทางรับมัดจำออนไลน์"
     },
     "staff": {
       "random": "ไม่ระบุพนักงาน (สุ่มช่าง)"
@@ -117,7 +120,8 @@
       "slipUnsupportedType": "รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP",
       "slipTooLarge": "ไฟล์สลิปต้องมีขนาดไม่เกิน 5 MB",
       "slipUrlFailed": "ไม่สามารถสร้าง URL ของสลิปได้",
-      "shopBlockedService": "ร้านนี้ไม่รับจองคิวออนไลน์ในขณะนี้"
+      "shopBlockedService": "ร้านนี้ไม่รับจองคิวออนไลน์ในขณะนี้",
+      "paymentMethodMissing": "ร้านยังไม่ได้ตั้งค่า PromptPay หรือ QR รับมัดจำ กรุณาติดต่อร้านก่อนจอง"
     }
   },
   "manageBooking": {
