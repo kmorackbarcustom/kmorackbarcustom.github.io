@@ -12,3 +12,8 @@ verify_jwt = false
 
 [functions.telegram-notify]
 verify_jwt = false
+
+[api]
+schemas = ["public", "graphql_public", "local_service"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000

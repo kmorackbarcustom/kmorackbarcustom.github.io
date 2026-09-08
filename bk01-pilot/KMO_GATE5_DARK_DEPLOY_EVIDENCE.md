@@ -1,4 +1,4 @@
-# KMO BK01 — Gate 5 Dark Deploy Evidence
+# KMO BK01 Ã¢â‚¬â€ Gate 5 Dark Deploy Evidence
 
 Date: 2026-09-08
 Target: `KMO-Booking` (`xfhpwxjywqgqefbncumm`)
@@ -24,7 +24,7 @@ Pre-deploy `public.*` shape fingerprint:
 Post-deploy `public.*` shape fingerprint:
 `e5216d0a944aae965389b394b0414a91`
 
-Result: **MATCH — existing public schema shape was not changed.**
+Result: **MATCH Ã¢â‚¬â€ existing public schema shape was not changed.**
 ## New isolated runtime evidence
 
 - `local_service` exists.
@@ -52,29 +52,36 @@ Backup content is intentionally not tracked in Git.
 ## Legacy route health
 
 Public GitHub Pages checks after baseline apply:
-- `https://kmorackbarcustom.github.io/booking.html` — HTTP 200
-- `https://kmorackbarcustom.github.io/bookingdashboard.html` — HTTP 200
+- `https://kmorackbarcustom.github.io/booking.html` Ã¢â‚¬â€ HTTP 200
+- `https://kmorackbarcustom.github.io/bookingdashboard.html` Ã¢â‚¬â€ HTTP 200
 
 Legacy KMO remains the active customer/admin path. No route switch has occurred.
 
-## Remaining Gate 5 configuration
+## Data API exposure and tenant smoke closure
 
-PostgREST currently exposes only:
-`public, graphql_public`
+Owner/Admin added `local_service` to Data API exposed schemas. PostgREST probe then reported exactly:
+`public, graphql_public, local_service`.
 
-Required target:
-`public, graphql_public, local_service`
+`kmo_booking` and `kmo_bridge` remain unexposed. Anonymous `staff.name` reads are allowed while anonymous `staff.phone` reads are denied; direct anonymous INSERT on `customers` and `bookings` is denied; anonymous execution of `create_booking_hold` is allowed.
 
-The shared `craftbike` Supabase profile is intentionally a **Developer** role. An attempted PostgREST settings PATCH returned HTTP 403, and no API configuration changed. This is the expected least-privilege boundary.
+One real KMO tenant was provisioned with only locked values: `KMO RACKBARCUSTOM`, slug `kmo-rackbarcustom`, default deposit 500 THB, active compatibility subscription, and cutover phase `dark_deploy`. PromptPay remains unset and no Auth owner has been created because `auth.users` is empty.
 
-`kmo_booking` and `kmo_bridge` must remain unexposed.
+Reproducible provisioning is tracked in supabase/kmo-baseline/KMO_BK01_TENANT_PROVISION.sql. Data API exposure is tracked in the root supabase/config.toml.
+
+Rollback-only booking smoke created temporary service/staff/schedule/customer/booking rows, verified a 500 THB hold and collision rejection, then rolled the transaction back. Post-rollback counts for service/staff/schedule/customer/booking/notification/history were all zero.
+
+Pre-deploy vs post-deploy object comparison of legacy `public.*` is exact: 28 tables, 413 columns, 103 constraints, 50 indexes, 3 policies, 28 RLS flags, 8 triggers and 53 functions all show added 0 / removed 0. Migration history remains 43 entries. Production data counts may continue changing because the legacy shop is live.
 
 ## Current verdict
 
 **DATABASE DARK DEPLOY: PASS**
 **LEGACY PROTECTION: PASS**
 **BACKUP / RESTORE EVIDENCE: PASS**
-**DATA API EXPOSURE: PENDING OWNER/ADMIN SETTING**
+**DATA API EXPOSURE: PASS**
+**KMO TENANT PROVISION: PASS**
+**BOOKING CORE ROLLBACK SMOKE: PASS**
+**ADMIN AUTH / SHOP MEMBERSHIP: PENDING REAL OWNER ACCOUNT**
+**PROMPTPAY / DEPOSIT END-TO-END: PENDING VERIFIED PROMPTPAY IDENTITY**
 **CUSTOMER CUTOVER: NOT STARTED**
 
-Do not seed or route traffic to BK01 until `local_service` exposure is verified and subsequent dark-deploy smoke tests pass.
+Do not route customer traffic to BK01 yet. The remaining real-user prerequisites are an intentional KMO Auth owner identity plus a verified supported PromptPay recipient before admin/deposit end-to-end smoke and later shadow/cutover gates.
