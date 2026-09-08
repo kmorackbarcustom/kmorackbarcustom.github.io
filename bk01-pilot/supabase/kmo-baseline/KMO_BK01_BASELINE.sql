@@ -1119,7 +1119,7 @@ BEGIN
         RAISE EXCEPTION 'Staff name is required' USING ERRCODE = '22023';
     END IF;
 
-    -- Ã Â¸ÂÃ Â¸Â²Ã Â¸Â£Ã Â¸â€žÃ Â¸Â·Ã Â¸â„¢Ã Â¸â€žÃ Â¹Ë†Ã Â¸Â²Ã Â¹ÂÃ Â¸Å¡Ã Â¸Å¡ Idempotent Ã Â¸ÂªÃ Â¸Â³Ã Â¸Â«Ã Â¸Â£Ã Â¸Â±Ã Â¸Å¡Ã Â¸â€žÃ Â¸Â³Ã Â¸â€šÃ Â¸Â­Ã Â¹â‚¬Ã Â¸â€Ã Â¸Â´Ã Â¸Â¡Ã Â¸â€”Ã Â¸ÂµÃ Â¹Ë†Ã Â¸ÂªÃ Â¸Â³Ã Â¹â‚¬Ã Â¸Â£Ã Â¹â€¡Ã Â¸Ë†Ã Â¹â€žÃ Â¸â€ºÃ Â¹ÂÃ Â¸Â¥Ã Â¹â€°Ã Â¸Â§ (Ã Â¸â€¢Ã Â¹â€°Ã Â¸Â­Ã Â¸â€¡Ã Â¸â€”Ã Â¸Â³Ã Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸ÂÃ Â¹Ë†Ã Â¸Â­Ã Â¸â„¢Ã Â¹â‚¬Ã Â¸Å Ã Â¹â€¡Ã Â¸â€žÃ Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€)
+    -- การคืนค่าแบบ Idempotent สำหรับคำขอเดิมที่สำเร็จไปแล้ว (ต้องทำงานก่อนเช็คขีดจำกัด)
     SELECT id
       INTO v_staff_id
       FROM local_service.staff
@@ -1134,7 +1134,7 @@ BEGIN
     -- create_staff calls near the limit cannot both pass the COUNT(*) gate.
     PERFORM pg_advisory_xact_lock(hashtext(v_shop_id::text));
 
-    -- Ã Â¸â€¢Ã Â¸Â£Ã Â¸Â§Ã Â¸Ë†Ã Â¸ÂªÃ Â¸Â­Ã Â¸Å¡Ã Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€¢Ã Â¸Â²Ã Â¸Â¡Ã Â¹ÂÃ Â¸Å¾Ã Â¹â€¡Ã Â¸ÂÃ Â¹â‚¬Ã Â¸ÂÃ Â¸Ë†
+    -- ตรวจสอบขีดจำกัดพนักงานตามแพ็กเกจ
     SELECT COALESCE(plan, 'free_trial')
       INTO v_plan
       FROM local_service.subscriptions
@@ -1199,7 +1199,7 @@ BEGIN
         RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Owner role required';
     END IF;
 
-    -- Ã Â¸Â«Ã Â¸Â²Ã Â¸ÂÃ Â¹â‚¬Ã Â¸â€ºÃ Â¹â€¡Ã Â¸â„¢Ã Â¸ÂÃ Â¸Â²Ã Â¸Â£Ã Â¹â‚¬Ã Â¸â€ºÃ Â¸Â´Ã Â¸â€Ã Â¹Æ’Ã Â¸Å Ã Â¹â€°Ã Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢ (Activate) Ã Â¹Æ’Ã Â¸Â«Ã Â¹â€°Ã Â¸â€¢Ã Â¸Â£Ã Â¸Â§Ã Â¸Ë†Ã Â¹â‚¬Ã Â¸Å Ã Â¹â€¡Ã Â¸â€žÃ Â¸â€šÃ Â¸ÂµÃ Â¸â€Ã Â¸Ë†Ã Â¸Â³Ã Â¸ÂÃ Â¸Â±Ã Â¸â€Ã Â¸Å¾Ã Â¸â„¢Ã Â¸Â±Ã Â¸ÂÃ Â¸â€¡Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€šÃ Â¸Â­Ã Â¸â€¡Ã Â¸Â£Ã Â¹â€°Ã Â¸Â²Ã Â¸â„¢
+    -- หากเป็นการเปิดใช้งานพนักงาน (Activate) ให้ตรวจเช็คขีดจำกัดพนักงานของร้าน
     IF p_is_active = true AND (v_current_is_active IS DISTINCT FROM true) THEN
         -- Lock the shop's staff-limit slot transactionally so two concurrent
         -- set_staff_active/reactivate calls near the limit cannot both pass
@@ -1287,7 +1287,7 @@ BEGIN
         shop_id, staff_id, holiday_date, reason, creation_idempotency_key
     ) VALUES (
         p_shop_id, NULL, p_holiday_date,
-        COALESCE(NULLIF(BTRIM(p_reason), ''), 'Ã Â¸Â§Ã Â¸Â±Ã Â¸â„¢Ã Â¸Â«Ã Â¸Â¢Ã Â¸Â¸Ã Â¸â€Ã Â¸Å¾Ã Â¸Â´Ã Â¹â‚¬Ã Â¸Â¨Ã Â¸Â©Ã Â¸Â£Ã Â¹â€°Ã Â¸Â²Ã Â¸â„¢Ã Â¸â€žÃ Â¹â€°Ã Â¸Â²'),
+        COALESCE(NULLIF(BTRIM(p_reason), ''), 'วันหยุดพิเศษร้านค้า'),
         p_idempotency_key
     )
     RETURNING id INTO v_holiday_id;
@@ -1742,7 +1742,7 @@ CREATE POLICY "KMO owner closure read" ON local_service.account_closure_requests
 REVOKE ALL ON ALL TABLES IN SCHEMA local_service FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON local_service.shop_public_profile TO anon,authenticated;
 GRANT SELECT(id,shop_id,name,description,duration_minutes,price,deposit_amount) ON local_service.services TO anon;
-GRANT SELECT(id,name,description,duration_minutes,price,deposit_amount,is_active,created_at) ON local_service.services TO authenticated;
+GRANT SELECT(id,shop_id,name,description,duration_minutes,price,deposit_amount,is_active,created_at) ON local_service.services TO authenticated;
 GRANT SELECT(id,shop_id,name,nickname) ON local_service.staff TO anon;
 GRANT SELECT(id,shop_id,name,nickname,phone,is_active,created_at) ON local_service.staff TO authenticated;
 GRANT SELECT(staff_id,day_of_week,is_working_day,work_start,work_end,break_start,break_end) ON local_service.staff_schedules TO anon;

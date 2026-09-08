@@ -28,7 +28,7 @@ test('KMO admin copy has no SaaS billing surface or paid booking wall', () => {
     const dashboard = JSON.stringify(messages.dashboard);
     assert.doesNotMatch(dashboard, /stripe|checkout|customer portal/i);
     assert.doesNotMatch(dashboard, /100%|guaranteed/i);
-    assert.doesNotMatch(dashboard, /100 bookings|500 bookings|100 à¸„à¸´à¸§|500 à¸„à¸´à¸§/i);
+    assert.doesNotMatch(dashboard, /100 bookings|500 bookings|100 คิว|500 คิว/i);
   }
 });
 

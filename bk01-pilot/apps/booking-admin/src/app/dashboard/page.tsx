@@ -579,7 +579,7 @@ export default function AdminDashboard() {
               <span className="text-xs font-medium">{t('statDepositCollected')}</span>
               <DollarSign className="w-4 h-4 text-emerald-400" />
             </div>
-            <p className="text-2xl font-bold text-white font-mono">Ã Â¸Â¿{depositCollected}.00</p>
+            <p className="text-2xl font-bold text-white font-mono">฿{depositCollected}.00</p>
           </div>
         </div>
 
@@ -676,7 +676,7 @@ export default function AdminDashboard() {
                         {b.date} {b.date === todayStr ? <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-sans ml-1">{t('todayLabel')}</span> : ''}
                       </td>
                       <td className="py-4 px-4 font-mono text-emerald-300 font-bold text-sm whitespace-nowrap">{b.time}{t('timeSuffix')}</td>
-                      <td className="py-4 px-4 font-mono font-extrabold text-amber-400 text-base whitespace-nowrap">Ã Â¸Â¿{b.depositPrice}</td>
+                      <td className="py-4 px-4 font-mono font-extrabold text-amber-400 text-base whitespace-nowrap">฿{b.depositPrice}</td>
                       <td className="py-4 px-4 whitespace-nowrap">
                         {b.status === 'hold' && (
                           <span className="bg-sky-500/10 text-sky-300 border border-sky-500/30 px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap inline-block shadow-sm">
@@ -943,7 +943,7 @@ export default function AdminDashboard() {
                           <div key={h.id} className="flex justify-between items-center bg-slate-900 border border-rose-500/30 rounded-xl p-3 text-xs hover:border-rose-500/60 transition-all shadow-sm">
                             <div className="flex items-center gap-3">
                               <span className="bg-rose-500/10 text-rose-400 border border-rose-500/30 font-mono font-bold px-2.5 py-1 rounded-lg text-xs">
-                                Ã°Å¸â€œâ€¦ {h.date}
+                                📅 {h.date}
                               </span>
                               <span className="text-slate-200 font-semibold">{h.reason || t('annualCloseDefault')}</span>
                             </div>
@@ -1269,14 +1269,14 @@ export default function AdminDashboard() {
                         <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{sv.description}</p>
                       </div>
                       <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 font-mono">
-                        Ã Â¸Â¿{sv.price}
+                        ฿{sv.price}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs border-t border-slate-800/80 pt-3">
                       <div className="flex items-center gap-3">
                         <span className="text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {t('durationMinutes', { minutes: sv.duration })}</span>
-                        <span className="text-amber-400 font-semibold">{t('depositPrefix')}Ã Â¸Â¿{sv.deposit}</span>
+                        <span className="text-amber-400 font-semibold">{t('depositPrefix')}฿{sv.deposit}</span>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1454,7 +1454,7 @@ export default function AdminDashboard() {
             <div className="text-xs space-y-1 text-slate-300">
               <p>{t('slipCustomer')}<span className="font-semibold text-white">{selectedSlipBooking.customerName}</span> ({selectedSlipBooking.phone})</p>
               <p>{t('slipService')}<span className="text-white">{selectedSlipBooking.serviceName}</span></p>
-              <p>{t('slipAmountInSlip')}<span className="font-mono font-bold text-emerald-400">Ã Â¸Â¿{selectedSlipBooking.depositPrice}.00</span></p>
+              <p>{t('slipAmountInSlip')}<span className="font-mono font-bold text-emerald-400">฿{selectedSlipBooking.depositPrice}.00</span></p>
             </div>
 
             <div className="space-y-2 pt-2">

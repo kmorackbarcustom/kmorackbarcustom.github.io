@@ -179,7 +179,7 @@ function toAmount(value: number | string | null): number {
 export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) {
-    throw new Error('à¹€à¸‹à¸ªà¸Šà¸±à¸™à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸ à¸à¸£à¸¸à¸“à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸šà¹ƒà¸«à¸¡à¹ˆ');
+    throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -190,7 +190,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     .single();
 
   if (membershipError || !membership) {
-    throw new Error(membershipError?.message || 'à¹„à¸¡à¹ˆà¸žà¸šà¸ªà¸´à¸—à¸˜à¸´à¹Œà¸£à¹‰à¸²à¸™à¸„à¹‰à¸²à¸‚à¸­à¸‡à¸šà¸±à¸à¸Šà¸µà¸™à¸µà¹‰');
+    throw new Error(membershipError?.message || 'ไม่พบสิทธิ์ร้านค้าของบัญชีนี้');
   }
 
   const [shopResult, bookingsResult, servicesResult, staffResult, schedulesResult, holidaysResult] = await Promise.all([
@@ -244,7 +244,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   ]);
 
   if (shopResult.error || !shopResult.data) {
-    throw new Error(shopResult.error?.message || 'à¹‚à¸«à¸¥à¸”à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ');
+    throw new Error(shopResult.error?.message || 'โหลดข้อมูลร้านค้าไม่สำเร็จ');
   }
 
   if (bookingsResult.error) {
@@ -268,7 +268,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     id: staffMember.id,
     name: staffMember.name,
     phone: staffMember.phone ?? '-',
-    role: staffMember.nickname || 'à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¹ƒà¸«à¹‰à¸šà¸£à¸´à¸à¸²à¸£',
+    role: staffMember.nickname || 'พนักงานให้บริการ',
     isActive: staffMember.is_active,
   }));
 
@@ -280,10 +280,10 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     return {
       id: booking.id,
       bookingCode: booking.booking_code,
-      customerName: customer?.name ?? 'à¹„à¸¡à¹ˆà¸žà¸šà¸Šà¸·à¹ˆà¸­à¸¥à¸¹à¸à¸„à¹‰à¸²',
+      customerName: customer?.name ?? 'ไม่พบชื่อลูกค้า',
       phone: customer?.phone ?? '-',
-      serviceName: service?.name ?? 'à¹„à¸¡à¹ˆà¸žà¸šà¸šà¸£à¸´à¸à¸²à¸£',
-      staffName: staff?.nickname || staff?.name || 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸à¸žà¸™à¸±à¸à¸‡à¸²à¸™',
+      serviceName: service?.name ?? 'ไม่พบบริการ',
+      staffName: staff?.nickname || staff?.name || 'ยังไม่ระบุพนักงาน',
       date: booking.booking_date,
       time: booking.start_time.slice(0, 5),
       totalPrice: toAmount(booking.total_price),
@@ -346,7 +346,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     holidays: ((holidaysResult.data ?? []) as RawHoliday[]).map((holiday) => ({
       id: holiday.id,
       date: holiday.holiday_date,
-      reason: holiday.reason ?? 'à¸§à¸±à¸™à¸«à¸¢à¸¸à¸”à¸žà¸´à¹€à¸¨à¸©à¸£à¹‰à¸²à¸™à¸„à¹‰à¸²',
+      reason: holiday.reason ?? 'วันหยุดพิเศษร้านค้า',
     })),
   };
 }
@@ -503,7 +503,7 @@ export async function createSignedDepositSlipUrl(objectPath: string): Promise<st
     .from('deposit-slips')
     .createSignedUrl(objectPath, 300);
   if (error || !data?.signedUrl) {
-    throw new Error(error?.message || 'à¸ªà¸£à¹‰à¸²à¸‡à¸¥à¸´à¸‡à¸à¹Œà¸”à¸¹à¸ªà¸¥à¸´à¸›à¸Šà¸±à¹ˆà¸§à¸„à¸£à¸²à¸§à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ');
+    throw new Error(error?.message || 'สร้างลิงก์ดูสลิปชั่วคราวไม่สำเร็จ');
   }
   return data.signedUrl;
 }
