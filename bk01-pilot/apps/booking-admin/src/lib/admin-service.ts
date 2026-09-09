@@ -45,11 +45,15 @@ export interface DashboardShop {
   role: 'owner' | 'admin' | 'staff';
 }
 
+export type ServiceDurationUnit = 'minute' | 'hour' | 'day';
+
 export interface DashboardService {
   id: string;
   name: string;
   description: string;
   duration: number;
+  durationValue: number;
+  durationUnit: ServiceDurationUnit;
   price: number;
   deposit: number;
   isActive: boolean;
@@ -78,6 +82,14 @@ export interface DashboardStaffSchedule {
   days: DashboardScheduleDay[];
 }
 
+export interface DashboardShopScheduleDay {
+  dayOfWeek: number;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+  configured: boolean;
+}
+
 export interface DashboardHoliday {
   id: string;
   date: string;
@@ -91,6 +103,7 @@ export interface AdminDashboardData {
   services: DashboardService[];
   staff: DashboardStaff[];
   schedules: DashboardStaffSchedule[];
+  shopWeeklySchedule: DashboardShopScheduleDay[];
   holidays: DashboardHoliday[];
 }
 
@@ -126,6 +139,8 @@ interface RawService {
   name: string;
   description: string | null;
   duration_minutes: number;
+  duration_value: number | string;
+  duration_unit: ServiceDurationUnit;
   price: number | string;
   deposit_amount: number | string | null;
   is_active: boolean;
@@ -158,6 +173,13 @@ interface RawSchedule {
   work_end: string;
   break_start: string | null;
   break_end: string | null;
+}
+
+interface RawShopWeeklySchedule {
+  day_of_week: number;
+  is_open: boolean;
+  open_time: string | null;
+  close_time: string | null;
 }
 
 interface RawHoliday {
@@ -193,7 +215,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     throw new Error(membershipError?.message || 'ไม่พบสิทธิ์ร้านค้าของบัญชีนี้');
   }
 
-  const [shopResult, bookingsResult, servicesResult, staffResult, schedulesResult, holidaysResult] = await Promise.all([
+  const [shopResult, bookingsResult, servicesResult, staffResult, schedulesResult, shopWeeklyResult, holidaysResult] = await Promise.all([
     supabase
       .from('shops')
       .select('id, name, slug, phone, address, promptpay_number, promptpay_name, line_oa_id')
@@ -220,7 +242,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       .order('start_time', { ascending: false }),
     supabase
       .from('services')
-      .select('id, name, description, duration_minutes, price, deposit_amount, is_active')
+      .select('id, name, description, duration_minutes, duration_value, duration_unit, price, deposit_amount, is_active')
       .eq('shop_id', membership.shop_id)
       .order('is_active', { ascending: false })
       .order('created_at', { ascending: true }),
@@ -233,6 +255,11 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     supabase
       .from('staff_schedules')
       .select('staff_id, day_of_week, is_working_day, work_start, work_end, break_start, break_end')
+      .eq('shop_id', membership.shop_id)
+      .order('day_of_week', { ascending: true }),
+    supabase
+      .from('shop_weekly_schedules')
+      .select('day_of_week, is_open, open_time, close_time')
       .eq('shop_id', membership.shop_id)
       .order('day_of_week', { ascending: true }),
     supabase
@@ -260,10 +287,12 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   }
 
   if (schedulesResult.error) throw new Error(schedulesResult.error.message);
+  if (shopWeeklyResult.error) throw new Error(shopWeeklyResult.error.message);
   if (holidaysResult.error) throw new Error(holidaysResult.error.message);
 
 
   const rawSchedules = (schedulesResult.data ?? []) as RawSchedule[];
+  const rawShopWeekly = (shopWeeklyResult.data ?? []) as RawShopWeeklySchedule[];
   const dashboardStaff = ((staffResult.data ?? []) as unknown as RawStaff[]).map((staffMember) => ({
     id: staffMember.id,
     name: staffMember.name,
@@ -314,6 +343,8 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       name: service.name,
       description: service.description ?? '',
       duration: service.duration_minutes,
+      durationValue: toAmount(service.duration_value),
+      durationUnit: service.duration_unit,
       price: toAmount(service.price),
       deposit: toAmount(service.deposit_amount),
       isActive: service.is_active,
@@ -343,12 +374,45 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
         };
       }),
     })),
+    shopWeeklySchedule: Array.from({ length: 7 }, (_, dayOfWeek) => {
+      const day = rawShopWeekly.find((row) => row.day_of_week === dayOfWeek);
+      return day ? {
+        dayOfWeek,
+        isOpen: day.is_open,
+        openTime: day.open_time?.slice(0, 5) ?? '',
+        closeTime: day.close_time?.slice(0, 5) ?? '',
+        configured: true,
+      } : {
+        dayOfWeek,
+        isOpen: false,
+        openTime: '',
+        closeTime: '',
+        configured: false,
+      };
+    }),
     holidays: ((holidaysResult.data ?? []) as RawHoliday[]).map((holiday) => ({
       id: holiday.id,
       date: holiday.holiday_date,
       reason: holiday.reason ?? 'วันหยุดพิเศษร้านค้า',
     })),
   };
+}
+
+export interface ShopProfileInput {
+  name: string;
+  phone: string;
+  address: string;
+}
+
+export async function updateShopProfile(shopId: string, input: ShopProfileInput): Promise<void> {
+  const { error } = await supabase.rpc('update_shop_profile', {
+    p_shop_id: shopId,
+    p_name: input.name,
+    p_phone: input.phone,
+    p_address: input.address,
+  });
+
+  if (error) throw new Error(error.message);
 }
 
 export interface ShopSettingsInput {
@@ -369,6 +433,24 @@ export async function updateShopSettings(shopId: string, input: ShopSettingsInpu
     p_promptpay_number: input.promptpayNumber,
     p_promptpay_name: input.promptpayName,
     p_line_oa_id: input.lineOaId,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+
+export async function saveShopWeeklySchedule(
+  shopId: string,
+  days: DashboardShopScheduleDay[],
+): Promise<void> {
+  const { error } = await supabase.rpc('upsert_shop_weekly_schedule', {
+    p_shop_id: shopId,
+    p_days: days.map((day) => ({
+      day_of_week: day.dayOfWeek,
+      is_open: day.isOpen,
+      open_time: day.isOpen ? day.openTime : null,
+      close_time: day.isOpen ? day.closeTime : null,
+    })),
   });
 
   if (error) throw new Error(error.message);
@@ -415,17 +497,19 @@ export async function deleteShopHoliday(holidayId: string): Promise<void> {
 export interface ServiceInput {
   name: string;
   description: string;
-  duration: number;
+  durationValue: number;
+  durationUnit: ServiceDurationUnit;
   price: number;
   deposit: number;
 }
 
 export async function createService(shopId: string, input: ServiceInput): Promise<void> {
-  const { error } = await supabase.rpc('create_service', {
+  const { error } = await supabase.rpc('create_service_v2', {
     p_shop_id: shopId,
     p_name: input.name,
     p_description: input.description,
-    p_duration_minutes: input.duration,
+    p_duration_value: input.durationValue,
+    p_duration_unit: input.durationUnit,
     p_price: input.price,
     p_deposit_amount: input.deposit,
     p_idempotency_key: crypto.randomUUID(),
@@ -435,11 +519,12 @@ export async function createService(shopId: string, input: ServiceInput): Promis
 }
 
 export async function updateService(serviceId: string, input: ServiceInput): Promise<void> {
-  const { error } = await supabase.rpc('update_service', {
+  const { error } = await supabase.rpc('update_service_v2', {
     p_service_id: serviceId,
     p_name: input.name,
     p_description: input.description,
-    p_duration_minutes: input.duration,
+    p_duration_value: input.durationValue,
+    p_duration_unit: input.durationUnit,
     p_price: input.price,
     p_deposit_amount: input.deposit,
   });

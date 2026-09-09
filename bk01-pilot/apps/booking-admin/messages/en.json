@@ -233,7 +233,13 @@
     "serviceNamePlaceholder": "e.g. Premium men's cut + shampoo & set",
     "serviceDescLabel": "Service description",
     "serviceDescPlaceholder": "Brief description so customers understand",
-    "serviceDurationLabel": "Service duration (minutes) *",
+    "serviceDurationLabel": "Service duration *",
+    "durationUnits": {
+      "minute": "minutes",
+      "hour": "hours",
+      "day": "days"
+    },
+    "dayDurationNotice": "Day-based services can be saved, but online booking stays disabled until the multi-day booking engine is ready.",
     "servicePriceLabel": "Full service price (THB) *",
     "serviceDepositLabel": "PromptPay deposit amount (THB) *",
     "saveChanges": "Save changes",
@@ -271,9 +277,20 @@
     "addHolidayFailed": "Failed to add holiday",
     "deleteHolidayFailed": "Failed to delete holiday",
     "saveScheduleFailed": "Failed to save schedule",
+    "staffScheduleOutsideShopHours": "Staff schedules must stay within the shop's open days and hours, and breaks must stay inside working hours.",
+    "staffShopClosedDay": "{day}: shop closed, staff cannot accept bookings",
     "saveServiceFailed": "Failed to save service",
     "toggleServiceFailed": "Failed to change service status",
-    "depositExceedsPrice": "Deposit must not be greater than the service price"
+    "serviceNumbersInvalid": "Enter valid numbers for duration, price, and deposit. Numeric fields cannot be blank.",
+    "depositExceedsPrice": "Deposit must not be greater than the service price",
+    "shopWeeklyTitle": "Shop weekly opening hours",
+    "shopWeeklySubtitle": "Freely configure recurring open/closed days and shop hours independently from staff schedules.",
+    "shopWeeklyOpen": "Open",
+    "shopWeeklyClosed": "Closed",
+    "shopWeeklyNotConfigured": "This day has not been configured yet",
+    "saveShopWeekly": "Save shop opening hours",
+    "shopWeeklyInvalidHours": "Each open day requires valid opening and closing times, with opening before closing.",
+    "saveShopWeeklyFailed": "Failed to save shop weekly opening hours"
   },
   "tickets": {
     "backToDashboard": "Back to main dashboard",

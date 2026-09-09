@@ -233,7 +233,13 @@
     "serviceNamePlaceholder": "เช่น ตัดผมชายพรีเมียม + สระเซ็ต",
     "serviceDescLabel": "รายละเอียดบริการ",
     "serviceDescPlaceholder": "อธิบายรายละเอียดสั้นๆ เพื่อให้ลูกค้าเข้าใจ",
-    "serviceDurationLabel": "ระยะเวลาการให้บริการ (นาที) *",
+    "serviceDurationLabel": "ระยะเวลาการให้บริการ *",
+    "durationUnits": {
+      "minute": "นาที",
+      "hour": "ชั่วโมง",
+      "day": "วัน"
+    },
+    "dayDurationNotice": "บริการแบบวันจะบันทึกได้ แต่ยังไม่เปิดจองออนไลน์จนกว่าระบบจองแบบหลายวันจะพร้อม",
     "servicePriceLabel": "ราคาบริการทั้งหมด (บาท) *",
     "serviceDepositLabel": "ยอดเงินมัดจำ PromptPay (บาท) *",
     "saveChanges": "บันทึกการแก้ไข",
@@ -271,9 +277,20 @@
     "addHolidayFailed": "เพิ่มวันหยุดไม่สำเร็จ",
     "deleteHolidayFailed": "ลบวันหยุดไม่สำเร็จ",
     "saveScheduleFailed": "บันทึกตารางเวลาไม่สำเร็จ",
+    "staffScheduleOutsideShopHours": "ตารางพนักงานต้องอยู่ภายในวันและเวลาเปิดของร้าน และช่วงพักต้องอยู่ภายในเวลาทำงาน",
+    "staffShopClosedDay": "{day}: ร้านปิด พนักงานรับคิวไม่ได้",
     "saveServiceFailed": "บันทึกบริการไม่สำเร็จ",
     "toggleServiceFailed": "เปลี่ยนสถานะบริการไม่สำเร็จ",
-    "depositExceedsPrice": "ยอดเงินมัดจำต้องไม่มากกว่าราคาบริการ"
+    "serviceNumbersInvalid": "กรุณากรอกระยะเวลา ราคา และมัดจำเป็นตัวเลขที่ถูกต้อง ช่องตัวเลขห้ามเว้นว่าง",
+    "depositExceedsPrice": "ยอดเงินมัดจำต้องไม่มากกว่าราคาบริการ",
+    "shopWeeklyTitle": "เวลาทำการประจำสัปดาห์ของร้าน",
+    "shopWeeklySubtitle": "กำหนดวันเปิด/ปิดประจำและเวลาเปิดร้านได้อิสระทุกวัน โดยไม่ผูกกับตารางพนักงาน",
+    "shopWeeklyOpen": "เปิด",
+    "shopWeeklyClosed": "ปิด",
+    "shopWeeklyNotConfigured": "ยังไม่ได้ตั้งค่าวันนี้",
+    "saveShopWeekly": "บันทึกเวลาทำการร้าน",
+    "shopWeeklyInvalidHours": "วันที่เปิดร้านต้องระบุเวลาเปิดและปิดให้ถูกต้อง โดยเวลาเปิดต้องก่อนเวลาปิด",
+    "saveShopWeeklyFailed": "บันทึกเวลาทำการประจำสัปดาห์ไม่สำเร็จ"
   },
   "tickets": {
     "backToDashboard": "กลับหน้าแดชบอร์ดหลัก",

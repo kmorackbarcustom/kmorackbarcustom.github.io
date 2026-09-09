@@ -27,6 +27,24 @@
     "callShop": "Call the shop ({phone})",
     "callShopEmergency": "Call the shop for urgent help ({phone})",
     "loadingShop": "Loading shop details...",
+    "durationUnits": {
+      "minute": "minutes",
+      "hour": "hours",
+      "day": "days"
+    },
+    "notFound": {
+      "title": "Shop page not found",
+      "description": "The link may be incorrect or this shop has not opened online booking yet."
+    },
+    "loadFailed": {
+      "title": "Unable to load booking data",
+      "description": "The booking system cannot load shop data right now. Please try again or contact the shop directly."
+    },
+    "setupState": {
+      "noServices": "This shop has no services available for online booking yet.",
+      "noStaff": "No staff are currently available for online booking, so time selection is disabled.",
+      "noSlots": "There are no available time slots on the selected date. Choose another date or contact the shop."
+    },
     "blocked": {
       "title": "This shop is not accepting online bookings right now",
       "description": "Please contact the shop directly for more information."
@@ -54,6 +72,7 @@
       "title": "1. Select a service",
       "description": "Choose a service to see duration and deposit details.",
       "depositLabel": "Deposit ฿{amount}",
+      "dayBookingUnavailable": "This service is measured in days. It can be configured now, but multi-day online booking is not enabled yet.",
       "next": "Next: Staff & time"
     },
     "step2": {
@@ -72,7 +91,9 @@
       "unavailable": "Unavailable",
       "shopClosed": "Shop closed",
       "next": "Next: Pay deposit",
-      "locking": "Locking the time slot..."
+      "locking": "Locking the time slot...",
+      "shopClosedWeekly": "Shop is regularly closed on this weekday",
+      "outsideShopHours": "Outside shop opening hours"
     },
     "step3": {
       "title": "3. Pay PromptPay deposit & confirm",
@@ -108,6 +129,7 @@
     "footer": "Powered by {brand} • Secure booking",
     "errors": {
       "shopBlocked": "This shop is not accepting online bookings right now",
+      "dayBookingUnavailable": "Day-based services are not yet available for online booking. Please contact the shop directly.",
       "requiredNamePhone": "Please enter the customer name and phone number.",
       "phoneRequired": "Please enter the customer phone number.",
       "nameRequired": "Please enter the customer name.",

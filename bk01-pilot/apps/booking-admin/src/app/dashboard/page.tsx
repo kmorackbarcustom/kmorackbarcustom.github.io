@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   approveBookingDeposit,
@@ -15,19 +15,23 @@ import {
   exportCoreBusinessData,
   rejectBookingDeposit,
   requestAccountClosure,
+  saveShopWeeklySchedule,
   saveStaffWeeklySchedule,
   setServiceActive,
   setBookingOutcome,
   setStaffActive,
   updateService,
+  updateShopProfile,
   updateShopSettings,
   type DashboardBooking,
   type DashboardService,
   type DashboardStaff,
   type DashboardStaffSchedule,
+  type DashboardShopScheduleDay,
   type DashboardHoliday,
 } from '@/lib/admin-service';
 import { LanguageToggle } from '@/components/language-toggle';
+import { isValidTimeInput, normalizeTimeInput } from '@/lib/time-input';
 import { 
   Calendar, Users, DollarSign, Eye, Clock,
   Settings, AlertCircle, Plus, ShieldCheck,
@@ -40,6 +44,14 @@ type Booking = DashboardBooking;
 
 type StaffMember = DashboardStaff;
 type ServiceItem = DashboardService;
+
+function cloneStaffSchedule(schedule: DashboardStaffSchedule): DashboardStaffSchedule {
+  return { ...schedule, days: schedule.days.map((day) => ({ ...day })) };
+}
+
+function buildScheduleSnapshotMap(schedules: DashboardStaffSchedule[]): Record<string, DashboardStaffSchedule> {
+  return Object.fromEntries(schedules.map((schedule) => [schedule.staffId, cloneStaffSchedule(schedule)]));
+}
 
 const BOOKING_SITE_URL = (process.env.NEXT_PUBLIC_BOOKING_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
@@ -63,6 +75,8 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [schedules, setSchedules] = useState<DashboardStaffSchedule[]>([]);
+  const savedScheduleSnapshots = useRef<Record<string, DashboardStaffSchedule>>({});
+  const [shopWeeklySchedule, setShopWeeklySchedule] = useState<DashboardShopScheduleDay[]>([]);
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<Record<string, number>>({});
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [selectedSlipBooking, setSelectedSlipBooking] = useState<Booking | null>(null);
@@ -90,9 +104,10 @@ export default function AdminDashboard() {
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [serviceName, setServiceName] = useState('');
   const [serviceDesc, setServiceDesc] = useState('');
-  const [serviceDuration, setServiceDuration] = useState(45);
-  const [servicePrice, setServicePrice] = useState(350);
-  const [serviceDeposit, setServiceDeposit] = useState(100);
+  const [serviceDuration, setServiceDuration] = useState('45');
+  const [serviceDurationUnit, setServiceDurationUnit] = useState<'minute' | 'hour' | 'day'>('minute');
+  const [servicePrice, setServicePrice] = useState('350');
+  const [serviceDeposit, setServiceDeposit] = useState('100');
 
   // Filter Bookings by Date View
   const [bookingFilter, setBookingFilter] = useState<'today' | 'upcoming' | 'all'>('all');
@@ -146,6 +161,8 @@ export default function AdminDashboard() {
       setServices(data.services);
       setStaffList(data.staff);
       setSchedules(data.schedules);
+      savedScheduleSnapshots.current = buildScheduleSnapshotMap(data.schedules);
+      setShopWeeklySchedule(data.shopWeeklySchedule);
       setHolidaysList(data.holidays);
     } catch (error) {
       const message = error instanceof Error ? error.message : t('loadFailed');
@@ -175,6 +192,8 @@ export default function AdminDashboard() {
         setServices(data.services);
         setStaffList(data.staff);
         setSchedules(data.schedules);
+      savedScheduleSnapshots.current = buildScheduleSnapshotMap(data.schedules);
+        setShopWeeklySchedule(data.shopWeeklySchedule);
         setHolidaysList(data.holidays);
       })
       .catch((error: unknown) => {
@@ -292,6 +311,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSaveShopProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shopId || shopRole !== 'owner') return;
+
+    setMutatingResourceId('shop-profile');
+    setManagementError('');
+    try {
+      await updateShopProfile(shopId, {
+        name: shopName,
+        phone: shopPhone,
+        address: shopAddress,
+      });
+      setShopSettingsSaved(true);
+      setTimeout(() => setShopSettingsSaved(false), 2000);
+    } catch (error) {
+      setManagementError(error instanceof Error ? error.message : t('saveShopFailed'));
+    } finally {
+      setMutatingResourceId(null);
+    }
+  };
+
   const handleSaveShopSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shopId || shopRole !== 'owner') return;
@@ -401,6 +441,46 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateShopScheduleDay = (
+    dayOfWeek: number,
+    changes: Partial<DashboardShopScheduleDay>,
+  ) => {
+    setShopWeeklySchedule((previous) => previous.map((day) => day.dayOfWeek === dayOfWeek
+      ? { ...day, ...changes, configured: true }
+      : day));
+  };
+
+  const handleSaveShopWeeklySchedule = async () => {
+    if (!shopId || shopRole === 'staff') return;
+    const normalizedSchedule = shopWeeklySchedule.map((day) => ({
+      ...day,
+      openTime: day.isOpen ? normalizeTimeInput(day.openTime) : '',
+      closeTime: day.isOpen ? normalizeTimeInput(day.closeTime) : '',
+    }));
+    const invalidOpenDay = normalizedSchedule.some((day) => (
+      day.isOpen && (
+        !isValidTimeInput(day.openTime)
+        || !isValidTimeInput(day.closeTime)
+        || day.openTime >= day.closeTime
+      )
+    ));
+    if (normalizedSchedule.length !== 7 || invalidOpenDay) {
+      setManagementError(t('shopWeeklyInvalidHours'));
+      return;
+    }
+
+    setShopWeeklySchedule(normalizedSchedule);
+    setMutatingResourceId('shop-weekly-schedule');
+    setManagementError('');
+    try {
+      await saveShopWeeklySchedule(shopId, normalizedSchedule);
+    } catch (error) {
+      setManagementError(error instanceof Error ? error.message : t('saveShopWeeklyFailed'));
+    } finally {
+      setMutatingResourceId(null);
+    }
+  };
+
   const updateScheduleDay = (
     staffId: string,
     dayOfWeek: number,
@@ -412,12 +492,54 @@ export default function AdminDashboard() {
   };
 
   const handleSaveSchedule = async (schedule: DashboardStaffSchedule) => {
+    const normalizedDays = schedule.days.map((day) => {
+      const shopDay = shopWeeklySchedule.find((item) => item.dayOfWeek === day.dayOfWeek);
+      return {
+        ...day,
+        isWorkingDay: Boolean(day.isWorkingDay && shopDay?.isOpen),
+        workStart: normalizeTimeInput(day.workStart),
+        workEnd: normalizeTimeInput(day.workEnd),
+        breakStart: day.breakStart ? normalizeTimeInput(day.breakStart) : '',
+        breakEnd: day.breakEnd ? normalizeTimeInput(day.breakEnd) : '',
+      };
+    });
+
+    const invalidDay = normalizedDays.some((day) => {
+      const shopDay = shopWeeklySchedule.find((item) => item.dayOfWeek === day.dayOfWeek);
+      if (!isValidTimeInput(day.workStart) || !isValidTimeInput(day.workEnd) || day.workStart >= day.workEnd) return true;
+      if ((day.breakStart && !day.breakEnd) || (!day.breakStart && day.breakEnd)) return true;
+      if (day.breakStart && day.breakEnd && (
+        !isValidTimeInput(day.breakStart)
+        || !isValidTimeInput(day.breakEnd)
+        || day.breakStart >= day.breakEnd
+        || day.breakStart < day.workStart
+        || day.breakEnd > day.workEnd
+      )) return true;
+      if (day.isWorkingDay && (!shopDay?.isOpen || day.workStart < shopDay.openTime || day.workEnd > shopDay.closeTime)) return true;
+      return false;
+    });
+
+    if (invalidDay) {
+      setManagementError(t('staffScheduleOutsideShopHours'));
+      return;
+    }
+
     setMutatingResourceId(schedule.staffId);
     setManagementError('');
     try {
-      await saveStaffWeeklySchedule(schedule.staffId, schedule.days);
-      await loadDashboardBookings(false);
+      await saveStaffWeeklySchedule(schedule.staffId, normalizedDays);
+      const saved = cloneStaffSchedule({ ...schedule, days: normalizedDays });
+      savedScheduleSnapshots.current[schedule.staffId] = saved;
+      setSchedules((previous) => previous.map((item) => item.staffId === schedule.staffId
+        ? cloneStaffSchedule(saved)
+        : item));
     } catch (error) {
+      const saved = savedScheduleSnapshots.current[schedule.staffId];
+      if (saved) {
+        setSchedules((previous) => previous.map((item) => item.staffId === schedule.staffId
+          ? cloneStaffSchedule(saved)
+          : item));
+      }
       setManagementError(error instanceof Error ? error.message : t('saveScheduleFailed'));
     } finally {
       setMutatingResourceId(null);
@@ -428,9 +550,10 @@ export default function AdminDashboard() {
     setEditingService(null);
     setServiceName('');
     setServiceDesc('');
-    setServiceDuration(45);
-    setServicePrice(350);
-    setServiceDeposit(100);
+    setServiceDuration('45');
+    setServiceDurationUnit('minute');
+    setServicePrice('350');
+    setServiceDeposit('100');
     setShowServiceForm(true);
   };
 
@@ -438,9 +561,10 @@ export default function AdminDashboard() {
     setEditingService(sv);
     setServiceName(sv.name);
     setServiceDesc(sv.description);
-    setServiceDuration(sv.duration);
-    setServicePrice(sv.price);
-    setServiceDeposit(sv.deposit);
+    setServiceDuration(String(sv.durationValue));
+    setServiceDurationUnit(sv.durationUnit);
+    setServicePrice(String(sv.price));
+    setServiceDeposit(String(sv.deposit));
     setShowServiceForm(true);
   };
 
@@ -448,7 +572,21 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!shopId || !serviceName.trim()) return;
 
-    if (serviceDeposit > servicePrice) {
+    const duration = Number(serviceDuration);
+    const price = Number(servicePrice);
+    const deposit = Number(serviceDeposit);
+    const durationIsValid = Number.isFinite(duration) && duration > 0 && (
+      serviceDurationUnit === 'hour'
+        ? Number.isInteger(duration * 60)
+        : Number.isInteger(duration)
+    );
+    if (!serviceDuration.trim() || !durationIsValid
+      || !servicePrice.trim() || !Number.isFinite(price) || price < 0
+      || !serviceDeposit.trim() || !Number.isFinite(deposit) || deposit < 0) {
+      setManagementError(t('serviceNumbersInvalid'));
+      return;
+    }
+    if (deposit > price) {
       setManagementError(t('depositExceedsPrice'));
       return;
     }
@@ -456,9 +594,10 @@ export default function AdminDashboard() {
     const input = {
       name: serviceName.trim(),
       description: serviceDesc.trim(),
-      duration: serviceDuration,
-      price: servicePrice,
-      deposit: serviceDeposit,
+      durationValue: duration,
+      durationUnit: serviceDurationUnit,
+      price,
+      deposit,
     };
 
     setMutatingResourceId(editingService?.id ?? 'service-new');
@@ -781,6 +920,50 @@ export default function AdminDashboard() {
         {activeTab === 'schedules' && (
           <div className="space-y-6">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Store className="w-5 h-5 text-emerald-400" />
+                  {t('shopWeeklyTitle')}
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">{t('shopWeeklySubtitle')}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {shopWeeklySchedule.map((day) => (
+                  <div key={day.dayOfWeek} className={`rounded-xl border p-3 space-y-3 ${day.isOpen ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}>
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-sm text-white">{DAY_NAMES[day.dayOfWeek]}</span>
+                      <span className={`text-xs font-bold ${day.isOpen ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {day.isOpen ? t('shopWeeklyOpen') : t('shopWeeklyClosed')}
+                      </span>
+                      <input type="checkbox" checked={day.isOpen} disabled={shopRole === 'staff'}
+                        onChange={(event) => updateShopScheduleDay(day.dayOfWeek, { isOpen: event.target.checked })} />
+                    </label>
+                    {day.isOpen && (
+                      <div className="flex items-center gap-2">
+                        <input type="text" inputMode="numeric" maxLength={5} placeholder="08:00" value={day.openTime} disabled={shopRole === 'staff'}
+                          onChange={(event) => updateShopScheduleDay(day.dayOfWeek, { openTime: event.target.value })}
+                          onBlur={(event) => updateShopScheduleDay(day.dayOfWeek, { openTime: normalizeTimeInput(event.target.value) })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white font-mono text-center" />
+                        <span className="text-slate-500 text-xs">{t('to')}</span>
+                        <input type="text" inputMode="numeric" maxLength={5} placeholder="18:00" value={day.closeTime} disabled={shopRole === 'staff'}
+                          onChange={(event) => updateShopScheduleDay(day.dayOfWeek, { closeTime: event.target.value })}
+                          onBlur={(event) => updateShopScheduleDay(day.dayOfWeek, { closeTime: normalizeTimeInput(event.target.value) })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white font-mono text-center" />
+                      </div>
+                    )}
+                    {!day.configured && <p className="text-[10px] text-amber-300">{t('shopWeeklyNotConfigured')}</p>}
+                  </div>
+                ))}
+              </div>
+              {shopRole !== 'staff' && (
+                <button type="button" onClick={handleSaveShopWeeklySchedule}
+                  disabled={mutatingResourceId === 'shop-weekly-schedule'}
+                  className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">
+                  {mutatingResourceId === 'shop-weekly-schedule' ? tCommon('saving') : t('saveShopWeekly')}
+                </button>
+              )}
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Clock className="w-5 h-5 text-emerald-400" />
                 {t('schedulesTitle')}
@@ -800,40 +983,58 @@ export default function AdminDashboard() {
                   const selectedDayNumber = selectedScheduleDays[sch.staffId] ?? 0;
                   const selectedDay = sch.days.find((day) => day.dayOfWeek === selectedDayNumber) ?? sch.days[0];
                   if (!selectedDay) return null;
+                  const selectedShopDay = shopWeeklySchedule.find((day) => day.dayOfWeek === selectedDay.dayOfWeek);
+                  const isShopClosedOnSelectedDay = !selectedShopDay?.isOpen;
                   const canManageSchedules = shopRole === 'owner' || shopRole === 'admin';
                   return (
                   <div key={sch.staffId} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs space-y-3 shadow-md hover:border-slate-700 transition-all">
                     <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
                       <span className="font-bold text-sm text-emerald-400">{sch.staffName}</span>
-                      <span className="text-[10px] text-slate-500">{t('workingDays', { count: sch.days.filter((day) => day.isWorkingDay).length })}</span>
+                      <span className="text-[10px] text-slate-500">{t('workingDays', { count: sch.days.filter((day) => (
+                        day.isWorkingDay && shopWeeklySchedule.some((shopDay) => shopDay.dayOfWeek === day.dayOfWeek && shopDay.isOpen)
+                      )).length })}</span>
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {DAY_NAMES.map((dayName, dayOfWeek) => {
                         const day = sch.days.find((item) => item.dayOfWeek === dayOfWeek);
+                        const shopDay = shopWeeklySchedule.find((item) => item.dayOfWeek === dayOfWeek);
+                        const effectiveWorking = Boolean(day?.isWorkingDay && shopDay?.isOpen);
+                        const selectedClass = shopDay?.isOpen
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                          : 'border-rose-500 bg-rose-500/20 text-rose-300';
                         return (
                           <button key={dayName} type="button" onClick={() => setSelectedScheduleDays((previous) => ({ ...previous, [sch.staffId]: dayOfWeek }))}
-                            className={`rounded-md border px-1.5 py-1 text-[10px] ${selectedDayNumber === dayOfWeek ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : day?.isWorkingDay ? 'border-slate-700 text-slate-300' : 'border-rose-500/30 text-rose-300'}`}>
+                            className={`rounded-md border px-1.5 py-1 text-[10px] ${selectedDayNumber === dayOfWeek ? selectedClass : effectiveWorking ? 'border-slate-700 text-slate-300' : 'border-rose-500/30 text-rose-300'}`}>
                             {dayName.slice(0, 2)}
                           </button>
                         );
                       })}
                     </div>
                     <div className="space-y-3">
-                      <label className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-300">
-                        <span>{t('isWorkingDay', { day: DAY_NAMES[selectedDay.dayOfWeek] })}</span>
-                        <input type="checkbox" checked={selectedDay.isWorkingDay} disabled={!canManageSchedules}
+                      <label className={`flex items-center justify-between rounded-lg border p-2 ${isShopClosedOnSelectedDay ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-slate-800 bg-slate-900 text-slate-300'}`}>
+                        <span>
+                          {isShopClosedOnSelectedDay
+                            ? t('staffShopClosedDay', { day: DAY_NAMES[selectedDay.dayOfWeek] })
+                            : t('isWorkingDay', { day: DAY_NAMES[selectedDay.dayOfWeek] })}
+                        </span>
+                        <input type="checkbox" checked={!isShopClosedOnSelectedDay && selectedDay.isWorkingDay}
+                          disabled={!canManageSchedules || isShopClosedOnSelectedDay}
                           onChange={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { isWorkingDay: event.target.checked })} />
                       </label>
                       <div>
                         <label className="text-[11px] font-semibold text-slate-300 block mb-1">{t('workTimeLabel')}</label>
                         <div className="flex items-center gap-1.5">
-                          <input type="time" value={selectedDay.workStart} disabled={!canManageSchedules || !selectedDay.isWorkingDay}
+                          <input type="text" inputMode="numeric" maxLength={5} placeholder={selectedShopDay?.openTime || '08:00'}
+                            value={selectedDay.workStart} disabled={!canManageSchedules || !selectedDay.isWorkingDay || isShopClosedOnSelectedDay}
                             onChange={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { workStart: event.target.value })}
+                            onBlur={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { workStart: normalizeTimeInput(event.target.value) })}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-emerald-500 font-bold"
                           />
                           <span className="text-slate-500 text-[10px]">{t('to')}</span>
-                          <input type="time" value={selectedDay.workEnd} disabled={!canManageSchedules || !selectedDay.isWorkingDay}
+                          <input type="text" inputMode="numeric" maxLength={5} placeholder={selectedShopDay?.closeTime || '18:00'}
+                            value={selectedDay.workEnd} disabled={!canManageSchedules || !selectedDay.isWorkingDay || isShopClosedOnSelectedDay}
                             onChange={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { workEnd: event.target.value })}
+                            onBlur={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { workEnd: normalizeTimeInput(event.target.value) })}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-emerald-500 font-bold"
                           />
                         </div>
@@ -844,13 +1045,17 @@ export default function AdminDashboard() {
                           <Coffee className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> {t('breakLabel')}
                         </label>
                         <div className="flex items-center gap-1.5">
-                          <input type="time" value={selectedDay.breakStart} disabled={!canManageSchedules || !selectedDay.isWorkingDay}
+                          <input type="text" inputMode="numeric" maxLength={5} placeholder="12:00"
+                            value={selectedDay.breakStart} disabled={!canManageSchedules || !selectedDay.isWorkingDay || isShopClosedOnSelectedDay}
                             onChange={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { breakStart: event.target.value })}
+                            onBlur={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { breakStart: normalizeTimeInput(event.target.value) })}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-amber-500 font-bold"
                           />
                           <span className="text-slate-500 text-[10px]">{t('to')}</span>
-                          <input type="time" value={selectedDay.breakEnd} disabled={!canManageSchedules || !selectedDay.isWorkingDay}
+                          <input type="text" inputMode="numeric" maxLength={5} placeholder="13:00"
+                            value={selectedDay.breakEnd} disabled={!canManageSchedules || !selectedDay.isWorkingDay || isShopClosedOnSelectedDay}
                             onChange={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { breakEnd: event.target.value })}
+                            onBlur={(event) => updateScheduleDay(sch.staffId, selectedDay.dayOfWeek, { breakEnd: normalizeTimeInput(event.target.value) })}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-amber-500 font-bold"
                           />
                         </div>
@@ -1061,7 +1266,7 @@ export default function AdminDashboard() {
               <p role="alert" className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300">{managementError}</p>
             )}
             {/* SECTION 1: SHOP PROFILE EDITING */}
-            <form onSubmit={handleSaveShopSettings} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <form onSubmit={handleSaveShopProfile} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -1072,13 +1277,13 @@ export default function AdminDashboard() {
                 </div>
                 <button
                   type="submit"
-                  disabled={shopRole !== 'owner' || mutatingResourceId === 'shop-settings'}
+                  disabled={shopRole !== 'owner' || mutatingResourceId === 'shop-profile'}
                   className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
                 >
                   <Save className="w-4 h-4" />
                   {shopRole !== 'owner'
                     ? t('ownerOnlyEdit')
-                    : mutatingResourceId === 'shop-settings'
+                    : mutatingResourceId === 'shop-profile'
                       ? tCommon('saving')
                       : shopSettingsSaved ? tCommon('saved') : t('saveShop')}
                 </button>
@@ -1198,15 +1403,30 @@ export default function AdminDashboard() {
 
                     <div>
                       <label className="text-slate-300 block mb-1 font-semibold">{t('serviceDurationLabel')}</label>
-                      <input
-                        required
-                        type="number"
-                        min={15}
-                        step={15}
-                        value={serviceDuration}
-                        onChange={(e) => setServiceDuration(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 font-mono text-white focus:outline-none focus:border-emerald-500"
-                      />
+                      <div className="grid grid-cols-[1fr_120px] gap-2">
+                        <input
+                          required
+                          type="number"
+                          inputMode={serviceDurationUnit === 'hour' ? 'decimal' : 'numeric'}
+                          min={serviceDurationUnit === 'hour' ? 0.01 : 1}
+                          step={serviceDurationUnit === 'hour' ? 'any' : 1}
+                          value={serviceDuration}
+                          onChange={(e) => setServiceDuration(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 font-mono text-white focus:outline-none focus:border-emerald-500"
+                        />
+                        <select
+                          value={serviceDurationUnit}
+                          onChange={(e) => setServiceDurationUnit(e.target.value as 'minute' | 'hour' | 'day')}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="minute">{t('durationUnits.minute')}</option>
+                          <option value="hour">{t('durationUnits.hour')}</option>
+                          <option value="day">{t('durationUnits.day')}</option>
+                        </select>
+                      </div>
+                      {serviceDurationUnit === 'day' && (
+                        <p className="mt-1 text-[11px] text-amber-400">{t('dayDurationNotice')}</p>
+                      )}
                     </div>
 
                     <div>
@@ -1214,13 +1434,10 @@ export default function AdminDashboard() {
                       <input
                         required
                         type="number"
+                        inputMode="decimal"
                         min={0}
                         value={servicePrice}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setServicePrice(val);
-                          setServiceDeposit(Math.round(val * 0.3));
-                        }}
+                        onChange={(e) => setServicePrice(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
                       />
                     </div>
@@ -1230,9 +1447,10 @@ export default function AdminDashboard() {
                       <input
                         required
                         type="number"
+                        inputMode="decimal"
                         min={0}
                         value={serviceDeposit}
-                        onChange={(e) => setServiceDeposit(Number(e.target.value))}
+                        onChange={(e) => setServiceDeposit(e.target.value)}
                         className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
                       />
                     </div>
@@ -1275,7 +1493,7 @@ export default function AdminDashboard() {
 
                     <div className="flex items-center justify-between text-xs border-t border-slate-800/80 pt-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {t('durationMinutes', { minutes: sv.duration })}</span>
+                        <span className="text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {sv.durationValue} {sv.durationUnit === 'minute' ? t('durationUnits.minute') : sv.durationUnit === 'hour' ? t('durationUnits.hour') : t('durationUnits.day')}</span>
                         <span className="text-amber-400 font-semibold">{t('depositPrefix')}฿{sv.deposit}</span>
                       </div>
 

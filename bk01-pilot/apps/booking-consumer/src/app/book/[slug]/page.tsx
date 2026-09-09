@@ -11,7 +11,7 @@ import {
 import {
   getShopBySlug, getShopServices, getShopStaff, getShopAvailability, createBookingHold,
   submitDepositSlip, uploadDepositSlip, Shop, Service, Staff, HoldResponse,
-  StaffSchedule, ShopHoliday,
+  StaffSchedule, ShopHoliday, ShopWeeklySchedule,
 } from '../../../lib/booking-service';
 import { LanguageToggle } from '@/components/language-toggle';
 import { QRCodeSVG } from 'qrcode.react';
@@ -41,13 +41,20 @@ export default function BookingPage() {
   const tc = useTranslations('common');
   const params = useParams();
   const slug = (params?.slug as string) || 'good-cuts-barber';
+  const durationUnitLabels = {
+    minute: t('durationUnits.minute'),
+    hour: t('durationUnits.hour'),
+    day: t('durationUnits.day'),
+  } as const;
 
   const [shop, setShop] = useState<Shop | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [staffSchedules, setStaffSchedules] = useState<StaffSchedule[]>([]);
+  const [shopWeeklySchedule, setShopWeeklySchedule] = useState<ShopWeeklySchedule[]>([]);
   const [shopHolidays, setShopHolidays] = useState<ShopHoliday[]>([]);
   const [isLoadingShop, setIsLoadingShop] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [step, setStep] = useState<number>(1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -74,6 +81,7 @@ export default function BookingPage() {
   useEffect(() => {
     async function loadData() {
       setIsLoadingShop(true);
+      setLoadError(false);
       try {
         const shopData = await getShopBySlug(slug);
         if (shopData) {
@@ -92,12 +100,13 @@ export default function BookingPage() {
           setServices(servicesData);
           setStaffList(staffData);
           setStaffSchedules(availabilityData.schedules);
+          setShopWeeklySchedule(availabilityData.weeklySchedule);
           setShopHolidays(availabilityData.holidays);
           if (servicesData.length > 0) setSelectedService(servicesData[0]);
         }
       } catch (error) {
         console.error('Error loading booking page data:', error);
-        setShop(null);
+        setLoadError(true);
       } finally {
         setIsLoadingShop(false);
       }
@@ -178,9 +187,11 @@ export default function BookingPage() {
   };
 
   const availableTimeSlots = useMemo(() => {
+    if (selectedService?.duration_unit === 'day') return [];
     const bookingDate = new Date(`${selectedDate}T00:00:00`);
     const dayOfWeek = bookingDate.getDay();
     const serviceDuration = selectedService?.duration_minutes || 0;
+    const weeklyDay = shopWeeklySchedule.find((day) => day.day_of_week === dayOfWeek);
     const wholeShopHoliday = shopHolidays.find(
       holiday => holiday.staff_id === null && holiday.holiday_date === selectedDate
     );
@@ -189,7 +200,32 @@ export default function BookingPage() {
       return hours * 60 + minutes;
     };
 
-    return ALL_TIME_SLOTS.map(slotTime => {
+    const candidateSlots = weeklyDay?.is_open && weeklyDay.open_time && weeklyDay.close_time
+      ? (() => {
+          const slots: string[] = [];
+          const [startHour, startMinute] = weeklyDay.open_time.split(':').map(Number);
+          const [endHour, endMinute] = weeklyDay.close_time.split(':').map(Number);
+          let cursor = startHour * 60 + startMinute;
+          const end = endHour * 60 + endMinute;
+          while (cursor < end) {
+            const hours = Math.floor(cursor / 60).toString().padStart(2, '0');
+            const minutes = (cursor % 60).toString().padStart(2, '0');
+            slots.push(`${hours}:${minutes}`);
+            cursor += 30;
+          }
+          return slots;
+        })()
+      : ALL_TIME_SLOTS;
+
+    return candidateSlots.map(slotTime => {
+      if (weeklyDay && !weeklyDay.is_open) {
+        return {
+          time: slotTime,
+          isAvailable: false,
+          reason: t('step2.shopClosedWeekly'),
+        };
+      }
+
       if (wholeShopHoliday) {
         return {
           time: slotTime,
@@ -200,6 +236,12 @@ export default function BookingPage() {
 
       const slotStart = toMinutes(slotTime);
       const slotEnd = slotStart + serviceDuration;
+      if (weeklyDay?.is_open && weeklyDay.open_time && weeklyDay.close_time) {
+        const outsideShopHours = slotStart < toMinutes(weeklyDay.open_time) || slotEnd > toMinutes(weeklyDay.close_time);
+        if (outsideShopHours) {
+          return { time: slotTime, isAvailable: false, reason: t('step2.outsideShopHours') };
+        }
+      }
       const candidateStaff = selectedStaff ? [selectedStaff] : staffList;
       const hasAvailableStaff = candidateStaff.some(staff => {
         const isStaffHoliday = shopHolidays.some(
@@ -227,7 +269,7 @@ export default function BookingPage() {
         reason: hasAvailableStaff ? t('step2.available') : t('step2.unavailable'),
       };
     });
-  }, [selectedDate, selectedService, selectedStaff, shopHolidays, staffList, staffSchedules, t]);
+  }, [selectedDate, selectedService, selectedStaff, shopHolidays, shopWeeklySchedule, staffList, staffSchedules, t]);
 
   const selectedSlotAvailable = availableTimeSlots.some(
     slot => slot.time === selectedTime && slot.isAvailable
@@ -240,6 +282,10 @@ export default function BookingPage() {
     }
     if (!shop || !selectedService || !customerName.trim() || !customerPhone.trim()) {
       setErrorMessage(t('errors.requiredNamePhone'));
+      return;
+    }
+    if (selectedService.duration_unit === 'day') {
+      setErrorMessage(t('errors.dayBookingUnavailable'));
       return;
     }
     if (shop.require_deposit && depositAmount > 0 && !paymentMethodAvailable) {
@@ -330,6 +376,30 @@ export default function BookingPage() {
         <div className="text-center space-y-3">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mx-auto" />
           <p className="text-xs text-slate-400">{t('loadingShop')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-rose-500/30 bg-slate-900 p-6">
+          <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('loadFailed.title')}</h1>
+          <p className="text-xs text-slate-400">{t('loadFailed.description')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!shop) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-slate-700 bg-slate-900 p-6">
+          <CalendarOff className="w-8 h-8 text-slate-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('notFound.title')}</h1>
+          <p className="text-xs text-slate-400">{t('notFound.description')}</p>
         </div>
       </div>
     );
@@ -484,6 +554,11 @@ export default function BookingPage() {
                 </div>
 
                 <div className="space-y-3">
+                  {services.length === 0 && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                      {t('setupState.noServices')}
+                    </div>
+                  )}
                   {services.map((sv) => (
                     <div
                       key={sv.id}
@@ -502,15 +577,27 @@ export default function BookingPage() {
                       </div>
                       <p className="text-xs text-slate-400 mb-3 leading-relaxed">{sv.description}</p>
                       <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2.5">
-                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {tc('durationMinutes', { minutes: sv.duration_minutes })}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {sv.duration_value} {durationUnitLabels[sv.duration_unit]}</span>
                         <span className="text-amber-400 font-medium">{t('step1.depositLabel', { amount: sv.deposit_amount ?? shop?.default_deposit_amount ?? 100 })}</span>
                       </div>
                     </div>
                   ))}
                 </div>
 
+                {staffList.length === 0 && services.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                    {t('setupState.noStaff')}
+                  </div>
+                )}
+
+                {selectedService?.duration_unit === 'day' && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                    {t('step1.dayBookingUnavailable')}
+                  </div>
+                )}
+
                 <button
-                  disabled={!selectedService}
+                  disabled={!selectedService || staffList.length === 0 || selectedService.duration_unit === 'day'}
                   onClick={() => setStep(2)}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all mt-6"
                 >
@@ -601,6 +688,11 @@ export default function BookingPage() {
                 {/* Time Slot Display */}
                 <div>
                   <label className="text-xs font-semibold text-slate-300 mb-2 block">{t('step2.timeLabel')}</label>
+                  {availableTimeSlots.every((slot) => !slot.isAvailable) && (
+                    <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                      {t('setupState.noSlots')}
+                    </div>
+                  )}
                   <div className="grid grid-cols-4 gap-2">
                     {availableTimeSlots.map((slot) => (
                       <button

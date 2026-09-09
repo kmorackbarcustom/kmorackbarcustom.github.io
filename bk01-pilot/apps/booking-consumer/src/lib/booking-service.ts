@@ -22,6 +22,8 @@ export interface Service {
   name: string;
   description: string;
   duration_minutes: number;
+  duration_value: number;
+  duration_unit: 'minute' | 'hour' | 'day';
   price: number;
   deposit_amount: number | null;
 }
@@ -49,8 +51,16 @@ export interface ShopHoliday {
   reason: string | null;
 }
 
+export interface ShopWeeklySchedule {
+  day_of_week: number;
+  is_open: boolean;
+  open_time: string | null;
+  close_time: string | null;
+}
+
 export interface ShopAvailability {
   schedules: StaffSchedule[];
+  weeklySchedule: ShopWeeklySchedule[];
   holidays: ShopHoliday[];
 }
 
@@ -94,23 +104,24 @@ export async function getShopBySlug(slug: string): Promise<Shop | null> {
     .eq('slug', slug)
     .single();
 
-  if (error || !data) {
+  if (error) {
     console.error('Error fetching shop by slug:', error);
-    return null;
+    if (error.code === 'PGRST116') return null;
+    throw new Error('SHOP_READ_FAILED');
   }
+  if (!data) return null;
   return data as Shop;
 }
 
 export async function getShopServices(shopId: string): Promise<Service[]> {
   const { data, error } = await supabase
     .from('services')
-    .select('id, shop_id, name, description, duration_minutes, price, deposit_amount')
-    .eq('shop_id', shopId)
-    .eq('is_active', true);
+    .select('id, shop_id, name, description, duration_minutes, duration_value, duration_unit, price, deposit_amount')
+    .eq('shop_id', shopId);
 
   if (error) {
     console.error('Error fetching shop services:', error);
-    return [];
+    throw new Error('SERVICES_READ_FAILED');
   }
   return (data || []) as Service[];
 }
@@ -119,21 +130,24 @@ export async function getShopStaff(shopId: string): Promise<Staff[]> {
   const { data, error } = await supabase
     .from('staff')
     .select('id, shop_id, name, nickname')
-    .eq('shop_id', shopId)
-    .eq('is_active', true);
+    .eq('shop_id', shopId);
 
   if (error) {
     console.error('Error fetching shop staff:', error);
-    return [];
+    throw new Error('STAFF_READ_FAILED');
   }
   return (data || []) as Staff[];
 }
 
 export async function getShopAvailability(shopId: string): Promise<ShopAvailability> {
-  const [schedulesResult, holidaysResult] = await Promise.all([
+  const [schedulesResult, weeklyScheduleResult, holidaysResult] = await Promise.all([
     supabase
       .from('staff_schedules')
       .select('staff_id, day_of_week, is_working_day, work_start, work_end, break_start, break_end')
+      .eq('shop_id', shopId),
+    supabase
+      .from('shop_weekly_schedules')
+      .select('day_of_week, is_open, open_time, close_time')
       .eq('shop_id', shopId),
     supabase
       .from('shop_holidays')
@@ -145,6 +159,10 @@ export async function getShopAvailability(shopId: string): Promise<ShopAvailabil
     console.error('Error fetching staff schedules:', schedulesResult.error);
     throw new Error(schedulesResult.error.message || 'Failed to fetch staff schedules');
   }
+  if (weeklyScheduleResult.error) {
+    console.error('Error fetching shop weekly schedule:', weeklyScheduleResult.error);
+    throw new Error(weeklyScheduleResult.error.message || 'Failed to fetch shop weekly schedule');
+  }
   if (holidaysResult.error) {
     console.error('Error fetching shop holidays:', holidaysResult.error);
     throw new Error(holidaysResult.error.message || 'Failed to fetch shop holidays');
@@ -152,6 +170,7 @@ export async function getShopAvailability(shopId: string): Promise<ShopAvailabil
 
   return {
     schedules: (schedulesResult.data || []) as StaffSchedule[],
+    weeklySchedule: (weeklyScheduleResult.data || []) as ShopWeeklySchedule[],
     holidays: (holidaysResult.data || []) as ShopHoliday[],
   };
 }
