@@ -29,7 +29,9 @@ This Task does not authorize KMO-CONTROL-001 implementation, Control feature wor
 2. Risk Council `COUNCIL-RUN-STATUS.md` and `HERMES-RETURN.md`.
 3. Architecture baseline `d98db98ccdb67328b62ea2958994923c942552fb`.
 4. `BRIEF-KMO-CONTROL-RISK-REMEDIATION-001.md` in this directory.
-5. WSTERA `WF-DEV-01 v1.1.0` and Agent Dispatch Policy.
+5. `../MASTER-BRIEF-KMO-CONTROL-TO-ADAPTER-READY-2026-09-12.md` — Owner-approved long-running orchestration contract after this Task reaches its stop.
+6. `../relay/RELAY-PLAN-KMO-CONTROL-TO-ADAPTER-READY-2026-09-12.md`.
+7. WSTERA `WF-DEV-01 v1.1.0`, `WF-RELAY-01 v1.2.0`, and Agent Dispatch Policy.
 ## Required Remediation
 
 1. LINE channel access token rotation evidence: new token works, old token revoked, timestamps/evidence recorded without exposing secret values.
@@ -59,4 +61,6 @@ This Task does not authorize KMO-CONTROL-001 implementation, Control feature wor
 
 ## Next Action
 
-Create a fresh Agent Dispatch Packet for the bounded remediation round. Do not reuse any Architecture/Risk Council dispatch.
+Run the fresh Relay v2.3.8 task-specific preflight from the Owner-approved Master Brief/Relay Plan, then materialize a fresh Agent Dispatch Packet for the bounded remediation round. Do not reuse any Architecture/Risk Council dispatch.
+
+When this Task reaches Sol Final Verify = PASS, close this Task as `RISK_REMEDIATION = PASS`. The Owner-approved Master Run may then enter Pre-Build Council automatically; this Task itself does not authorize Control feature implementation.

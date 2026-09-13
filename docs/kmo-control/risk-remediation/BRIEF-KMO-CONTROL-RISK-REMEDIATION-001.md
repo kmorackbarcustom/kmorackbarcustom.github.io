@@ -65,6 +65,8 @@ Out of scope:
 
 All six remediation items have inspectable evidence and no unresolved material mismatch. `CONTROL-RELEASE-EVIDENCE-STANDARD.md` is canonical mandatory policy, ownership/deadlines are persisted, Git/worktree state is clean, and Sol returns `RISK_REMEDIATION = PASS — READY FOR OWNER PRE-BUILD DECISION`.
 
-## Stop
+## Stop / Continuation
 
-Stop at Sol evidence review. Do not auto-enter Pre-Build and do not create the Control feature branch.
+This bounded Risk Task stops at Sol Final Verify. It must not create the Control feature branch or begin Control implementation.
+
+If Sol returns `RISK_REMEDIATION = PASS`, this Task closes. Under the separately persisted Owner-approved `MASTER-BRIEF-KMO-CONTROL-TO-ADAPTER-READY-2026-09-12.md`, Hermes may then invoke the already-planned Pre-Build Council without another Owner checkpoint. Pre-Build PASS still does not authorize C1; Implementation Gate PASS + explicit `Owner Build Approval = YES` remain mandatory before `KMO-CONTROL-001`.
