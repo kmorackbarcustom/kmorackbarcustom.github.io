@@ -34,6 +34,8 @@ A contradiction between target SSOT and current implementation is a BK-A gap, no
 - `audit/FEATURE_REQUIREMENT_TRACEABILITY.md` — complete feature mapping
 - `audit/MARKET_SOURCE_LEDGER.md` — sourced changing-market facts
 - `audit/DOCUMENTATION_AUDIT.md` — final cross-document review record
+- `../UPSTREAM.md` — canonical BK01/KMO boundary and bidirectional upstream/downstream sync rule
+- `BK01_UPSTREAM_FEEDBACK_LEDGER.md` — defect/improvement/sync ledger and upstream disposition record
 - `market/*` — market/competitor/ICP evidence as dated analysis, not timeless product truth
 
 ## Marketing and operations

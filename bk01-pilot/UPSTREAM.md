@@ -23,10 +23,16 @@ At copy time canonical had two uncommitted DB files; both were intentionally exc
 - Stripe checkout/portal/webhook runtime
 - WSTERA worker names and WSTERA production URL fallback
 
-## Sync rule
-Generic defect: fix and verify in canonical BK01 first, release a committed upstream ref, then re-sync KMO.
-KMO-only requirement: keep as KMO config/theme/deployment delta.
-Never silently patch a generic BK01 defect only in this directory.
+## Sync rule — bidirectional learning loop
+KMO treats canonical BK01 as the upstream product reference, not as a frozen copy.
+
+- **BK01 → KMO:** review relevant committed BK01 changes and selectively sync/adapt verified improvements, defect fixes, contract changes, and reusable capabilities when they fit KMO's locked contracts and runtime. Never blindly merge unrelated upstream changes.
+- **KMO → BK01:** any KMO-discovered generic defect, security/reliability issue, reusable improvement, or proven product idea must be recorded with evidence and reported upstream as feedback/candidate work.
+- **Upstream owns disposition:** canonical BK01 decides whether to accept, redesign, defer, or reject KMO feedback. KMO records that disposition rather than silently redefining BK01 behavior.
+- **Generic defect:** prefer fix-and-verify in canonical BK01 first, release a committed upstream ref, then re-sync KMO. If KMO needs an urgent bounded mitigation first, label it as downstream mitigation and still file the upstream defect.
+- **KMO-only requirement:** keep shop/domain-specific behavior as KMO config/theme/deployment delta unless BK01 explicitly adopts it.
+- **Rejected/deferred feedback:** KMO may retain a needed local delta, but the reason and upstream disposition must be recorded. Do not create an undocumented permanent fork.
+- **Traceability:** record every meaningful cross-direction item in `docs/BK01_UPSTREAM_FEEDBACK_LEDGER.md` with exact refs, evidence, tests/runtime result, KMO action, upstream disposition, and sync status.
 
 ## Database compatibility note
 The committed migration history is preserved as source evidence because later BK-A migrations reference subscription, ticket and platform-admin-era database objects.

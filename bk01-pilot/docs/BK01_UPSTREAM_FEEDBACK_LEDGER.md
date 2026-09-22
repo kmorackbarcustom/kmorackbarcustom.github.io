@@ -5,13 +5,21 @@ Purpose: record evidence from the KMO real pilot that can improve canonical BK01
 Upstream reference baseline:
 `4a694bcf1cd7c167c12036e89f999e04b969f7b9`
 
+## Operating rule — bidirectional learning loop
+
+- **Watch BK01 upstream:** review relevant committed BK01 changes and selectively sync/adapt verified improvements into KMO.
+- **Report KMO findings upstream:** generic defects, security/reliability findings, reusable improvements, and proven product ideas must be reported with evidence.
+- **BK01 owns the decision:** upstream may accept, redesign, defer, or reject a report. Record that disposition here.
+- **Urgent downstream mitigation is not upstream closure:** if KMO must mitigate first, keep it bounded and still file the generic defect upstream.
+- **Avoid silent forks:** KMO-specific deltas may remain when needed, but their reason and upstream disposition must be explicit.
+
 Classification:
 - **GENERIC DEFECT** — canonical behavior is unsafe/broken; prepare upstream fix/evidence.
 - **UPSTREAM CANDIDATE** — KMO improvement may generalize after real-use proof.
 - **KMO ONLY** — shop/domain-specific behavior; never push upstream as canonical.
 - **UPSTREAM SYNC** — canonical improvement to review for downstream adoption.
 
-Each item must record source ref, KMO evidence, tests, runtime result, and whether canonical was modified.
+Each item must record direction (`BK01 → KMO` or `KMO → BK01`), source/exact revision, KMO evidence, tests/runtime result, KMO action, whether canonical was modified, upstream disposition (`ACCEPTED` / `REDESIGN` / `DEFERRED` / `REJECTED` / `PENDING`), and downstream sync status.
 ## Current verified items
 
 ### BK01-FB-001 — fake PromptPay fallback
