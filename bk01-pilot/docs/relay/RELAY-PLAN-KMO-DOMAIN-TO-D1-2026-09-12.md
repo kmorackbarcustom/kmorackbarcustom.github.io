@@ -1,7 +1,7 @@
 # RELAY PLAN — KMO DOMAIN OPERATIONS → D1
 
 Date: 2026-09-12
-Status: `READY FOR RELAY PREFLIGHT`
+Status: `D0.5 CLOSED / D1A AWAITS FRESH RELAY PREFLIGHT`
 Task: `KMO-DOMAIN-BOOKING-READINESS-001`
 Owner-approved relay shape: YES
 
@@ -58,7 +58,8 @@ No silent agent substitution. If a mandated/preferred agent cannot pass readines
 
 ## Ordered Stage Graph
 `D0 PREFLIGHT`
-→ `D1 AGY BUILD`
+→ `D0.5 BK01 R4 UPSTREAM RECONCILIATION` (PASS; report + reduced brief locked)
+→ `D1A AGY BUILD`
 → deterministic stage gate
 → `D2 CODEX INDEPENDENT-QA`
 → PASS: continue

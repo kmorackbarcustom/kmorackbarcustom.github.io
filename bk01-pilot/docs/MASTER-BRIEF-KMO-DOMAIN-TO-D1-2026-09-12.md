@@ -1,7 +1,7 @@
 # MASTER EXECUTION BRIEF — KMO DOMAIN OPERATIONS → D1
 
 Date: 2026-09-12
-Status: `READY FOR RELAY PREFLIGHT`
+Status: `D0.5 CLOSED / READY FOR FRESH D1A RELAY PREFLIGHT`
 Owner: Free
 Commander / Final Reviewer: Sol
 Owning Workstream: DOMAIN OPERATIONS
@@ -56,13 +56,17 @@ Out of scope:
 ## Source-of-Truth Rules
 Read before substantive work:
 1. `bk01-pilot/docs/tasks/TASK-KMO-DOMAIN-BOOKING-READINESS-001.md`.
-2. this Master Brief.
-3. `bk01-pilot/docs/relay/RELAY-PLAN-KMO-DOMAIN-TO-D1-2026-09-12.md`.
-4. `KMO_SCHEMA_CONTRACT.md`, `KMO_EXTENSION_DESIGN.md`, `docs/DOCUMENTATION_INDEX.md`.
-5. exact source, migrations, tests, Worker configs, and runtime evidence at the reviewed revision.
-6. latest closure report/handoff for runtime targeting.
+2. `bk01-pilot/docs/REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md`.
+3. `bk01-pilot/docs/BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md`.
+4. this Master Brief.
+5. `bk01-pilot/docs/relay/RELAY-PLAN-KMO-DOMAIN-TO-D1-2026-09-12.md`.
+6. `KMO_SCHEMA_CONTRACT.md`, `KMO_EXTENSION_DESIGN.md`, `docs/DOCUMENTATION_INDEX.md`.
+7. exact source, migrations, tests, Worker configs, and runtime evidence at the reviewed revision.
+8. latest closure report/handoff for runtime targeting.
 
 Historical reviews such as the 2026-09-09 mobile review are evidence/checklists only. Do not silently carry an old finding forward as an open defect unless current source/runtime reproduces it.
+
+**2026-09-23 execution override:** D0.5 upstream reconciliation is complete. `REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md` and `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md` control the next D1A implementation scope and remove stale/redundant R4 work.
 
 ## Carry-Forward Areas To Re-verify, Not Assume
 - recurring weekly schedule must fail closed when required configuration is missing.
@@ -103,8 +107,11 @@ Local/source/test changes are authorized within this task. A production deploy, 
 ### Stage D0 — Relay Admission / Evidence Freeze
 Hermes verifies canonical Relay runtime/hash, effective `HERMES_HOME`, exact branch/revision, clean target, Source of Truth readability, agent readiness, and path ownership. Workflow/runtime parity was independently re-verified on 2026-09-13: `WF-RELAY-01 v1.2.0` targets Relay `v2.3.8` and the macOS runtime guard passes. Substantive cards still require a fresh task-specific preflight.
 
-### Stage D1 — AGY Primary Booking Readiness Pass
-AGY reads the locked source set and exact current code, re-verifies current defects rather than trusting historical status, and implements the thinnest coherent Booking changes required to satisfy the D1 acceptance contract. It may update Booking source, migrations, tests, and Domain docs within allowed paths. No production apply/deploy unless separately authorized.
+### Stage D0.5 — BK01 R4 Upstream Reconciliation
+Completed 2026-09-23. Compare/classify only; no product implementation. Result and reduced worklist are locked in `REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md` and `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md`.
+
+### Stage D1A — AGY Primary Booking Readiness Pass
+AGY reads the locked source set, the D0.5 report and the reduced D1A brief, then implements only the remaining KMO work. It re-verifies current defects rather than trusting historical status and must not re-implement items classified as stale KMO findings. It may update Booking source, migrations, tests, and Domain docs within allowed paths. No production apply/deploy unless separately authorized.
 
 Required before AGY stop: relevant tests, lint, typecheck/build where applicable, `git diff --check`, secret/path hygiene, exact commit, clean or explicitly explained status, and a neutral stage handoff.
 

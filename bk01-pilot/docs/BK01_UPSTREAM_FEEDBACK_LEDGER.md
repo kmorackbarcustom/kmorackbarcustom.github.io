@@ -17,7 +17,7 @@ Owner supplied a new canonical BK01 R4 closure evidence set before KMO D1A imple
 
 Owner direction: fast-forward KMO to proven generic BK01 R4 improvements as quickly as safely possible, but do not make KMO a mirror of upstream. Preserve KMO-specific infrastructure, identity/bridge boundaries, real-shop operating rules, capacity findings, and any downstream behavior that is stronger or intentionally different.
 
-Before substantive D1A implementation, perform the report's D0.5 reconciliation and classify each meaningful difference as one of:
+D0.5 was completed before substantive D1A implementation. Each meaningful difference was classified as one of:
 
 - `SYNC_FROM_BK01`
 - `KMO_AHEAD_UPSTREAM_CANDIDATE`
@@ -27,6 +27,20 @@ Before substantive D1A implementation, perform the report's D0.5 reconciliation 
 - `CONTRACT_CONFLICT`
 
 The historical `4a694bc...` baseline remains valid evidence for older ledger items; do not rewrite those items as if they were originally reviewed against R4.
+
+### D0.5 reconciliation disposition — 2026-09-23
+
+Status: **PASS** — implementation was not started during reconciliation.
+
+Artifacts:
+- `docs/REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md`
+- `docs/BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md`
+
+Confirmed `SYNC_FROM_BK01` candidates: full truthful customer-state separation; server-authoritative deposit/payment display; server-authoritative hold expiry; bounded dirty/save-all UX concepts; and source reconciliation for the exact narrow `shop_id` anon predicate grants already proven in KMO runtime.
+
+Confirmed KMO stronger/distinct areas to preserve include profile/payment RPC separation, strict malformed-time grammar, failed staff-card rollback, shop-weekly scheduling, production-capacity authority, and the KMO identity/bridge boundary. Historical KMO findings for browser `is_active` filtering, fake PromptPay recipient, numeric forced-zero editing, and Staff A save erasing Staff B are now regression evidence rather than D1A implementation cards.
+
+Important remaining downstream defect: live KMO received the proven narrow `SELECT(shop_id)` repair for `staff_schedules` and `shop_holidays`, but the current KMO baseline SQL still omits those predicate-column grants. D1A must reconcile source with runtime without broadening anonymous privilege.
 
 ## Operating rule — bidirectional learning loop
 

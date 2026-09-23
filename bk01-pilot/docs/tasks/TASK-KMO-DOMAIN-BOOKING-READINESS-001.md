@@ -1,6 +1,6 @@
 # TASK — KMO-DOMAIN-BOOKING-READINESS-001
 
-Status: READY FOR RELAY PREFLIGHT
+Status: D0.5 CLOSED / READY FOR FRESH D1A RELAY PREFLIGHT
 Owner: Free
 Commander / Final Reviewer: Sol
 Owning Workstream: DOMAIN OPERATIONS
@@ -28,18 +28,21 @@ Move KMO Booking from the accepted Mac runtime-context closure baseline to an ev
 
 ## Source of Truth Order
 1. This Task checkpoint.
-2. `bk01-pilot/docs/MASTER-BRIEF-KMO-DOMAIN-TO-D1-2026-09-12.md`.
-3. `bk01-pilot/docs/relay/RELAY-PLAN-KMO-DOMAIN-TO-D1-2026-09-12.md`.
-4. Locked `KMO_SCHEMA_CONTRACT.md`, `KMO_EXTENSION_DESIGN.md`, and `DOCUMENTATION_INDEX.md`.
-5. Exact source/migrations/tests at the pinned revision under review.
-6. Closure report and fresh handoff from `KMO-MAC-RUNTIME-CONTEXT-001` as baseline evidence.
-7. Older review/status documents are evidence only and must not override newer source/runtime facts.
+2. `bk01-pilot/docs/REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md`.
+3. `bk01-pilot/docs/BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md`.
+4. `bk01-pilot/docs/MASTER-BRIEF-KMO-DOMAIN-TO-D1-2026-09-12.md`.
+5. `bk01-pilot/docs/relay/RELAY-PLAN-KMO-DOMAIN-TO-D1-2026-09-12.md`.
+6. Locked `KMO_SCHEMA_CONTRACT.md`, `KMO_EXTENSION_DESIGN.md`, and `DOCUMENTATION_INDEX.md`.
+7. Exact source/migrations/tests at the pinned revision under review.
+8. Closure report and fresh handoff from `KMO-MAC-RUNTIME-CONTEXT-001` as baseline evidence.
+9. Older review/status documents are evidence only and must not override newer source/runtime facts.
 
 ## Checkpoints
 | Checkpoint | Initial State | Required Result |
 |---|---|---|
-| D0 Relay admission / source freeze | READY | fresh Relay preflight PASS |
-| D1A Booking implementation/readiness pass | PENDING | coherent Booking candidate revision |
+| D0 Relay admission / source freeze | RE-PREFLIGHT REQUIRED | fresh Relay preflight PASS on current rebuilt runtime |
+| D0.5 BK01 R4 upstream reconciliation | PASS | reduced evidence-backed D1A worklist locked |
+| D1A Booking implementation/readiness pass | READY AFTER PREFLIGHT | coherent Booking candidate revision from reduced worklist |
 | D1B Independent Codex QA | PENDING | PASS or bounded defect contract |
 | D1C Remediation loop | PENDING | defects closed under routing policy |
 | D1D Runtime/release evidence | PENDING | exact deployment/runtime evidence where authorized |
@@ -48,10 +51,10 @@ Move KMO Booking from the accepted Mac runtime-context closure baseline to an ev
 | D1G Convergence wait | PENDING | wait for Control adapter-ready candidate |
 
 ## Current Worker / Checkpoint
-Current Worker: NONE — Hermes admission pending.
-Current Checkpoint: D0 Relay admission / source freeze.
+Current Worker: NONE — D0.5 completed while Hermes runtime is being refreshed.
+Current Checkpoint: D0.5 PASS; D1A is staged but not dispatched.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or exact blocked/Owner-decision checkpoint.
-Next Allowed Action: run fresh Relay v2.3.8 preflight against this exact task/branch, then release the first approved stage only if preflight PASSes.
+Next Allowed Action: run a fresh task-specific Relay/Hermes preflight against the current runtime and exact task revision. If PASS, dispatch D1A using only `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md`; do not use the unreduced historical worklist.
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation.
