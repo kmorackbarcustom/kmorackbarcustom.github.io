@@ -39,7 +39,8 @@ A contradiction between target SSOT and current implementation is a BK-A gap, no
 - `BK01_UPSTREAM_FEEDBACK_LEDGER.md` — defect/improvement/sync ledger and upstream disposition record
 - `REPORT-BK01-R4-UPSTREAM-FAST-FORWARD-2026-09-23.md` — Owner-issued upstream evidence packet for reconciling canonical BK01 R4 CLOSED into KMO before D1A without erasing KMO-specific operational truth
 - `REPORT-KMO-D0.5-BK01-R4-RECONCILIATION-2026-09-23.md` — completed KMO-vs-BK01 R4 classification matrix and D0.5 promotion decision
-- `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md` — reduced D1A implementation authority after stale/redundant upstream work was removed
+- `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md` — current D1A authority after upstream reconciliation and KMO-first Booking direction
+- `REPORT-KMO-BOOKING-LEGACY-EXTRACTION-DIRECTION-2026-09-23.md` — current KMO-first Booking direction: public intake capacity locks only the appointment date; long-running work stays in the operational lifecycle until explicit completion; canonical BK01 remains frozen pending KMO proof
 - `market/*` — market/competitor/ICP evidence as dated analysis, not timeless product truth
 
 ## Marketing and operations

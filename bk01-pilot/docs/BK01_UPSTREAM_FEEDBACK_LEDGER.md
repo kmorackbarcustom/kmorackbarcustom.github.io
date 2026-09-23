@@ -42,6 +42,43 @@ Confirmed KMO stronger/distinct areas to preserve include profile/payment RPC se
 
 Important remaining downstream defect: live KMO received the proven narrow `SELECT(shop_id)` repair for `staff_schedules` and `shop_holidays`, but the current KMO baseline SQL still omits those predicate-column grants. D1A must reconcile source with runtime without broadening anonymous privilege.
 
+### D0.6 KMO legacy Booking extraction — 2026-09-23
+
+Status: **PASS / OWNER DIRECTION LOCKED** — implementation not started by this evidence step.
+
+Artifact:
+- `docs/REPORT-KMO-BOOKING-LEGACY-EXTRACTION-DIRECTION-2026-09-23.md`
+
+Verified legacy KMO behavior:
+- public intake capacity is counted on `appointment_date` only;
+- `pickup_date` does not consume later public Booking dates;
+- legacy Dashboard separately tracks `รอเริ่มงาน / กำลังทำ / เสร็จ`;
+- current BK01-pilot does not provide an equivalent first-class in-progress Booking lifecycle and rejects online `duration_unit='day'`.
+
+Owner decision:
+- use KMO as the proving ground for the intake-calendar/work-lifecycle separation;
+- rebuild the useful behavior under current KMO security/data boundaries;
+- do not restore legacy code wholesale;
+- do not change canonical BK01 now;
+- after KMO proves the model, open a future dedicated BK01 branch and generalize it for ordinary appointment shops as well as KMO-like long-running shops.
+
+### BK01-FB-004 — intake-date capacity vs long-running work
+Classification: **UPSTREAM CANDIDATE / KMO-FIRST PROOF REQUIRED**
+
+Direction: `KMO → BK01`.
+
+Problem observed in real shop operation: treating a multi-day or long-running job as a multi-day public Booking lock can prevent unrelated customers from booking future intake dates even when the shop can accept them.
+
+KMO legacy source already separates the concepts:
+- `appointment_date` consumes the public daily intake cap;
+- `pickup_date` and `production_status` describe the operational job after intake.
+
+KMO D1A is authorized to modernize and prove this model with configurable daily intake units and atomic server-side enforcement.
+
+Canonical BK01 disposition: **PENDING / NO ACTION WHILE OWNER HOLD IS ACTIVE**.
+
+No upstream implementation is authorized until KMO produces real evidence and the behavior is generalized for broader shop types.
+
 ## Operating rule — bidirectional learning loop
 
 - **Watch BK01 upstream:** review relevant committed BK01 changes and selectively sync/adapt verified improvements into KMO.
