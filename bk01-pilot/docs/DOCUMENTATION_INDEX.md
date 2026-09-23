@@ -26,6 +26,7 @@ A contradiction between target SSOT and current implementation is a BK-A gap, no
 - `08_EXTERNAL_DEPENDENCIES.md` — provider boundaries
 - `09_TEST_RELEASE_GATES.md` — release evidence contract
 - `10_DEVELOPMENT_ROADMAP.md` — BK-A onward build order
+
 ## Evidence and governance
 - `PRODUCT_DECISIONS.md` — owner-approved product decisions
 - `ADR_TEMPLATE.md` — future architecture/security decision format
@@ -36,6 +37,7 @@ A contradiction between target SSOT and current implementation is a BK-A gap, no
 - `audit/DOCUMENTATION_AUDIT.md` — final cross-document review record
 - `../UPSTREAM.md` — canonical BK01/KMO boundary and bidirectional upstream/downstream sync rule
 - `BK01_UPSTREAM_FEEDBACK_LEDGER.md` — defect/improvement/sync ledger and upstream disposition record
+- `REPORT-BK01-R4-UPSTREAM-FAST-FORWARD-2026-09-23.md` — Owner-issued upstream evidence packet for reconciling canonical BK01 R4 CLOSED into KMO before D1A without erasing KMO-specific operational truth
 - `market/*` — market/competitor/ICP evidence as dated analysis, not timeless product truth
 
 ## Marketing and operations
