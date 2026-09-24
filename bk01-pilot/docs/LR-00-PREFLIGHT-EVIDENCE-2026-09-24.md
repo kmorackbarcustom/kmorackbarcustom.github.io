@@ -177,7 +177,27 @@ Order / Claim / KMO Control touched             NO
 production mutation / deploy / cutover          NOT ATTEMPTED
 ```
 
-## 7. LR-00 verdict
+## 7. Activation commit
+
+```text
+activation commit   020e506f552705bd27b2e47648ec68ea00bd2ad0 (short 020e506)
+parent              ac3c14746d87e2a6038d63e39715f30a8384b598
+branch              task/KMO-DOMAIN-BOOKING-READINESS-001-d1a-long-run-20260924
+files changed       4 (all under bk01-pilot/docs/)
+                    M DOCUMENTATION_INDEX.md
+                    M RUN-MANIFEST-KMO-DOMAIN-BOOKING-READINESS-001-LONG-RUN-2026-09-24.md
+                    M tasks/TASK-KMO-DOMAIN-BOOKING-READINESS-001.md
+                    A LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md
+worktree after      clean
+push                WITHHELD — this repository is committed by its owner identity; Hermes holds the
+                    activation commit locally and does not push
+```
+
+Allowed-path audit at the activation commit: every changed path is under `bk01-pilot/docs/`.
+`git diff --check` clean. Secret-shaped scan over the four changed files: 0 hits.
+No `apps/`, `supabase/`, `tests/`, or `reference/` content was modified.
+
+## 8. LR-00 verdict
 
 ```text
 LR-00 PREFLIGHT = PASS
