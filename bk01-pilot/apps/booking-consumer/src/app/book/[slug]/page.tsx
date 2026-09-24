@@ -13,6 +13,7 @@ import {
   submitDepositSlip, uploadDepositSlip, Shop, Service, Staff, HoldResponse,
   StaffSchedule, ShopHoliday, ShopWeeklySchedule,
 } from '../../../lib/booking-service';
+import { resolveBookingPageState, countOpenWeeklyDays } from '../../../lib/booking-state';
 import { LanguageToggle } from '@/components/language-toggle';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -176,6 +177,34 @@ export default function BookingPage() {
   );
   const paymentMethodAvailable = Boolean(paymentInstruction.ok || staticQrUrl);
   const promptpayPayload = paymentInstruction.ok ? paymentInstruction.payload : null;
+
+  // LR-02C truthful page state. One honest state is derived from data the page
+  // already fetched, through the LR-01 resolver that owns the state precedence,
+  // and each non-OK state renders its own screen before the stepper. Previously
+  // a partly-configured shop (no services, no staff, no open weekly day, or a
+  // deposit-required shop with no payment setup) or a transient load failure
+  // fell through to a dead stepper under HTTP 200.
+  const openWeeklyDayCount = countOpenWeeklyDays(shopWeeklySchedule);
+  // The create-hold payment gate below, evaluated per service: a service is
+  // blocked only when the shop requires a deposit, that service's OWN
+  // configured deposit is a real positive number, and no payment method is
+  // available. One bookable service (no deposit required, zero/unset deposit,
+  // or an available payment method) keeps the page OK.
+  const everyServicePaymentBlocked =
+    services.length > 0 &&
+    services.every((service) => {
+      const serviceDepositAmount = authoritativeDepositAmount(service.deposit_amount);
+      return shop?.require_deposit === true && serviceDepositAmount !== null && !paymentMethodAvailable;
+    });
+  const pageState = resolveBookingPageState({
+    isLoading: isLoadingShop,
+    loadError,
+    shop,
+    serviceCount: services.length,
+    staffCount: staffList.length,
+    openWeeklyDayCount,
+    everyServicePaymentBlocked,
+  });
 
   const handleCopyPromptpay = () => {
     if (!promptpayNumber) return;
@@ -394,7 +423,19 @@ export default function BookingPage() {
     }
   };
 
-  if (isLoadingShop) {
+  // Shared contact fallback for every non-OK state: a customer must always have
+  // a way to reach the shop, whatever the page cannot show.
+  const contactFallback = (
+    <a
+      href={shopPhoneHref}
+      className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-xs border border-slate-700 transition-all"
+    >
+      <Phone className="w-4 h-4 text-emerald-400" />
+      {t('callShopEmergency', { phone: shopPhone })}
+    </a>
+  );
+
+  if (pageState === 'LOADING') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -405,25 +446,98 @@ export default function BookingPage() {
     );
   }
 
-  if (loadError) {
+  // A failed fetch is NOT the same thing as a shop that does not exist: the
+  // customer must be able to tell "we could not load this" apart from "there is
+  // no such shop page".
+  if (pageState === 'LOAD_ERROR') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
         <div className="max-w-sm text-center space-y-3 rounded-2xl border border-rose-500/30 bg-slate-900 p-6">
           <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
           <h1 className="text-lg font-bold text-white">{t('loadFailed.title')}</h1>
           <p className="text-xs text-slate-400">{t('loadFailed.description')}</p>
+          {contactFallback}
         </div>
       </div>
     );
   }
 
-  if (!shop) {
+  if (pageState === 'SHOP_NOT_FOUND') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
         <div className="max-w-sm text-center space-y-3 rounded-2xl border border-slate-700 bg-slate-900 p-6">
           <CalendarOff className="w-8 h-8 text-slate-400 mx-auto" />
           <h1 className="text-lg font-bold text-white">{t('notFound.title')}</h1>
           <p className="text-xs text-slate-400">{t('notFound.description')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === 'BOOKING_DISABLED') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="bg-slate-900/90 border border-amber-500/40 rounded-2xl p-6 text-center shadow-xl shadow-amber-950/40 space-y-3">
+          <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
+            <CalendarOff className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-bold text-white">{t('blocked.title')}</h2>
+          <p className="text-xs text-slate-400">{t('blocked.description')}</p>
+          <a
+            href={shopPhoneHref}
+            className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-xs border border-slate-700 transition-all"
+          >
+            <Phone className="w-4 h-4 text-emerald-400" />
+            {t('callShop', { phone: shopPhone })}
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === 'NO_SERVICES') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-amber-500/30 bg-slate-900 p-6">
+          <Coffee className="w-8 h-8 text-amber-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('setupState.noServices')}</h1>
+          {contactFallback}
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === 'NO_STAFF') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-amber-500/30 bg-slate-900 p-6">
+          <User className="w-8 h-8 text-amber-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('setupState.noStaff')}</h1>
+          {contactFallback}
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === 'NO_SCHEDULE') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-amber-500/30 bg-slate-900 p-6">
+          <CalendarOff className="w-8 h-8 text-amber-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('setupState.noSchedule')}</h1>
+          {contactFallback}
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === 'PAYMENT_NOT_CONFIGURED') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-sm text-center space-y-3 rounded-2xl border border-amber-500/30 bg-slate-900 p-6">
+          <QrCode className="w-8 h-8 text-amber-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">{t('setupState.paymentNotConfigured')}</h1>
+          {contactFallback}
         </div>
       </div>
     );

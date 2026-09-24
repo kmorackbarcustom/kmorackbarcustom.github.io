@@ -43,6 +43,8 @@
     "setupState": {
       "noServices": "This shop has no services available for online booking yet.",
       "noStaff": "No staff are currently available for online booking, so time selection is disabled.",
+      "noSchedule": "This shop has not published the opening hours it accepts for online booking, so there is no selectable day yet. Please contact the shop directly.",
+      "paymentNotConfigured": "This shop has not configured an online deposit payment method, and it has no service that can be booked without a deposit. Please contact the shop directly.",
       "noSlots": "There are no available time slots on the selected date. Choose another date or contact the shop."
     },
     "blocked": {
