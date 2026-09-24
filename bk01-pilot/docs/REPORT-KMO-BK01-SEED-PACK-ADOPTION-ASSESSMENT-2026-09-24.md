@@ -40,10 +40,15 @@ These change the D1A worklist and are carried into the adoption decision.
 - Evidence: `const promptpayName = shop?.promptpay_name || shop?.name || t('fallbackShopName');`
 - Impact: D0.5 closed the fake **recipient** fallback, but the customer-facing account **name** is still invented from the shop name or a translation fallback. BK01 R4 `payment-instruction.ts` explicitly forbids this ("NEVER derived from the shop name or any fallback"). This is the same fail-open class as the removed recipient fallback.
 
-### F-3 Claim adapter target does not exist in KMO — `OWNER_DECISION`
+### F-3 Claim adapter target is not in KMO's authorized runtime — `OWNER_DECISION`
 
-- Evidence: BK01 `public-claim.ts` maps into canonical `local_service.create_ticket` / Ticket-Case domain. KMO deliberately excluded `tickets` / `ticket_timeline_entries` (`KMO_SCHEMA_CONTRACT.md` §excluded, `KMO_BASELINE_DEPENDENCY_INVENTORY.md` l.105).
-- Impact: Claim cannot be adapted as-is even after authorization; KMO has no authoritative Claim/Ticket/Case engine to sit behind the adapter.
+(Scope corrected after Codex review `ADOPTION_PLAN_REMEDIATE` finding 1.)
+
+- Evidence: BK01 `public-claim.ts` maps into canonical `local_service.create_ticket` / Ticket-Case domain. Three distinct facts:
+  1. **Baseline/pilot authority:** KMO deliberately excluded `tickets` / `ticket_timeline_entries` from the KMO baseline and pilot product surface (`KMO_SCHEMA_CONTRACT.md` l.81–86, `KMO_BASELINE_DEPENDENCY_INVENTORY.md` l.53–60, l.100–105); `supabase/kmo-baseline/KMO_BK01_BASELINE.sql` has zero ticket references.
+  2. **Inherited migration source:** the upstream migration chain copied into KMO still contains `supabase/migrations/20260818000000_local_service_tickets.sql` (tables l.9/l.37, `create_ticket` l.93, grants l.640–641). It is historical source, not part of the KMO baseline, and not an authorized KMO runtime.
+  3. **Live KMO operations** have real Claim-type handling outside `local_service`, not modelled here.
+- Impact: Claim cannot be adapted as-is even after authorization. The adapter target must be an explicit Owner decision: (a) adopt the existing inherited ticket engine into the KMO baseline, (b) a KMO-owned engine, or (c) another authority. Future Claim work must not create a second Ticket/Case engine without first deciding the fate of the inherited migration.
 
 ### F-4 BK01 Order domain overlaps live KMO `public.orders` and `public.products` — `OWNER_DECISION`
 
@@ -94,7 +99,7 @@ Paths below are relative to `bk01-pilot/reference/bk01-upstream-seed-2026-09-24/
 | Forbidden internal-field stripping | `45fa3ab` `CUSTOMER_FORBIDDEN_TICKET_FIELDS` | n/a | FUTURE_AUTHORIZATION_REQUIRED | LOW | field list depends on engine | No | OD-2 | — |
 | Idempotency key on submission | `45fa3ab` | n/a | FUTURE_AUTHORIZATION_REQUIRED | LOW | — | No | OD-2 | — |
 | Public status projection (`received, in_review, waiting_for_you, resolved, closed`) | `45fa3ab` `toPublicClaimStatus`, `projectPublicClaimTracking` | n/a | FUTURE_AUTHORIZATION_REQUIRED | LOW | mapping from KMO engine statuses | No | OD-2 | — |
-| Ticket/Case adapter boundary | `45fa3ab` `PublicClaimAdapter` → `local_service.create_ticket` | KMO excluded tickets (F-3) | CONTRACT_CONFLICT | OWNER_DECISION | choose KMO authoritative Claim engine before any adapter | No | OD-2 | No engine behind the adapter |
+| Ticket/Case adapter boundary | `45fa3ab` `PublicClaimAdapter` → `local_service.create_ticket` | tickets excluded from KMO baseline/pilot authority; inherited migration `20260818000000_local_service_tickets.sql` exists as unadopted source (F-3) | CONTRACT_CONFLICT | OWNER_DECISION | Owner decides adapter target: adopt inherited ticket engine into KMO baseline, KMO-owned engine, or other; never a duplicate engine | No | OD-2 | No authorized engine behind the adapter |
 | Claim intake / tracking pages | `45fa3ab` `.../shop/[slug]/claim/page.tsx`, `.../claim/track/page.tsx` | none | FUTURE_AUTHORIZATION_REQUIRED | MEDIUM | — | No | OD-2 | Must not be routed |
 | Fail-closed production adapter | `45fa3ab` `productionClaimAdapter` (`CLAIM_RUNTIME_NOT_ENABLED`) | n/a | FUTURE_AUTHORIZATION_REQUIRED | LOW | — | No | OD-2 | Pattern reused for KMO when authorized |
 | Claim docs (threat model, evidence, runtime handoff, portal/claim decision) | `45fa3ab` `public-portal-claim/docs/*` | n/a | REFERENCE_ONLY | LOW | — | n/a | — | Design/threat evidence |
@@ -190,7 +195,7 @@ Methodology is adopted as KMO verification standard; the upstream evidence files
 
 ### CONTRACT CONFLICTS
 - **OD-1** Public Portal as canonical customer entry (changes `/` behavior) — in or out of the one-shot package.
-- **OD-2** KMO authoritative Claim/Ticket/Case engine (tickets excluded from KMO) — F-3.
+- **OD-2** KMO authoritative Claim/Ticket/Case engine — tickets are excluded from the KMO baseline, but an inherited unadopted ticket migration exists; Owner decides whether it becomes the adapter target — F-3.
 - **OD-3** BK01 Order domain vs live `public.orders` / `public.products`, and Booking→job vs Order→Booking direction — F-4.
 - `duration_unit='day'` semantics — technical, handled by D1A F; no Owner decision needed unless F is rejected.
 

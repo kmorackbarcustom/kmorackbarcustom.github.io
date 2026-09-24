@@ -67,12 +67,12 @@ All as new files under `supabase/kmo-baseline/`, each with a paired `_ROLLBACK.s
 | `KMO_BK01_PREDICATE_GRANT_PATCH.sql` | `GRANT SELECT (shop_id)` to `anon` on `local_service.staff_schedules` and `local_service.shop_holidays` only; assert no table-wide SELECT/write | A |
 | `KMO_BK01_WEEKLY_FAIL_CLOSED_PATCH.sql` | `enforce_shop_weekly_booking_hours()` raises when the weekly row is missing (replace `RETURN NEW`); or seven-row invariant enforced atomically in `upsert_shop_weekly_schedule` + provisioning — implementer picks one and states why; create **and** reschedule paths | D |
 | `KMO_BK01_STAFF_HOURS_INVARIANT_PATCH.sql` | staff schedule RPC rejects working hours outside shop weekly hours / on closed days | E |
-| `KMO_BK01_INTAKE_CAPACITY_PATCH.sql` | shop-configured daily intake units (integer ≥ 0, no `DAILY_CAP=3` constant); per-booking intake units (integer ≥ 1, default 1); atomic enforcement inside `create_booking_hold` and reschedule (row lock or advisory lock keyed on `(shop_id, booking_date)`); capacity counted on `booking_date` only; `pickup_date`/duration never consume capacity | F1, F2 |
+| `KMO_BK01_INTAKE_CAPACITY_PATCH.sql` | shop-configured daily intake units (integer ≥ 0, no `DAILY_CAP=3` constant); per-booking intake units (integer ≥ 1, default 1); atomic enforcement inside `create_booking_hold` and reschedule (row lock or advisory lock keyed on `(shop_id, booking_date)`; a cross-date reschedule locks both dates in a fixed order to avoid deadlock); capacity counted on `booking_date` only for statuses that hold intake (hold, pending_review, confirmed); cancel / expire / no-show / reschedule-away release units; `pickup_date`/duration never consume capacity | F1, F2 |
 | `KMO_BK01_WORK_LIFECYCLE_PATCH.sql` | work lifecycle `WAITING_TO_START → IN_PROGRESS → COMPLETED` stored in KMO-owned extension (`kmo_booking.*`, per Gate 3), one row per booking; transitions only via authorized owner/admin RPC with actor + timestamp; completion never rewrites booking history | F3, F4 |
 
 Design constraints: `public.*` KMO tables untouched; no universal customer key; RLS enabled on every new table; no anon policy on `kmo_booking` / `kmo_bridge`; no service-role path to browsers.
 
-Gate: SQL applies cleanly on a disposable local/branch database from `KMO_BK01_BASELINE.sql` + existing patches; rollback returns to the prior schema dump; DB negative tests (below). **Codex checkpoint G-DB** before any runtime apply.
+Gate: SQL applies cleanly on a disposable local/branch database from `KMO_BK01_BASELINE.sql` + existing patches; rollback returns to the prior schema dump; DB-backed tests for S7 items 4, 4a, 4b and 5 live under `supabase/tests/` and pass on that database. **Codex checkpoint G-DB** before any runtime apply.
 
 ### S4 — Admin readiness, schedule UX, work dashboard
 
@@ -107,6 +107,8 @@ Required evidence (JSON + screenshots, 360/390 px and desktop):
 2. Payment: no QR/amount/copy/download/slip when tuple incomplete; amount equals `holdResult.deposit_amount`.
 3. Countdown equals server `expires_at`.
 4. D1A §F regression scenarios 1–8 (verbatim from D1A brief), incl. concurrent-hold race not exceeding intake units.
+4a. Reschedule capacity (DB-backed): same-date reschedule does not double-count; cross-date reschedule releases the old date and consumes the new date atomically; reschedule into a full date is rejected with the booking unchanged; concurrent reschedules into the same last free units cannot exceed the limit; concurrent hold + reschedule into the same date cannot exceed the limit; cancel / expire / no-show release units; changing `pickup_date` or duration never changes any date's consumed units.
+4b. Work lifecycle authority (DB-backed): full sequence `WAITING_TO_START → IN_PROGRESS → COMPLETED` succeeds for owner/admin; every illegal transition (skip, backward, from `COMPLETED`) is rejected; anon, non-member authenticated user and a member of another shop are denied (incl. cross-tenant booking id); each accepted transition persists actor id + timestamp; lifecycle transitions leave `local_service.bookings` status/history rows unchanged; a failed transition leaves the lifecycle row unchanged.
 5. Weekly missing-row fail-closed on create and reschedule; staff hours outside shop hours rejected by DB.
 6. Admin: readiness rows, F-1 (edit staff A, approve a slip, edit survives), save-all with one forced failure rolls back only that card, leave guard.
 7. Owner/admin allow, outsider and cross-tenant deny, rapid tenant navigation.
