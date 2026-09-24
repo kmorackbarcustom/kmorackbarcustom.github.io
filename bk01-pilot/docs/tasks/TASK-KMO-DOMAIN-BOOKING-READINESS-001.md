@@ -93,7 +93,7 @@ Current Checkpoint: `LR-02D COMPLETE` — LR-01 helpers + payment authority + ho
 Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` / `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` / `LR02C-WU01` / `LR02D-WU01`(BLOCKED, correct) / `LR02D-WU02` — all lane dispositions recorded in the attempt ledgers.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or an exact declared blocked/Owner-decision checkpoint.
 
-Next Allowed Action: B1 has a real verdict — **`APPROVED_WITH_FINDINGS`** from `agent-claude` at `234603d` (provenance persisted in `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md`). The remediation then moved the tip to `4b7efb9`, so a bounded B1 re-review at the new SHA is in flight through the same admissible rail. `LR-03` starts only after a verdict covers the current tip.
+Next Allowed Action: B1 = **`APPROVED_WITH_FINDINGS`**, twice, from `agent-claude` — first at `234603d` (LR-01 + LR-02 + LR-02C), then a bounded re-review at `8b67325` that confirmed F1/F4 closed with **no new blocking finding**. The re-review verdict covers the current tip, so `LR-03` (KMO DB contract, Review Batch B2 critical) is now unblocked. Both verdicts and full reviewer provenance are persisted in `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md`. Carried non-blocking findings F2/F3/F5 remain as recorded: F3 (regex-on-source tests are not runtime proof) is LR-06's responsibility, F2/F5 are logged for LR-03+.
 
 B1's actionable findings F1 (dead `isBookingBlocked` branch) and F4 (overclaiming comment) are CLOSED at `580d165`. Carried non-blocking: F2 (`everyServicePaymentBlocked` reuses a global `paymentMethodAvailable` inside a per-service check — not reachable as a bug), F3 (regex-on-source tests are not runtime proof; `LR-06` owns browser/mobile evidence), F5 (brief section B names `NO_SLOT_FOR_DATE`; it stays the date-scoped inline step-2 banner rather than a shop-wide page state).
 
@@ -114,8 +114,8 @@ Note: `F-2` is closed at product level — `?? 100`, the merchant-name fallback 
 | LR-02C truthful-state wiring | COMPLETE | `LR-02C-EVIDENCE-2026-09-24.md` · commit `07558fe` |
 | B1 independent review | `APPROVED_WITH_FINDINGS` @ `234603d` | `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md` · reviewer `agent-claude` |
 | LR-02D B1 findings F1/F4 | COMPLETE @ `580d165` | `LR-02D-EVIDENCE-2026-09-24.md` · lane `LR02D-WU02` 10/10 |
-| B1 re-review of current tip | IN FLIGHT @ `4b7efb9` | same admissible rail; `B1-BLOCKER-INDEPENDENT-REVIEW-RAIL-2026-09-24.md` records the original rail condition |
-| LR-03 intake/work schema | BLOCKED until a verdict covers the tip | — |
+| B1 re-review of current tip | `APPROVED_WITH_FINDINGS` @ `8b67325` | F1/F4 confirmed closed, no new blocking finding · `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md` |
+| LR-03 intake/work schema | UNBLOCKED (B2 critical next) | — |
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no generic cross-domain capacity engine; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation; no canonical BK01 mutation.
