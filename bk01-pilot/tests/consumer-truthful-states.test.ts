@@ -109,8 +109,8 @@ test('the disabled-shop and blocked states reuse the existing blocked copy', () 
   assert.match(source, /t\('blocked\.title'\)/);
   assert.match(source, /t\('blocked\.description'\)/);
   assert.match(source, /t\('callShop',\s*\{\s*phone:\s*shopPhone\s*\}\)/);
-  // The in-page blocked branch is preserved for the stepper shell.
-  assert.match(source, /isBookingBlocked/);
+  // The disabled-shop state is the dedicated full-page BOOKING_DISABLED screen,
+  // rendered before <main> is reached; it is the only consumer of these keys.
 });
 
 test('the new NO_SCHEDULE and PAYMENT_NOT_CONFIGURED screens use the setupState keys', () => {

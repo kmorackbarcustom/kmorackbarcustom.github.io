@@ -162,7 +162,6 @@ export default function BookingPage() {
   const shopPhoneHref = shop?.phone?.trim()
     ? `tel:${shop.phone.replace(/-/g, '')}`
     : undefined;
-  const isBookingBlocked = shop?.is_accepting_online_bookings === false;
   // The only authoritative deposit amount is the hold row's, optionally seeded
   // by the selected service's own configured deposit. Nothing is defaulted: the
   // LR-01 gate below decides whether that amount is payable at all.
@@ -423,8 +422,11 @@ export default function BookingPage() {
     }
   };
 
-  // Shared contact fallback for every non-OK state: a customer must always have
-  // a way to reach the shop, whatever the page cannot show.
+  // Shared contact fallback for the non-OK states that keep the shop's phone
+  // reachable: LOAD_ERROR and the setup-state screens (NO_SERVICES, NO_STAFF,
+  // NO_SCHEDULE, PAYMENT_NOT_CONFIGURED). SHOP_NOT_FOUND deliberately omits it
+  // (there is no shop object, so no phone), and BOOKING_DISABLED renders its
+  // own inline call button instead.
   const contactFallback = (
     <a
       href={shopPhoneHref}
@@ -579,22 +581,7 @@ export default function BookingPage() {
           </div>
         )}
 
-        {isBookingBlocked ? (
-          <div className="bg-slate-900/90 border border-amber-500/40 rounded-2xl p-6 text-center shadow-xl shadow-amber-950/40 space-y-3">
-            <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
-              <CalendarOff className="w-7 h-7" />
-            </div>
-            <h2 className="text-lg font-bold text-white">{t('blocked.title')}</h2>
-            <p className="text-xs text-slate-400">{t('blocked.description')}</p>
-            <a
-              href={shopPhoneHref}
-              className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-xs border border-slate-700 transition-all"
-            >
-              <Phone className="w-4 h-4 text-emerald-400" />
-              {t('callShop', { phone: shopPhone })}
-            </a>
-          </div>
-        ) : bookingSuccess ? (
+        {bookingSuccess ? (
           /* CONFIRMED OR PENDING REVIEW STATE (PRODUCT_RULES_V1 SECTION 1.4) */
           <div className={`bg-slate-900/90 rounded-2xl p-6 text-center shadow-xl animate-fade-in space-y-5 ${
             holdResult?.status === 'confirmed'
