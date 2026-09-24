@@ -89,15 +89,19 @@ Do not touch KMO Control implementation, Order, Claim, or canonical BK01.
 
 ## Current Worker / Checkpoint
 Current Worker: `swarm-builder` via `hermes-native-swarm` (capability `implementation`); Hermes = orchestrator/state holder only.
-Current Checkpoint: `LR-02C COMPLETE` — LR-01 truthful-state helpers are now wired into the consumer page; three LR-01 helper families + payment authority + hold expiry + truthful states all committed (`f74ac29`, `c95a3bf`, `f135edb`, `ce163ae`, `e1ff830`, `07558fe`; evidence `e8fdef0`, `d01725e`, `LR-02C-EVIDENCE-2026-09-24.md`).
-Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` / `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` / `LR02C-WU01` — all lane dispositions recorded in the attempt ledgers.
+Current Checkpoint: `LR-02D COMPLETE` — LR-01 helpers + payment authority + hold expiry + truthful states all wired and committed, and B1's F1/F4 findings remediated (`f74ac29`, `c95a3bf`, `f135edb`, `ce163ae`, `e1ff830`, `07558fe`, `234603d`, `580d165`, `4b7efb9`; evidence `e8fdef0`, `d01725e`, `LR-02C-EVIDENCE-2026-09-24.md`, `LR-02D-EVIDENCE-2026-09-24.md`, `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md`).
+Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` / `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` / `LR02C-WU01` / `LR02D-WU01`(BLOCKED, correct) / `LR02D-WU02` — all lane dispositions recorded in the attempt ledgers.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or an exact declared blocked/Owner-decision checkpoint.
 
-Next Allowed Action: obtain a real B1 verdict on the frozen candidate `07558fe` (LR-01 + LR-02 + LR-02C) through a currently admissible independent reviewer path. `B1` currently stops at `BLOCKED_INDEPENDENT_REVIEW_RAIL_PERMISSION` — the Owner-ruled reviewer `agent-claude` runs plan-only for every non-`BUILD` context mode in the protected Relay skill, so it can read but cannot run tests or write its report. This task must not patch that skill and must not substitute a weaker review.
+Next Allowed Action: B1 has a real verdict — **`APPROVED_WITH_FINDINGS`** from `agent-claude` at `234603d` (provenance persisted in `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md`). The remediation then moved the tip to `4b7efb9`, so a bounded B1 re-review at the new SHA is in flight through the same admissible rail. `LR-03` starts only after a verdict covers the current tip.
+
+B1's actionable findings F1 (dead `isBookingBlocked` branch) and F4 (overclaiming comment) are CLOSED at `580d165`. Carried non-blocking: F2 (`everyServicePaymentBlocked` reuses a global `paymentMethodAvailable` inside a per-service check — not reachable as a bug), F3 (regex-on-source tests are not runtime proof; `LR-06` owns browser/mobile evidence), F5 (brief section B names `NO_SLOT_FOR_DATE`; it stays the date-scoped inline step-2 banner rather than a shop-wide page state).
 
 Corrections recorded during the continuation (2026-09-24):
 - `LR-02B-WU02` was listed in `LR-02-EVIDENCE-2026-09-24.md` as a lane PASS; the raw lane record is `SWARM_WORK_UNIT_FAIL` (`WORKER_REPORTED_FAIL`). Corrected in place; its artifacts were independently re-verified before being relied on.
 - `LR-02` was marked `COMPLETE` at `d01725e` while its own required outcome (brief section B truthful states) was not yet met — `resolveBookingPageState` / `countOpenWeeklyDays` had zero app usage. Closed by LR-02C at `07558fe`.
+- `LR02D-WU01` was BLOCKED by the worker against a **controller spec defect**: the packet forbade test edits while F1 required the dead identifier to reach zero occurrences, and the controller's own test pinned it. Re-issued as R2 with the one test file in scope; recorded in `LR-02D-EVIDENCE-2026-09-24.md`.
+- One declared check in the R2 packet was found defective in the pre-dispatch baseline run (the test file stores regex-escaped literals, so a plain grep never matched) and was fixed before dispatch; the original form would have produced a false FAIL.
 
 Note: `F-2` is closed at product level — `?? 100`, the merchant-name fallback and the independent `900` countdown are all gone from `apps/booking-consumer/src/app/book/[slug]/page.tsx`, and the three invented-data defects are covered by focused tests.
 
@@ -108,8 +112,10 @@ Note: `F-2` is closed at product level — `?? 100`, the merchant-name fallback 
 | LR-01 pure helpers | COMPLETE | `LR-01-EVIDENCE-2026-09-24.md` · commits `f74ac29`, `c95a3bf`, `f135edb`, `e8fdef0` |
 | LR-02 consumer truth/payment | COMPLETE | `LR-02-EVIDENCE-2026-09-24.md` · commits `ce163ae`, `e1ff830` |
 | LR-02C truthful-state wiring | COMPLETE | `LR-02C-EVIDENCE-2026-09-24.md` · commit `07558fe` |
-| B1 independent review | BLOCKED_INDEPENDENT_REVIEW_RAIL_PERMISSION | `B1-BLOCKER-INDEPENDENT-REVIEW-RAIL-2026-09-24.md` · no verdict exists at `07558fe` |
-| LR-03 intake/work schema | BLOCKED on B1 | — |
+| B1 independent review | `APPROVED_WITH_FINDINGS` @ `234603d` | `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md` · reviewer `agent-claude` |
+| LR-02D B1 findings F1/F4 | COMPLETE @ `580d165` | `LR-02D-EVIDENCE-2026-09-24.md` · lane `LR02D-WU02` 10/10 |
+| B1 re-review of current tip | IN FLIGHT @ `4b7efb9` | same admissible rail; `B1-BLOCKER-INDEPENDENT-REVIEW-RAIL-2026-09-24.md` records the original rail condition |
+| LR-03 intake/work schema | BLOCKED until a verdict covers the tip | — |
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no generic cross-domain capacity engine; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation; no canonical BK01 mutation.
