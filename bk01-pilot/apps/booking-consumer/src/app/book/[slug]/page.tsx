@@ -19,6 +19,7 @@ import {
   resolvePaymentInstruction,
   resolveStaticQrInstruction,
   authoritativeDepositAmount,
+  remainingHoldSeconds,
 } from '../../../lib/payment-instruction';
 
 const CENTRAL_LINE_OA_ID = process.env.NEXT_PUBLIC_CENTRAL_LINE_OA_ID || 'central_booking_oa';
@@ -78,8 +79,11 @@ export default function BookingPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const qrContainerRef = useRef<HTMLDivElement>(null);
 
-  // 15-Minute Countdown Timer (900 seconds)
-  const [timeLeft, setTimeLeft] = useState<number>(900);
+  // Authoritative hold-expiry countdown. The remaining time is NOT a local
+  // constant: it is derived from the hold row's server `expires_at` through the
+  // LR-01 `remainingHoldSeconds` owner. `null` means no server value to show,
+  // which renders the expired/unavailable state instead of inventing time.
+  const [expiryNow, setExpiryNow] = useState<number>(() => Date.now());
 
   // Fetch shop, services, staff from Supabase
   useEffect(() => {
@@ -124,21 +128,32 @@ export default function BookingPage() {
     };
   }, [slipPreview]);
 
+  // The ticker only re-reads the clock. The remaining seconds themselves are
+  // always recomputed from the server `expires_at` below, so a reload, a slow
+  // render or an extended hold can never display a locally invented start.
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (step === 3 && !bookingSuccess && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
+    if (step !== 3 || bookingSuccess) return;
+    const timer = setInterval(() => setExpiryNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [step, bookingSuccess, timeLeft]);
+  }, [step, bookingSuccess]);
 
   const formatCountdown = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+
+  // Server-authoritative remaining seconds, recomputed from the hold row's
+  // `expires_at` on every render (i.e. on every tick). `null` means there is no
+  // usable server value at all; `0` is a real value meaning the hold has
+  // genuinely elapsed. Neither case is ever turned into a fabricated countdown.
+  const holdSecondsRemaining = remainingHoldSeconds(holdResult?.expires_at, expiryNow);
+  // Single owner of "does time actually remain?": the banner requires a usable
+  // server value that is strictly positive, so an elapsed hold (0) and an
+  // unusable value (null) both fall through to the expired recovery branch
+  // instead of being frozen at 00:00 with an unreachable recovery path.
+  const holdHasTimeRemaining = holdSecondsRemaining !== null && holdSecondsRemaining > 0;
+  const holdCountdownText = holdHasTimeRemaining ? formatCountdown(holdSecondsRemaining) : null;
 
   const promptpayNumber = shop?.promptpay_number?.trim() || '';
   const promptpayName = shop?.promptpay_name?.trim() || null;
@@ -333,7 +348,9 @@ export default function BookingPage() {
       if (res.status === 'confirmed' && res.deposit_status === 'not_required') {
         setBookingSuccess(true);
       } else if (res.status === 'hold' && res.deposit_status === 'awaiting') {
-        setTimeLeft(900); // 15 mins
+        // No local starting constant: the countdown below derives from the
+        // hold row's own server `expires_at`.
+        setExpiryNow(Date.now());
         setStep(3);
       } else {
         throw new Error(t('errors.invalidBookingStatus'));
@@ -766,16 +783,22 @@ export default function BookingPage() {
                   <p className="text-xs text-slate-400">{t('step3.description')}</p>
                 </div>
 
-                {/* 15-Minute Countdown Timer Banner */}
-                {timeLeft > 0 ? (
+                {/* Hold countdown banner -- server-authoritative expires_at only,
+                    and only while that server value says time actually remains.
+                    An elapsed hold (0) falls through to the recovery branch below
+                    instead of freezing at 00:00 with no way out. */}
+                {holdHasTimeRemaining ? (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center space-y-1">
                     <div className="flex items-center justify-center gap-1.5 text-amber-300 font-bold text-xs">
                       <Clock className="w-4 h-4 text-amber-400 animate-pulse flex-shrink-0" />
-                      <span>{t('step3.timer')} <span className="font-mono text-sm font-extrabold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">{formatCountdown(timeLeft)}</span> {t('step3.timerUnit')}</span>
+                      <span>{t('step3.timer')} <span className="font-mono text-sm font-extrabold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">{holdCountdownText}</span> {t('step3.timerUnit')}</span>
                     </div>
                     <p className="text-[10px] text-slate-400">{t('step3.temporaryCode')} <span className="font-mono text-emerald-400 font-bold">{holdResult?.booking_code}</span></p>
                   </div>
                 ) : (
+                  // Expired OR unavailable (no usable server value at all): both
+                  // are a dead end for the countdown, so both must land here with
+                  // the reachable "choose a new time" recovery button.
                   <div className="bg-rose-500/20 border-2 border-rose-500/40 rounded-xl p-4 text-center space-y-2 animate-fade-in">
                     <div className="flex items-center justify-center gap-2 text-rose-300 font-extrabold text-xs">
                       <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
@@ -899,7 +922,7 @@ export default function BookingPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting || timeLeft === 0 || !slipFile}
+                    disabled={isSubmitting || holdCountdownText === null || holdSecondsRemaining === 0 || !slipFile}
                     className="w-2/3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
                   >
                     {isSubmitting ? t('step3.submitting') : t('step3.confirmDeposit')}
