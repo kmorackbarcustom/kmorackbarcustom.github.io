@@ -89,11 +89,11 @@ Do not touch KMO Control implementation, Order, Claim, or canonical BK01.
 
 ## Current Worker / Checkpoint
 Current Worker: `swarm-builder` via `hermes-native-swarm` (capability `implementation`); Hermes = orchestrator/state holder only.
-Current Checkpoint: `LR-01 COMPLETE` — three pure helper families implemented, tested and committed (`f74ac29`, `c95a3bf`, `f135edb`, evidence `e8fdef0`).
-Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` — all `SWARM_WORK_UNIT_PASS`.
+Current Checkpoint: `LR-02 COMPLETE` — consumer truth/payment/expiry wired, F-2 closed (`ce163ae`, `e1ff830`, evidence `LR-02-EVIDENCE-2026-09-24.md`).
+Latest Dispatch/Relay stage pointer: `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` — all `SWARM_WORK_UNIT_PASS`.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or an exact declared blocked/Owner-decision checkpoint.
 
-Next Allowed Action: materialize `LR-02 — consumer truth/payment/expiry` work units, then submit Review Batch B1 (LR-01 + LR-02) to the independent reviewer `agent-claude` with a revision-bound Reviewer Evidence Packet.
+Next Allowed Action: submit Review Batch B1 (LR-01 + LR-02) to the independent reviewer `agent-claude` at exact SHA with a revision-bound Reviewer Evidence Packet, then materialize LR-03.
 
 Note: `F-2` is still open at product level — the defect surface in `apps/booking-consumer/src/app/book/[slug]/page.tsx` (`?? 100`, merchant-name fallback, independent `900` countdown) is closed by LR-02 route wiring, not by LR-01 helper creation.
 
@@ -102,8 +102,9 @@ Note: `F-2` is still open at product level — the defect surface in `apps/booki
 |---|---|---|
 | LR-00 preflight / activation | PASS | `LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md` · commits `020e506`, `09f6dde` |
 | LR-01 pure helpers | COMPLETE | `LR-01-EVIDENCE-2026-09-24.md` · commits `f74ac29`, `c95a3bf`, `f135edb`, `e8fdef0` |
-| LR-02 consumer truth/payment | PENDING | — |
-| B1 independent review | PENDING | reviewer `agent-claude` |
+| LR-02 consumer truth/payment | COMPLETE | `LR-02-EVIDENCE-2026-09-24.md` · commits `ce163ae`, `e1ff830` |
+| B1 independent review | DUE | reviewer `agent-claude` (LR-01 + LR-02 at exact SHA) |
+| LR-03 intake/work schema | PENDING | — |
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no generic cross-domain capacity engine; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation; no canonical BK01 mutation.

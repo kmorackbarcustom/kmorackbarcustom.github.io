@@ -181,7 +181,7 @@ Stop: any drift/authority conflict => `BLOCKED`.
 
 ## LR-01 — Pure helper adaptation
 
-State: `PENDING` · Review Batch: B1
+State: `COMPLETE` (2026-09-24) — 3 work units PASS; see `LR-01-EVIDENCE-2026-09-24.md` · Review Batch: B1 (pending reviewer `agent-claude`)
 Worker: `swarm-builder` (capability `implementation`).
 Allowed: consumer/admin `src/lib/**`, focused tests, message keys only when required.
 Objective: adapt truthful state/load-result/payment/readiness/schedule helpers without wiring routes.
@@ -191,7 +191,7 @@ Timeout decomposition: split by helper family; otherwise REVIEW_REQUIRED.
 
 ## LR-02 — Consumer truth/payment/expiry
 
-State: `PENDING` · Review Batch: B1
+State: `COMPLETE` (2026-09-24) — F-2 closed; 3 work units PASS; see `LR-02-EVIDENCE-2026-09-24.md` · Review Batch: B1 (pending reviewer `agent-claude`)
 Worker: `swarm-builder`; AGY only for a separately materialized UI/UX-only refinement if needed.
 Objective: wire truthful states, remove F-2 merchant-name/amount invention, use authoritative hold amount/expiry, preserve safe static-QR behavior.
 Acceptance: payment required + incomplete authority fails closed; no `?? 100`; no independent `900`; no invented merchant name.
