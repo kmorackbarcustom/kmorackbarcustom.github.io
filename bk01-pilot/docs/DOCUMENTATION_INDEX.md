@@ -42,6 +42,7 @@ A contradiction between target SSOT and current implementation is a BK-A gap, no
 - `BRIEF-KMO-D1A-POST-R4-RECONCILIATION-2026-09-23.md` — current D1A authority after upstream reconciliation and KMO-first Booking direction
 - `REPORT-KMO-BOOKING-LEGACY-EXTRACTION-DIRECTION-2026-09-23.md` — current KMO-first Booking direction: public intake capacity locks only the appointment date; long-running work stays in the operational lifecycle until explicit completion; canonical BK01 remains frozen pending KMO proof
 - `../reference/bk01-upstream-seed-2026-09-24/README.md` — BK01 upstream seed pack is reference/provenance material only. Codex independent review returned `SEED_PACK_PASS`; marker `KMO_BK01_UPSTREAM_SEED_PACK = READY` means ready for future selective adaptation only, not implemented/authorized/deployed/active. (Brief: `BRIEF-KMO-BK01-UPSTREAM-SEED-PACK-2026-09-24.md`; review: `REPORT-CODEX-KMO-BK01-UPSTREAM-SEED-PACK-REVIEW-2026-09-24.md`)
+- `BRIEF-KMO-BK01-SEED-PACK-ADOPTION-ASSESSMENT-2026-09-24.md` — next-chat read/classify/adoption-planning brief: decide use/adapt/reject/defer for the full Seed Pack and, when coherent, produce one coordinated KMO one-shot integration plan without modifying active implementation
 - `market/*` — market/competitor/ICP evidence as dated analysis, not timeless product truth
 
 ## Marketing and operations
