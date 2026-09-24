@@ -57,6 +57,9 @@
     }
     .header-title { font-family: 'Kanit', sans-serif; font-size: 18px; font-weight: 600; }
     .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .locale-toggle { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+    .locale-toggle button { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+    .locale-toggle button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #000; }
 
     .container { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
 
@@ -339,6 +342,9 @@
     }
 
     @media (max-width: 480px) {
+      .header { padding: 16px; gap: 10px; }
+      .header-title { font-size: 16px; }
+      .locale-toggle button { padding: 6px 7px; }
       .date-cell {
         min-height: 70px;
         -webkit-tap-highlight-color: transparent;
@@ -669,8 +675,12 @@
   <header class="header">
     <div class="header-logo">KMO</div>
     <div>
-      <div class="header-title">จองคิวขึ้นงาน</div>
+      <div class="header-title" data-i18n="headerTitle">จองคิวขึ้นงาน</div>
       <div class="header-sub">RACK BAR CUSTOM</div>
+    </div>
+    <div class="locale-toggle" role="group" aria-label="Language" data-i18n-aria="language">
+      <button type="button" data-locale="th" aria-pressed="true">TH</button>
+      <button type="button" data-locale="en" aria-pressed="false">EN</button>
     </div>
   </header>
 
@@ -688,8 +698,8 @@
     <!-- Calendar Banner -->
     <div class="calendar-banner">
       <div class="calendar-banner-text">
-        <strong>🗓️ เช็ควันว่างก่อนจอง</strong>
-        <span>รับได้วันละ 3 คิว</span>
+        <strong data-i18n="calendarTitle">🗓️ เช็ควันว่างก่อนจอง</strong>
+        <span data-i18n="dailyCapacity">รับได้วันละ 3 คิว</span>
       </div>
     </div>
 
@@ -697,70 +707,70 @@
     <form id="bookingForm">
       <!-- Customer Info -->
       <div class="section">
-        <h3 class="section-title">ข้อมูลลูกค้า</h3>
+        <h3 class="section-title" data-i18n="customerSection">ข้อมูลลูกค้า</h3>
         
         <div class="form-group">
-          <label class="form-label">ชื่อ<span class="required">*</span></label>
-          <input type="text" class="form-input" id="customerName" required placeholder="ชื่อ-นามสกุล">
+          <label class="form-label" data-i18n-html="nameLabel">ชื่อ<span class="required">*</span></label>
+          <input type="text" class="form-input" id="customerName" required placeholder="ชื่อ-นามสกุล" data-i18n-placeholder="namePlaceholder">
         </div>
 
         <div class="form-group">
-          <label class="form-label">เบอร์โทรศัพท์<span class="required">*</span></label>
-          <input type="tel" class="form-input" id="phone" required placeholder="0812345678">
+          <label class="form-label" data-i18n-html="phoneLabel">เบอร์โทรศัพท์<span class="required">*</span></label>
+          <input type="tel" class="form-input" id="phone" required placeholder="0812345678" data-i18n-placeholder="phonePlaceholder">
         </div>
 
         <div class="form-group">
-          <label class="form-label">จองผ่านช่องทางไหน<span class="required">*</span></label>
+          <label class="form-label" data-i18n-html="platformLabel">จองผ่านช่องทางไหน<span class="required">*</span></label>
           <select class="form-select" id="platform" required>
-            <option value="">เลือกช่องทาง</option>
+            <option value="" data-i18n="platformPlaceholder">เลือกช่องทาง</option>
             <option value="Facebook">Facebook</option>
             <option value="Line">LINE</option>
             <option value="TikTok">TikTok</option>
             <option value="Instagram">Instagram</option>
-            <option value="หน้าร้าน">มาหน้าร้าน</option>
-            <option value="เพื่อนแนะนำ">เพื่อนแนะนำ</option>
-            <option value="อื่นๆ">อื่นๆ</option>
+            <option value="หน้าร้าน" data-i18n="platformWalkIn">มาหน้าร้าน</option>
+            <option value="เพื่อนแนะนำ" data-i18n="platformReferral">เพื่อนแนะนำ</option>
+            <option value="อื่นๆ" data-i18n="other">อื่นๆ</option>
           </select>
         </div>
       </div>
 
       <!-- Vehicle Info -->
       <div class="section">
-        <h3 class="section-title">ข้อมูลรถ</h3>
+        <h3 class="section-title" data-i18n="vehicleSection">ข้อมูลรถ</h3>
         
         <div class="form-group">
-          <label class="form-label">ยี่ห้อรถ<span class="required">*</span></label>
-          <input type="text" class="form-input" id="brand" required placeholder="เช่น Honda, Yamaha">
+          <label class="form-label" data-i18n-html="brandLabel">ยี่ห้อรถ<span class="required">*</span></label>
+          <input type="text" class="form-input" id="brand" required placeholder="เช่น Honda, Yamaha" data-i18n-placeholder="brandPlaceholder">
         </div>
 
         <div class="form-group">
-          <label class="form-label">รุ่นรถ</label>
-          <input type="text" class="form-input" id="model" placeholder="เช่น PCX 160, NMAX">
+          <label class="form-label" data-i18n="modelLabel">รุ่นรถ</label>
+          <input type="text" class="form-input" id="model" placeholder="เช่น PCX 160, NMAX" data-i18n-placeholder="modelPlaceholder">
         </div>
 
         <div class="form-group">
-          <label class="form-label">รายการที่ต้องการทำ<span class="required">*</span></label>
-          <textarea class="form-textarea" id="services" required placeholder="เช่น แคชบาร์, แร็คท้าย, แร็คข้าง"></textarea>
+          <label class="form-label" data-i18n-html="servicesLabel">รายการที่ต้องการทำ<span class="required">*</span></label>
+          <textarea class="form-textarea" id="services" required placeholder="เช่น แคชบาร์, แร็คท้าย, แร็คข้าง" data-i18n-placeholder="servicesPlaceholder"></textarea>
           <div class="form-hint" id="servicesPrefillNote" hidden></div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">สี</label>
-          <input type="text" class="form-input" id="color" placeholder="เช่น ดำด้าน, เงิน">
+          <label class="form-label" data-i18n="colorLabel">สี</label>
+          <input type="text" class="form-input" id="color" placeholder="เช่น ดำด้าน, เงิน" data-i18n-placeholder="colorPlaceholder">
         </div>
       </div>
 
       <!-- Photo Upload -->
       <div class="section">
-        <h3 class="section-title">📷 รูปภาพรถ (ไม่บังคับ)</h3>
+        <h3 class="section-title" data-i18n="photoSection">📷 รูปภาพรถ (ไม่บังคับ)</h3>
 
         <div class="upload-area" id="uploadArea">
           <input type="file" id="imageInput" accept="image/*" multiple>
           <div class="upload-icon">📸</div>
           <div class="upload-text">
-            <strong>แตะเพื่อเลือกรูป</strong><br>
-            หรือลากรูปมาวางตรงนี้<br>
-            <span style="font-size:12px;">JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)</span>
+            <strong data-i18n="uploadChoose">แตะเพื่อเลือกรูป</strong><br>
+            <span data-i18n="uploadDrag">หรือลากรูปมาวางตรงนี้</span><br>
+            <span style="font-size:12px;" data-i18n="uploadLimits">JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)</span>
           </div>
         </div>
 
@@ -770,43 +780,43 @@
 
       <!-- Date Selection -->
       <div class="section">
-        <h3 class="section-title">เลือกวันนัด</h3>
+        <h3 class="section-title" data-i18n="dateSection">เลือกวันนัด</h3>
 
         <div class="booking-legend">
           <div class="booking-legend-item">
             <div class="booking-legend-dot" style="background:var(--green); box-shadow: 0 0 6px var(--green);"></div>
-            <span>ว่าง 3 คิว</span>
+            <span data-i18n="legendOpen">ว่าง 3 คิว</span>
           </div>
           <div class="booking-legend-item">
             <div class="booking-legend-dot" style="background:var(--yellow); box-shadow: 0 0 6px var(--yellow);"></div>
-            <span>ว่าง 1-2 คิว</span>
+            <span data-i18n="legendFew">ว่าง 1-2 คิว</span>
           </div>
           <div class="booking-legend-item">
             <div class="booking-legend-dot" style="background:var(--red); box-shadow: 0 0 6px var(--red);"></div>
-            <span>ปิดรับคิว</span>
+            <span data-i18n="legendClosed">ปิดรับคิว</span>
           </div>
         </div>
         
         <div class="calendar-header">
-          <button type="button" class="btn-nav" onclick="changeMonth(-1)" aria-label="เดือนก่อนหน้า">‹</button>
+          <button type="button" class="btn-nav" onclick="changeMonth(-1)" aria-label="เดือนก่อนหน้า" data-i18n-aria="previousMonth">‹</button>
           <div class="calendar-month" id="calendarMonth"></div>
-          <button type="button" class="btn-nav" onclick="changeMonth(1)" aria-label="เดือนถัดไป">›</button>
+          <button type="button" class="btn-nav" onclick="changeMonth(1)" aria-label="เดือนถัดไป" data-i18n-aria="nextMonth">›</button>
         </div>
 
         <div class="booking-calendar">
           <div class="date-weekdays">
-            <div class="date-weekday sun">อา</div>
-            <div class="date-weekday">จ</div>
-            <div class="date-weekday tue">อ</div>
-            <div class="date-weekday">พ</div>
-            <div class="date-weekday">พฤ</div>
-            <div class="date-weekday">ศ</div>
-            <div class="date-weekday">ส</div>
+            <div class="date-weekday sun" data-i18n="weekdaySun">อา</div>
+            <div class="date-weekday" data-i18n="weekdayMon">จ</div>
+            <div class="date-weekday tue" data-i18n="weekdayTue">อ</div>
+            <div class="date-weekday" data-i18n="weekdayWed">พ</div>
+            <div class="date-weekday" data-i18n="weekdayThu">พฤ</div>
+            <div class="date-weekday" data-i18n="weekdayFri">ศ</div>
+            <div class="date-weekday" data-i18n="weekdaySat">ส</div>
           </div>
           <div class="date-grid" id="dateGrid">
             <div class="loading">
               <div class="spinner"></div>
-              <p>กำลังโหลดปฏิทิน...</p>
+              <p data-i18n="calendarLoading">กำลังโหลดปฏิทิน...</p>
             </div>
           </div>
         </div>
@@ -816,47 +826,46 @@
 
       <!-- Pickup Date -->
       <div class="section">
-        <h3 class="section-title">วันรับรถ</h3>
+        <h3 class="section-title" data-i18n="pickupSection">วันรับรถ</h3>
         
         <div class="form-group">
-          <label class="form-label">วันรับรถ (โดยประมาณ)<span class="required">*</span></label>
+          <label class="form-label" data-i18n-html="pickupLabel">วันรับรถ (โดยประมาณ)<span class="required">*</span></label>
           <input type="date" class="form-input" id="pickupDate" required>
         </div>
       </div>
 
       <!-- Submit -->
-      <button type="submit" class="btn" id="submitBtn">ยืนยันการจอง</button>
+      <button type="submit" class="btn" id="submitBtn" data-i18n="submitBooking">ยืนยันการจอง</button>
 
       <!-- Deposit -->
       <div class="section">
-        <h3 class="section-title">ชำระมัดจำ</h3>
+        <h3 class="section-title" data-i18n="depositSection">ชำระมัดจำ</h3>
         
         <div style="text-align: center; margin-bottom: 20px;">
           <div style="background: #fff; display: inline-block; padding: 12px; border-radius: 12px; margin-bottom: 12px;">
             <img src="payment.jpg" 
-                 alt="QR Code PromptPay" 
+                 alt="QR Code PromptPay" data-i18n-alt="qrAlt"
                  style="width: 280px; height: auto; display: block; border-radius: 8px;">
           </div>
-          <div style="font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 8px;">₿500</div>
+          <div style="font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 8px;" data-i18n="thb">₿500</div>
           <div style="font-size: 14px; color: var(--text-muted); line-height: 1.5;">
-            สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร<br>
+            <span data-i18n="depositInstructions">สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร</span><br>
             <span style="font-size: 13px;">PromptPay: 187-8-55343-4</span><br>
-            <span style="font-size: 13px; color: var(--text-dim);">ชื่อบัญชี: เคโม บาย เอนเทคลิป</span>
+            <span style="font-size: 13px; color: var(--text-dim);" data-i18n="accountName">ชื่อบัญชี: เคโม บาย เอนเทคลิป</span>
           </div>
         </div>
 
         <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
           <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
-            <strong style="color: var(--accent); display: block; margin-bottom: 8px;">📌 ส่งสลิปยืนยัน</strong>
-            กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>
-            จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ
+            <strong style="color: var(--accent); display: block; margin-bottom: 8px;" data-i18n="slipTitle">📌 ส่งสลิปยืนยัน</strong>
+            <span data-i18n="slipInstructions">กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ</span>
           </div>
         </div>
 
         <div class="slip-message-box hidden" id="slipMessageBox">
-          <div class="slip-message-title">ข้อความสำหรับส่งพร้อมสลิป</div>
+          <div class="slip-message-title" data-i18n="slipMessageTitle">ข้อความสำหรับส่งพร้อมสลิป</div>
           <textarea class="slip-message-text" id="slipMessageText" readonly></textarea>
-          <button type="button" class="btn-secondary" id="copySlipMessageBtn">คัดลอกข้อความส่งสลิป</button>
+          <button type="button" class="btn-secondary" id="copySlipMessageBtn" data-i18n="copySlip">คัดลอกข้อความส่งสลิป</button>
         </div>
 
         <a href="https://lin.ee/Hm91L7m" 
@@ -867,13 +876,12 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
             </svg>
-            Add Line OA เพื่อส่งสลิป
+            <span data-i18n="addLine">Add Line OA เพื่อส่งสลิป</span>
           </span>
         </a>
 
         <div style="font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.5;">
-          💡 <strong>หมายเหตุ:</strong> หากยังไม่ได้ชำระมัดจำ<br>
-          ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน
+          💡 <strong data-i18n="note">หมายเหตุ:</strong> <span data-i18n="followupNote">หากยังไม่ได้ชำระมัดจำ<br>ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน</span>
         </div>
       </div>
     </form>
@@ -881,6 +889,59 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
+    const I18N = {
+      th: {
+        title: 'จองคิว | KMO RACK BAR CUSTOM', language: 'ภาษา', qrAlt: 'QR Code PromptPay', headerTitle: 'จองคิวขึ้นงาน', calendarTitle: '🗓️ เช็ควันว่างก่อนจอง', dailyCapacity: 'รับได้วันละ 3 คิว', customerSection: 'ข้อมูลลูกค้า', nameLabel: 'ชื่อ<span class="required">*</span>', namePlaceholder: 'ชื่อ-นามสกุล', phoneLabel: 'เบอร์โทรศัพท์<span class="required">*</span>', phonePlaceholder: '0812345678', platformLabel: 'จองผ่านช่องทางไหน<span class="required">*</span>', platformPlaceholder: 'เลือกช่องทาง', platformWalkIn: 'มาหน้าร้าน', platformReferral: 'เพื่อนแนะนำ', other: 'อื่นๆ', vehicleSection: 'ข้อมูลรถ', brandLabel: 'ยี่ห้อรถ<span class="required">*</span>', brandPlaceholder: 'เช่น Honda, Yamaha', modelLabel: 'รุ่นรถ', modelPlaceholder: 'เช่น PCX 160, NMAX', servicesLabel: 'รายการที่ต้องการทำ<span class="required">*</span>', servicesPlaceholder: 'เช่น แคชบาร์, แร็คท้าย, แร็คข้าง', colorLabel: 'สี', colorPlaceholder: 'เช่น ดำด้าน, เงิน', photoSection: '📷 รูปภาพรถ (ไม่บังคับ)', uploadChoose: 'แตะเพื่อเลือกรูป', uploadDrag: 'หรือลากรูปมาวางตรงนี้', uploadLimits: 'JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)', dateSection: 'เลือกวันนัด', legendOpen: 'ว่าง 3 คิว', legendFew: 'ว่าง 1-2 คิว', legendClosed: 'ปิดรับคิว', previousMonth: 'เดือนก่อนหน้า', nextMonth: 'เดือนถัดไป', weekdaySun: 'อา', weekdayMon: 'จ', weekdayTue: 'อ', weekdayWed: 'พ', weekdayThu: 'พฤ', weekdayFri: 'ศ', weekdaySat: 'ส', calendarLoading: 'กำลังโหลดปฏิทิน...', pickupSection: 'วันรับรถ', pickupLabel: 'วันรับรถ (โดยประมาณ)<span class="required">*</span>', submitBooking: 'ยืนยันการจอง', depositSection: 'ชำระมัดจำ', depositInstructions: 'สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร', accountName: 'ชื่อบัญชี: เคโม บาย เอนเทคลิป', slipTitle: '📌 ส่งสลิปยืนยัน', slipInstructions: 'กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ', slipMessageTitle: 'ข้อความสำหรับส่งพร้อมสลิป', copySlip: 'คัดลอกข้อความส่งสลิป', addLine: 'Add Line OA เพื่อส่งสลิป', note: 'หมายเหตุ:', followupNote: 'หากยังไม่ได้ชำระมัดจำ<br>ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน', loading: 'กำลังโหลดปฏิทิน...', available: 'ว่าง {count} คิว', availableSingle: 'ว่าง {count} คิว', closed: 'ปิดรับคิว', submitting: 'กำลังบันทึก...', submitIdle: 'ยืนยันการจอง', success: 'จองคิวสำเร็จ! รหัสงาน: {id}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย', jobIdError: 'ไม่สามารถสร้างรหัสงานได้', saveError: 'ไม่สามารถบันทึกข้อมูลได้', errorPrefix: 'เกิดข้อผิดพลาด: ', maxImages: 'เลือกรูปได้สูงสุด 5 รูปเท่านั้น', imageTooLarge: 'รูป {name} ใหญ่เกิน 5MB', uploadProgress: 'กำลังอัปโหลดรูป {current}/{total}...', photoAlt: 'รูปที่ {index}', removePhoto: 'ลบรูป', copyDone: 'คัดลอกแล้ว', copySlip: 'คัดลอกข้อความส่งสลิป', copySelect: 'เลือกข้อความให้แล้ว กรุณากด Copy', slipIntro: 'แจ้งชำระมัดจำจองคิว', jobLabel: 'รหัสงาน', customerName: 'ชื่อ', phone: 'เบอร์', appointment: 'วันนัด', pickupDate: 'วันรับรถ', products: 'รายการทำ', noColor: '-', slipDeposit: 'แนบสลิปมัดจำ 500 บาท', thb: '฿500', unavailable: 'ปิดรับคิว'
+      },
+      en: {
+        title: 'Book a Service | KMO RACK BAR CUSTOM', language: 'Language', qrAlt: 'PromptPay QR code', headerTitle: 'Book a Service Slot', calendarTitle: '🗓️ Check availability before booking', dailyCapacity: 'Up to 3 bookings per day', customerSection: 'Customer Information', nameLabel: 'Name<span class="required">*</span>', namePlaceholder: 'Full name', phoneLabel: 'Phone number<span class="required">*</span>', phonePlaceholder: '+66 81 234 5678', platformLabel: 'How did you hear about us?<span class="required">*</span>', platformPlaceholder: 'Select a channel', platformWalkIn: 'Walk-in', platformReferral: 'Friend referral', other: 'Other', vehicleSection: 'Vehicle Information', brandLabel: 'Vehicle brand<span class="required">*</span>', brandPlaceholder: 'e.g. Honda, Yamaha', modelLabel: 'Vehicle model', modelPlaceholder: 'e.g. PCX 160, NMAX', servicesLabel: 'Requested work<span class="required">*</span>', servicesPlaceholder: 'e.g. crash bar, rear rack, side rack', colorLabel: 'Color', colorPlaceholder: 'e.g. matte black, silver', photoSection: '📷 Vehicle Photos (Optional)', uploadChoose: 'Tap to choose photos', uploadDrag: 'or drag and drop photos here', uploadLimits: 'JPG or PNG, up to 5 MB each (maximum 5 photos)', dateSection: 'Choose an appointment date', legendOpen: '3 slots available', legendFew: '1–2 slots available', legendClosed: 'Fully booked', previousMonth: 'Previous month', nextMonth: 'Next month', weekdaySun: 'Sun', weekdayMon: 'Mon', weekdayTue: 'Tue', weekdayWed: 'Wed', weekdayThu: 'Thu', weekdayFri: 'Fri', weekdaySat: 'Sat', calendarLoading: 'Loading calendar...', pickupSection: 'Vehicle Pickup', pickupLabel: 'Estimated pickup date<span class="required">*</span>', submitBooking: 'Confirm Booking', depositSection: 'Deposit Payment', depositInstructions: 'Scan to pay the THB 500 deposit using your banking app', accountName: 'Account name: เคโม บาย เอนเทคลิป', slipTitle: '📌 Send your payment slip', slipInstructions: 'Confirm your booking above to receive a job ID first.<br>Then pay the deposit and tap Add LINE OA to send your slip with the job ID.', slipMessageTitle: 'Message to send with your payment slip', copySlip: 'Copy payment message', addLine: 'Add LINE OA to send your payment slip', note: 'Note:', followupNote: 'If you have not paid the deposit yet,<br>we will contact you within 24 hours to confirm your booking and explain payment options.', loading: 'Loading calendar...', available: '{count} slots available', availableSingle: '{count} slot available', closed: 'Fully booked', submitting: 'Saving...', submitIdle: 'Confirm Booking', success: 'Booking confirmed! Job ID: {id}<br>Copy the message below and send it with your payment slip on LINE.', jobIdError: 'Unable to create a job ID.', saveError: 'Unable to save your booking.', errorPrefix: 'Error: ', maxImages: 'You can select up to 5 photos.', imageTooLarge: 'The image {name} exceeds 5 MB.', uploadProgress: 'Uploading photo {current}/{total}...', photoAlt: 'Photo {index}', removePhoto: 'Remove photo', copyDone: 'Copied', copySlip: 'Copy payment message', copySelect: 'Text selected. Please press Copy.', slipIntro: 'Deposit payment for a service booking', jobLabel: 'Job ID', customerName: 'Name', phone: 'Phone', appointment: 'Appointment date', pickupDate: 'Pickup date', products: 'Requested work', noColor: '-', slipDeposit: 'Attach the THB 500 deposit payment slip', thb: 'THB 500', unavailable: 'Fully booked'
+      }
+    };
+    const LOCALE_KEY = 'kmo_locale';
+    function readLocale() { try { return localStorage.getItem(LOCALE_KEY) === 'en' ? 'en' : 'th'; } catch (_) { return 'th'; } }
+    let locale = readLocale();
+    let calendarReady = false;
+    let lastBookingData = null;
+    let currentNotice = null;
+    let uploadProgressState = null;
+    let copyStatusKey = null;
+    function t(key, params = {}) {
+      let value = I18N[locale][key] ?? I18N.th[key] ?? key;
+      return value.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? ''));
+    }
+    function formatBookingDate(dateStr) {
+      if (!dateStr) return '';
+      const date = parseDateStr(dateStr);
+      return date.toLocaleDateString(locale === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function applyLocale() {
+      document.documentElement.lang = locale;
+      document.title = t('title');
+      document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+      document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+      document.querySelectorAll('[data-i18n-alt]').forEach(el => { el.alt = t(el.dataset.i18nAlt); });
+      document.querySelectorAll('[data-locale]').forEach(el => el.setAttribute('aria-pressed', String(el.dataset.locale === locale)));
+      if (calendarReady) { renderCalendarHeader(); renderCalendar(); }
+      document.querySelectorAll('#previewGrid img').forEach((img, index) => { img.alt = t('photoAlt', { index: index + 1 }); });
+      document.querySelectorAll('#previewGrid .preview-remove').forEach(button => { button.setAttribute('aria-label', t('removePhoto')); button.title = t('removePhoto'); });
+      const submitButton = document.getElementById('submitBtn');
+      if (submitButton?.disabled) submitButton.textContent = t('submitting');
+      if (uploadProgressState) document.getElementById('uploadProgress').textContent = t('uploadProgress', uploadProgressState);
+      if (copyStatusKey) document.getElementById('copySlipMessageBtn').textContent = t(copyStatusKey);
+      if (lastBookingData && !document.getElementById('slipMessageBox').classList.contains('hidden')) {
+        latestSlipMessage = buildSlipMessage(lastBookingData);
+        document.getElementById('slipMessageText').value = latestSlipMessage;
+      }
+      renderNotice();
+    }
+    function setLocale(next) {
+      if (next !== 'th' && next !== 'en') return;
+      locale = next;
+      try { localStorage.setItem(LOCALE_KEY, next); } catch (_) { /* ใช้ภาษาที่เลือกต่อได้แม้บันทึกไม่ได้ */ }
+      applyLocale();
+    }
     // Supabase Config
     const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaHB3eGp5d3FncWVmYm5jdW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MjIxMTQsImV4cCI6MjA4ODM5ODExNH0.GRfJ8aY9FgfMw18Vld4m2R6mE2cOwUsJw3OXOJEt0is';
@@ -955,6 +1016,9 @@
 
       return usage;
     }
+
+    document.querySelectorAll('[data-locale]').forEach(button => button.addEventListener('click', () => setLocale(button.dataset.locale)));
+    applyLocale();
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
@@ -1054,16 +1118,13 @@
     async function loadCalendar() {
       renderCalendarHeader();
       await fetchAvailability();
+      calendarReady = true;
       renderCalendar();
     }
 
     // Render Calendar Header
     function renderCalendarHeader() {
-      const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-                         'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-      const year = currentMonth.getFullYear() + 543;
-      const month = monthNames[currentMonth.getMonth()];
-      document.getElementById('calendarMonth').textContent = `${month} ${year}`;
+      document.getElementById('calendarMonth').textContent = currentMonth.toLocaleDateString(locale === 'th' ? 'th-TH' : 'en-US', { month: 'long', year: 'numeric' });
     }
 
     // Fetch Availability
@@ -1153,7 +1214,7 @@
 
         let labelText = '';
         if (!isPast && !isHol && !isTue) {
-          labelText = isFullyClosed ? 'ปิดรับคิว' : `ว่าง ${remaining} คิว`;
+          labelText = isFullyClosed ? t('closed') : t(remaining === 1 ? 'availableSingle' : 'available', { count: remaining });
         }
 
         cell.innerHTML = `
@@ -1263,7 +1324,7 @@
       
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'กำลังบันทึก...';
+      submitBtn.textContent = t('submitting');
       
       try {
         const data = {
@@ -1327,7 +1388,7 @@
           body: JSON.stringify({ p_platform: data.source })
         });
 
-        if (!jobIdResponse.ok) throw new Error('ไม่สามารถสร้างรหัสงานได้');
+        if (!jobIdResponse.ok) throw Object.assign(new Error(t('jobIdError')), { i18nKey: 'jobIdError' });
         
         const jobId = await jobIdResponse.json();
         data.job_id = jobId;
@@ -1350,10 +1411,11 @@
           body: JSON.stringify(data)
         });
 
-        if (!response.ok) throw new Error('ไม่สามารถบันทึกข้อมูลได้');
+        if (!response.ok) throw Object.assign(new Error(t('saveError')), { i18nKey: 'saveError' });
 
         // Success
-        latestSlipMessage = buildSlipMessage(data);
+        lastBookingData = { ...data };
+        latestSlipMessage = buildSlipMessage(lastBookingData);
         document.getElementById('bookingForm').reset();
         selectedDate = null;
         selectedFiles = [];
@@ -1362,32 +1424,60 @@
         hideWarning();
         await loadCalendar();
         showSlipMessage(latestSlipMessage);
-        showSuccess(`จองคิวสำเร็จ! รหัสงาน: ${jobId}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย`, false);
+        showBookingSuccess(jobId, false);
         
       } catch (error) {
-        showError('เกิดข้อผิดพลาด: ' + error.message);
+        if (error.i18nKey) showLocalizedError(error.i18nKey, {}, true);
+        else showDiagnosticError(error.message);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'ยืนยันการจอง';
+        submitBtn.textContent = t('submitIdle');
       }
     });
 
     // Show Success
-    function showSuccess(message, scrollToTop = true) {
-      const alert = document.getElementById('successAlert');
-      alert.innerHTML = message;
-      alert.classList.remove('hidden');
-      document.getElementById('errorAlert').classList.add('hidden');
-      if (scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(() => alert.classList.add('hidden'), 5000);
+    function renderNotice() {
+      const success = document.getElementById('successAlert');
+      const error = document.getElementById('errorAlert');
+      if (!success || !error) return;
+      success.classList.add('hidden');
+      error.classList.add('hidden');
+      if (!currentNotice) return;
+      if (currentNotice.type === 'success') {
+        success.innerHTML = t('success', { id: escapeHtml(currentNotice.id) });
+        success.classList.remove('hidden');
+      } else {
+        const message = currentNotice.key ? `${currentNotice.withPrefix ? t('errorPrefix') : ''}${t(currentNotice.key, currentNotice.params)}` : `${t('errorPrefix')}${currentNotice.message}`;
+        error.textContent = message;
+        error.classList.remove('hidden');
+      }
     }
 
-    // Show Error
-    function showError(message) {
-      const alert = document.getElementById('errorAlert');
-      alert.textContent = message;
-      alert.classList.remove('hidden');
-      document.getElementById('successAlert').classList.add('hidden');
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function showBookingSuccess(jobId, scrollToTop = true) {
+      currentNotice = { type: 'success', id: jobId };
+      renderNotice();
+      if (scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => {
+        if (currentNotice?.type === 'success' && currentNotice.id === jobId) {
+          currentNotice = null;
+          renderNotice();
+        }
+      }, 5000);
+    }
+
+    function showDiagnosticError(message) {
+      currentNotice = { type: 'error', message: String(message || '') };
+      renderNotice();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showLocalizedError(key, params = {}, withPrefix = false) {
+      currentNotice = { type: 'error', key, params, withPrefix };
+      renderNotice();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -1404,17 +1494,17 @@
 
     function buildSlipMessage(data) {
       return [
-        'แจ้งชำระมัดจำจองคิว',
+        t('slipIntro'),
         '',
-        `รหัสงาน: ${data.job_id}`,
-        `ชื่อ: ${data.customer_name}`,
-        `เบอร์: ${data.phone}`,
-        `วันนัด: ${data.appointment_date}`,
-        `วันรับรถ: ${data.pickup_date}`,
-        `รายการทำ: ${data.product}`,
-        `สี: ${data.color || '-'}`,
+        `${t('jobLabel')}: ${data.job_id}`,
+        `${t('customerName')}: ${data.customer_name}`,
+        `${t('phone')}: ${data.phone}`,
+        `${t('appointment')}: ${formatBookingDate(data.appointment_date)}`,
+        `${t('pickupDate')}: ${formatBookingDate(data.pickup_date)}`,
+        `${t('products')}: ${data.product}`,
+        `${t('colorLabel')}: ${data.color || t('noColor')}`,
         '',
-        'แนบสลิปมัดจำ 500 บาท'
+        t('slipDeposit')
       ].join('\n');
     }
 
@@ -1442,17 +1532,21 @@
           if (!copied) throw new Error('copy failed');
         }
 
-        button.textContent = 'คัดลอกแล้ว';
+        copyStatusKey = 'copyDone';
+        button.textContent = t(copyStatusKey);
         setTimeout(() => {
-          button.textContent = 'คัดลอกข้อความส่งสลิป';
+          copyStatusKey = null;
+          button.textContent = t('copySlip');
         }, 1800);
       } catch (error) {
         text.focus();
         text.select();
         text.setSelectionRange(0, text.value.length);
-        button.textContent = 'เลือกข้อความให้แล้ว กรุณากด Copy';
+        copyStatusKey = 'copySelect';
+        button.textContent = t(copyStatusKey);
         setTimeout(() => {
-          button.textContent = 'คัดลอกข้อความส่งสลิป';
+          copyStatusKey = null;
+          button.textContent = t('copySlip');
         }, 2600);
       }
     }
@@ -1492,12 +1586,12 @@
 
       const remaining = 5 - selectedFiles.length;
       if (remaining <= 0) {
-        showError('เลือกรูปได้สูงสุด 5 รูปเท่านั้น');
+        showLocalizedError('maxImages');
         return;
       }
       imageFiles.slice(0, remaining).forEach(file => {
         if (file.size > MAX_UPLOAD_BYTES) {
-          showError(`รูป ${file.name} ใหญ่เกิน 5MB`);
+          showLocalizedError('imageTooLarge', { name: file.name });
           return;
         }
         selectedFiles.push(file);
@@ -1514,8 +1608,8 @@
           const item = document.createElement('div');
           item.className = 'preview-item';
           item.innerHTML = `
-            <img src="${e.target.result}" alt="รูป ${index + 1}">
-            <button type="button" class="preview-remove" onclick="removeImage(${index})">✕</button>
+            <img src="${e.target.result}" alt="${t('photoAlt', { index: index + 1 })}">
+            <button type="button" class="preview-remove" aria-label="${t('removePhoto')}" title="${t('removePhoto')}" onclick="removeImage(${index})">✕</button>
           `;
           grid.appendChild(item);
         };
@@ -1534,7 +1628,8 @@
       const progress = document.getElementById('uploadProgress');
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
-        progress.textContent = `กำลังอัปโหลดรูป ${i + 1}/${selectedFiles.length}...`;
+        uploadProgressState = { current: i + 1, total: selectedFiles.length };
+        progress.textContent = t('uploadProgress', uploadProgressState);
         const ext = getFileExtension(file.name);
         const fileName = `${jobId}/${Date.now()}-${i}.${ext}`;
         const res = await fetch(
@@ -1557,6 +1652,7 @@
           throw new Error(`อัปโหลดรูป ${file.name} ไม่สำเร็จ: ${errText}`);
         }
       }
+      uploadProgressState = null;
       progress.textContent = '';
       return urls;
     }
