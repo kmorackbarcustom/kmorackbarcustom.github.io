@@ -3,6 +3,8 @@
 > **BK01 upstream seed pack is reference/provenance material only. Presence in the repository does not mean the capability is implemented, authorized, deployed, or active.**
 
 Brief: `bk01-pilot/docs/BRIEF-KMO-BK01-UPSTREAM-SEED-PACK-2026-09-24.md`
+Codex independent review: `bk01-pilot/docs/REPORT-CODEX-KMO-BK01-UPSTREAM-SEED-PACK-REVIEW-2026-09-24.md`
+Status: `KMO_BK01_UPSTREAM_SEED_PACK = READY` / PARKED
 Work type: `REFERENCE IMPORT / PROVENANCE PRESERVATION` — not D1A implementation.
 
 ## What this is
