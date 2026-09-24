@@ -121,7 +121,8 @@
       "slipAlt": "Payment slip",
       "staticQrNotice": "Use the shop QR and verify the deposit amount shown above before paying.",
       "staticQrAlt": "Shop deposit payment QR Code",
-      "paymentMethodMissing": "The shop has not configured an online deposit payment method yet."
+      "paymentMethodMissing": "The shop has not configured an online deposit payment method yet.",
+      "amountUnavailable": "No deposit amount has been configured"
     },
     "staff": {
       "random": "No staff preference (random assignment)"

@@ -15,7 +15,11 @@ import {
 } from '../../../lib/booking-service';
 import { LanguageToggle } from '@/components/language-toggle';
 import { QRCodeSVG } from 'qrcode.react';
-import { createPromptPayPayload } from '../../../lib/promptpay';
+import {
+  resolvePaymentInstruction,
+  resolveStaticQrInstruction,
+  authoritativeDepositAmount,
+} from '../../../lib/payment-instruction';
 
 const CENTRAL_LINE_OA_ID = process.env.NEXT_PUBLIC_CENTRAL_LINE_OA_ID || 'central_booking_oa';
 const KMO_STATIC_PROMPTPAY_QR_CANDIDATE = process.env.NEXT_PUBLIC_KMO_STATIC_PROMPTPAY_QR_URL?.trim() || '';
@@ -137,23 +141,26 @@ export default function BookingPage() {
   };
 
   const promptpayNumber = shop?.promptpay_number?.trim() || '';
-  const promptpayName = shop?.promptpay_name || shop?.name || t('fallbackShopName');
+  const promptpayName = shop?.promptpay_name?.trim() || null;
   const shopPhone = shop?.phone?.trim() || t('shopPhoneMissing');
   const shopPhoneHref = shop?.phone?.trim()
     ? `tel:${shop.phone.replace(/-/g, '')}`
     : undefined;
   const isBookingBlocked = shop?.is_accepting_online_bookings === false;
-  const depositAmount = selectedService?.deposit_amount ?? shop?.default_deposit_amount ?? 100;
-  const promptpayPayload = useMemo(() => {
-    if (!promptpayNumber) return null;
-    try {
-      return createPromptPayPayload({ recipient: promptpayNumber, amount: depositAmount });
-    } catch {
-      return null;
-    }
-  }, [promptpayNumber, depositAmount]);
-  const staticQrUrl = KMO_STATIC_PROMPTPAY_QR_URL;
-  const paymentMethodAvailable = Boolean(promptpayPayload || staticQrUrl);
+  // The only authoritative deposit amount is the hold row's, optionally seeded
+  // by the selected service's own configured deposit. Nothing is defaulted: the
+  // LR-01 gate below decides whether that amount is payable at all.
+  const depositAmount = authoritativeDepositAmount(holdResult?.deposit_amount ?? selectedService?.deposit_amount);
+  const staticQrInstruction = resolveStaticQrInstruction({ staticQrUrl: KMO_STATIC_PROMPTPAY_QR_URL });
+  // Provenance-gated: the static image is used only when the gate confirms the
+  // URL was explicitly supplied. It carries no amount and no account identity.
+  const staticQrUrl = staticQrInstruction.usable ? staticQrInstruction.url : null;
+  const paymentInstruction = useMemo(
+    () => resolvePaymentInstruction({ promptpayNumber, promptpayName, holdDepositAmount: depositAmount }),
+    [promptpayNumber, promptpayName, depositAmount],
+  );
+  const paymentMethodAvailable = Boolean(paymentInstruction.ok || staticQrUrl);
+  const promptpayPayload = paymentInstruction.ok ? paymentInstruction.payload : null;
 
   const handleCopyPromptpay = () => {
     if (!promptpayNumber) return;
@@ -168,11 +175,11 @@ export default function BookingPage() {
 
   const handleSaveQr = () => {
     const link = document.createElement('a');
-    if (promptpayPayload) {
+    if (paymentInstruction.ok) {
       const svg = qrContainerRef.current?.querySelector('svg');
       if (!svg) return;
       link.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.outerHTML)}`;
-      link.download = `PromptPay-QR-Deposit-${depositAmount}THB.svg`;
+      link.download = `PromptPay-QR-Deposit-${paymentInstruction.amount}THB.svg`;
     } else if (staticQrUrl) {
       link.href = staticQrUrl;
       link.download = 'KMO-PromptPay-QR.png';
@@ -288,7 +295,7 @@ export default function BookingPage() {
       setErrorMessage(t('errors.dayBookingUnavailable'));
       return;
     }
-    if (shop.require_deposit && depositAmount > 0 && !paymentMethodAvailable) {
+    if (depositAmount !== null && shop.require_deposit && depositAmount > 0 && !paymentMethodAvailable) {
       setErrorMessage(t('errors.paymentMethodMissing'));
       return;
     }
@@ -505,7 +512,9 @@ export default function BookingPage() {
                 <p>{t('success.deposit')} <span className="font-semibold text-emerald-400 font-mono">
                   {holdResult?.deposit_status === 'not_required'
                     ? t('success.noDeposit')
-                    : t('success.slipSubmitted', { amount: holdResult?.deposit_amount ?? 0 })}
+                    : depositAmount !== null
+                      ? t('success.slipSubmitted', { amount: depositAmount })
+                      : t('step3.amountUnavailable')}
                 </span></p>
                 <p className="text-slate-400 pt-1">{t('success.shopDirectPhone')} <a href={shopPhoneHref} className="font-mono font-bold text-amber-400 hover:underline">{shopPhone}</a></p>
               </div>
@@ -578,7 +587,11 @@ export default function BookingPage() {
                       <p className="text-xs text-slate-400 mb-3 leading-relaxed">{sv.description}</p>
                       <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2.5">
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-500" /> {sv.duration_value} {durationUnitLabels[sv.duration_unit]}</span>
-                        <span className="text-amber-400 font-medium">{t('step1.depositLabel', { amount: sv.deposit_amount ?? shop?.default_deposit_amount ?? 100 })}</span>
+                        <span className="text-amber-400 font-medium">
+                          {typeof sv.deposit_amount === 'number' && sv.deposit_amount > 0
+                            ? t('step1.depositLabel', { amount: sv.deposit_amount })
+                            : null}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -817,8 +830,14 @@ export default function BookingPage() {
 
                   <div>
                     <p className="text-xs text-slate-400">{t('step3.depositAmountLabel')}</p>
-                    <p className="text-2xl font-extrabold text-emerald-400 font-mono my-0.5">{tc('currencyAmount', { amount: selectedService?.deposit_amount ?? shop?.default_deposit_amount ?? 100 })}</p>
-                    <p className="text-[11px] text-slate-400">{t('step3.accountName')} <span className="text-white font-medium">{promptpayName}</span></p>
+                    <p className="text-2xl font-extrabold text-emerald-400 font-mono my-0.5">
+                      {paymentInstruction.ok
+                        ? tc('currencyAmount', { amount: paymentInstruction.amount })
+                        : t('step3.amountUnavailable')}
+                    </p>
+                    {paymentInstruction.ok && (
+                      <p className="text-[11px] text-slate-400">{t('step3.accountName')} <span className="text-white font-medium">{paymentInstruction.name}</span></p>
+                    )}
                     
                     {promptpayNumber ? (
                       <div className="flex items-center justify-center gap-2 mt-1">
