@@ -1,19 +1,50 @@
 # RUN MANIFEST — KMO-DOMAIN-BOOKING-READINESS-001
 
-Manifest Status: DRAFT — READY FOR OWNER DISPATCH
+Manifest Status: **LOCKED** — ACTIVATED AT LR-00 (2026-09-24)
 Task ID: `KMO-DOMAIN-BOOKING-READINESS-001`
 Workflow: `WF-DEV-01 v1.4.0`
 Execution Mode: `LONG_RUN`
 Workflow Registry: `1.6.0`
-Owner Approval: NO — forwarding the paired execution brief is the approval event
+Owner Approval: **YES** — Owner forwarded the paired execution brief and separately ruled the two deviations below
 Repository: `kmorackbarcustom/kmorackbarcustom.github.io`
 Implementation Branch: `task/KMO-DOMAIN-BOOKING-READINESS-001-d1a-long-run-20260924`
 Prepared Base Ref: `refs/tags/kmo-bk01-d1a-longrun-prepared-20260924`
 Verified Evidence Anchor SHA: `30c7e44ad86bc462683b97dab417cb22388bb908`
-Resolved Base SHA: `TO_BE_RECORDED_AT_LR-00_ACTIVATION`
+Resolved Base SHA: `ac3c14746d87e2a6038d63e39715f30a8384b598`
 Merge Target: `task/KMO-DOMAIN-BOOKING-READINESS-001-booking-ready-for-control`
-Runtime Procedure: `WF-RELAY-01 v1.3.0 / kanban-external-agent-dispatch v2.5.3`
+Runtime Procedure (review/escalation rail): `WF-RELAY-01 v1.3.0 / kanban-external-agent-dispatch v2.5.4`
+Execution Engine (D1A worker lanes): `hermes-native-swarm v0.1.1`
+Independent Reviewer (this run): `agent-claude`
 Workflow Authority: `Gutumrod/wstera-workflows origin/main@c8f41ac2b51445af2e7095995be17132d103064a`
+
+## Owner-ruled deviations from the brief's default pin (2026-09-24)
+
+Owner forwarded `BRIEF-KMO-BK01-D1A-LONG-RUN-EXECUTION-2026-09-24.md` and additionally ruled:
+
+| # | Brief default | Owner ruling | Bounded to |
+|---|---|---|---|
+| D-1 | Worker execution through Relay-dispatched external CLI builders | Worker lanes execute on `hermes-native-swarm` capability-class workers via `swarmctl` | this D1A run only |
+| D-2 | `PRIMARY_REVIEWER = Codex` (`codex_model_pin: gpt-5.6-luna`) | `agent-claude` is the independent batch reviewer (role `INDEPENDENT_BATCH_REVIEWER`) | this D1A run only |
+
+### D-2 evidence — Codex reviewer unavailability
+
+```text
+agent-codex readiness  = DIRECT_EXECUTOR_NOT_READY:agent-codex:sandbox_execution_failed
+raw sandbox probe rc   = 3221225794 (0xC0000142, STATUS_DLL_INIT_FAILED)
+model access control   = codex exec --sandbox read-only -m gpt-6-luna -> exit 0, exact READY
+```
+
+The failure is the known host session-0 restricted-token child-launch condition, not a model-pin fault.
+`policies/INDEPENDENT-REVIEW-POLICY.md` permits fallback reviewer selection on evidenced
+`EXECUTOR_NOT_READY`; that condition is met and recorded. Claude has authored no substantive
+D1A scope, so `REVIEWER != AUTHOR_OF_TARGET_DIFF` holds at activation.
+
+### Model-pin divergence recorded (not repaired here)
+
+The brief/plan pin `gpt-5.6-luna`; workflow registry `c8f41ac` also says `gpt-5.6-luna`; installed Relay runtime
+`v2.5.4` enforces `PIN_CODEX = openai / gpt-6-luna / reasoning_effort=medium` and both wrappers fail closed on mismatch.
+Both models are live-usable on this host. This Task must not repair global Codex configuration, so the divergence is
+recorded as provenance and is not resolved by this run.
 
 ## Activation contract
 
@@ -22,7 +53,11 @@ Before any product edit, Hermes must:
 2. create the implementation branch/worktree from the exact base;
 3. persist the Task workflow re-pin and current checkpoint;
 4. bind this manifest to the activation commit, change status to `LOCKED`, and record Owner Approval = YES;
-5. pass fresh Relay + named-executor preflight.
+5. pass fresh engine + named-executor preflight.
+
+Activation state at LR-00: items 1–4 completed; item 5 partially completed —
+swarm pool/header/limits validation PASS, `agent-claude` readiness PASS, `agent-codex` readiness FAIL (recorded above),
+`agent-opencode` readiness FAIL (provider auth 401). See `LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md`.
 
 If the Owner has not forwarded the paired execution brief, this manifest does not authorize execution.
 
@@ -70,8 +105,9 @@ senior_escalations_per_authorized_decision: 1
 max_stages_per_batch: 3
 max_changed_files_per_batch: 15
 critical_boundary_forces_review: true
-primary_reviewer: Codex
-codex_model_pin: gpt-5.6-luna
+primary_reviewer: Codex            # unavailable on this host at LR-00 — see D-2
+active_reviewer_this_run: agent-claude
+codex_model_pin: gpt-5.6-luna      # brief/registry pin; installed runtime v2.5.4 enforces gpt-6-luna
 fallback_reviewer: Claude
 fallback_only_when_primary_unavailable: true
 no_self_review: true
@@ -79,6 +115,40 @@ no_reviewer_shopping: true
 ```
 
 Codex effective model/provenance must be proven at preflight. This Task must not repair global Codex configuration. A stale/unsupported default is an executor-readiness issue, not product scope.
+
+## Engine / worker assignment (Owner-ruled D-1)
+
+Worker lanes execute on the native swarm pool. One work unit = one capability class = one worker.
+
+| Stage | Capability class | Worker profile | Notes |
+|---|---|---|---|
+| LR-00 | `inspection` | `swarm-inspector` | Hermes also runs controller-side checks |
+| LR-01 | `implementation` | `swarm-builder` | pure helpers + focused tests |
+| LR-02 | `implementation` / `ui_ux` | `swarm-builder`; AGY only for a separately materialized UI/UX-only unit | consumer truth/payment/expiry + F-2 |
+| LR-03 | `database_qualification` + `implementation` | `swarm-db` for SQL qualification, `swarm-builder` for the paired patch/rollback files | no runtime apply |
+| LR-04 | `implementation` + `database_qualification` | `swarm-builder`; `swarm-db` for concurrency/SQL probes | atomic capacity/reschedule/work-state |
+| LR-05 | `implementation` | `swarm-builder` | admin surface + F-1 (AGY only for bounded UI/UX units) |
+| LR-06 | `testing` + `evidence_preparation` | `swarm-tester`, `swarm-evidence` | proof harness + browser/mobile evidence |
+| LR-08 | `inspection` | `swarm-inspector` | read-only runtime verification |
+| LR-09 | `evidence_preparation` | `swarm-evidence` | Control-facing Booking contract (documentation) |
+| LR-10 | reviewer stage | `agent-claude` (Relay rail) | final independent audit |
+
+Swarm V0.1 hard limits that bind this run:
+
+```text
+max_concurrent_workers = 3
+max_spawn_depth = 1
+worker_self_delegation = forbidden
+worker_self_approval = forbidden
+cross_lane_mutable_workspace_sharing = forbidden
+ordinary_agent_relay_execution = forbidden
+```
+
+Consequence: the native swarm ceiling is `SWARM_REVIEW_REQUIRED`. It can never self-approve. Stage review, escalation
+and final audit therefore run on the Relay rail (`agent-claude`), not inside the swarm.
+
+Because a work unit maps to exactly one capability class, composite stages above must be split into separate
+revision-bound work units before dispatch.
 
 ## Stage graph
 
@@ -97,22 +167,22 @@ Codex effective model/provenance must be proven at preflight. This Task must not
 
 ## LR-00 — Preflight / source freeze
 
-State: `PENDING`
-Worker: Hermes orchestration only; no product patch.
+State: `PASS` (2026-09-24) — see `LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md`
+Worker: `swarm-inspector` (read-only preflight lane) + Hermes controller-side checks; no product patch.
 Acceptance:
-- prepared tag resolves to an exact base SHA that descends from `30c7e44`, with documentation-only delta after that evidence anchor, and clean worktree;
-- current Domain target still `058fe52` or reconciliation performed before build;
-- registry/spec/runtime provenance verified;
-- OpenCode/Qwen/AGY/Codex readiness checked for only the roles needed;
-- Task/manifest activation commit persisted;
-- baseline commands and allowed paths recorded.
-AUTO_GATE: git identity/status, workflow/runtime hashes/version, executor preflight, Source of Truth readability.
+- [x] prepared tag resolves to an exact base SHA that descends from `30c7e44`, with documentation-only delta after that evidence anchor, and clean worktree;
+- [x] current Domain target still `058fe52` (local = origin), no reconciliation required;
+- [x] registry/spec/runtime provenance verified;
+- [x] named-executor readiness checked for only the roles needed — `agent-claude` READY; `agent-codex` NOT_READY (recorded, D-2 fallback); `agent-opencode` NOT_READY (not used as a lane in this run);
+- [x] Task/manifest activation commit persisted;
+- [x] baseline commands and allowed paths recorded.
+AUTO_GATE: git identity/status, workflow/runtime versions, swarm pool/header/limits validation, executor readiness, Source of Truth readability.
 Stop: any drift/authority conflict => `BLOCKED`.
 
 ## LR-01 — Pure helper adaptation
 
 State: `PENDING` · Review Batch: B1
-Worker: OpenCode.
+Worker: `swarm-builder` (capability `implementation`).
 Allowed: consumer/admin `src/lib/**`, focused tests, message keys only when required.
 Objective: adapt truthful state/load-result/payment/readiness/schedule helpers without wiring routes.
 Acceptance: unit tests for KMO semantics; no active route behavior change yet.
@@ -122,7 +192,7 @@ Timeout decomposition: split by helper family; otherwise REVIEW_REQUIRED.
 ## LR-02 — Consumer truth/payment/expiry
 
 State: `PENDING` · Review Batch: B1
-Worker: OpenCode; AGY only for a separately materialized UI/UX-only refinement if needed.
+Worker: `swarm-builder`; AGY only for a separately materialized UI/UX-only refinement if needed.
 Objective: wire truthful states, remove F-2 merchant-name/amount invention, use authoritative hold amount/expiry, preserve safe static-QR behavior.
 Acceptance: payment required + incomplete authority fails closed; no `?? 100`; no independent `900`; no invented merchant name.
 AUTO_GATE: tests, lint, build, focused browser state proof, diff/security scan.
@@ -131,7 +201,7 @@ B1 boundary: Codex independent review on exact SHA.
 ## LR-03 — KMO DB contract
 
 State: `PENDING` · Review Batch: B2 CRITICAL
-Worker: OpenCode for implementation; Qwen may receive bounded SQL/test qualification Work Units.
+Worker: `swarm-builder` for implementation; `swarm-db` may receive bounded SQL/test qualification work units.
 Allowed: new paired patch/rollback files under `supabase/kmo-baseline/**`, tests, contract docs.
 Required objects: `kmo_booking.intake_settings`, `service_intake_policy`, `booking_intake`, `booking_work_state` as locked by the plan.
 Also close weekly fail-closed, staff-hours DB invariant and narrow predicate grants.
@@ -142,7 +212,7 @@ Critical boundary forces Codex B2 review before any runtime apply.
 ## LR-04 — Atomic capacity/reschedule/work-state RPC
 
 State: `PENDING` · Review Batch: B2 CRITICAL
-Worker: OpenCode; Qwen for concurrency/SQL probes.
+Worker: `swarm-builder`; `swarm-db` for concurrency/SQL probes.
 Objective: server-derived unit snapshot, atomic appointment-date capacity, deterministic old/new date lock order, same-date correctness, authorized work-state transitions + audit.
 Acceptance: concurrent operations cannot exceed capacity; reschedule reuses snapshot; failed operations no-op; work-state never mutates Order/production authority.
 AUTO_GATE: DB-backed race tests + authorization/transition negative tests + fingerprint of protected public tables.
@@ -151,7 +221,7 @@ If LR-04 changes LR-03 reviewed SQL contract, B2 must be revalidated/reviewed on
 ## LR-05 — Admin surface
 
 State: `PENDING` · Review Batch: B3
-Workers: OpenCode for data/service wiring; AGY only for bounded UI/UX Work Units.
+Workers: `swarm-builder` for data/service wiring; AGY only for bounded UI/UX Work Units.
 Objective: close F-1, dirty/save-all/leave guard, capacity settings, readiness, due/overdue and work-state actions.
 Acceptance: unrelated admin mutation cannot erase unsaved schedule drafts; owner/admin-only lifecycle; no Order/Claim/Control UI.
 AUTO_GATE: tests, lint, build, desktop/mobile admin proof, allowed-path diff.
@@ -159,7 +229,7 @@ AUTO_GATE: tests, lint, build, desktop/mobile admin proof, allowed-path diff.
 ## LR-06 — Isolated proof harness
 
 State: `PENDING` · Review Batch: B3
-Worker: Qwen for command-heavy evidence; OpenCode only for manifest-authorized fixture/test code if needed.
+Worker: `swarm-tester` for command-heavy evidence; `swarm-builder` only for manifest-authorized fixture/test code if needed.
 Required proof:
 - all eight D1A intake/work scenarios;
 - create/reschedule capacity races;
@@ -185,7 +255,7 @@ Any production request package must contain exact SHA, SQL/artifact, impact, rol
 ## LR-09 — Control-facing Booking contract
 
 State: `PENDING` · Review Batch: B4
-Worker: OpenCode documentation only.
+Worker: `swarm-evidence` documentation only.
 Output: stable read contract, identifiers, privileged actions, authorization/failure semantics, payment/Booking/work-state meanings, bridge ambiguity behavior, unsupported actions/limitations, exact schema/source revision.
 Must label Booking work-state as non-Order/non-production authority.
 
