@@ -89,13 +89,17 @@ Do not touch KMO Control implementation, Order, Claim, or canonical BK01.
 
 ## Current Worker / Checkpoint
 Current Worker: `swarm-builder` via `hermes-native-swarm` (capability `implementation`); Hermes = orchestrator/state holder only.
-Current Checkpoint: `LR-02 COMPLETE` — consumer truth/payment/expiry wired, F-2 closed (`ce163ae`, `e1ff830`, evidence `LR-02-EVIDENCE-2026-09-24.md`).
-Latest Dispatch/Relay stage pointer: `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` — all `SWARM_WORK_UNIT_PASS`.
+Current Checkpoint: `LR-02C COMPLETE` — LR-01 truthful-state helpers are now wired into the consumer page; three LR-01 helper families + payment authority + hold expiry + truthful states all committed (`f74ac29`, `c95a3bf`, `f135edb`, `ce163ae`, `e1ff830`, `07558fe`; evidence `e8fdef0`, `d01725e`, `LR-02C-EVIDENCE-2026-09-24.md`).
+Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` / `LR02A-WU01B` / `LR02B-WU01` / `LR02B-WU02` / `LR02C-WU01` — all lane dispositions recorded in the attempt ledgers.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or an exact declared blocked/Owner-decision checkpoint.
 
-Next Allowed Action: submit Review Batch B1 (LR-01 + LR-02) to the independent reviewer `agent-claude` at exact SHA with a revision-bound Reviewer Evidence Packet, then materialize LR-03.
+Next Allowed Action: obtain a real B1 verdict on the frozen candidate `07558fe` (LR-01 + LR-02 + LR-02C) through a currently admissible independent reviewer path. `B1` currently stops at `BLOCKED_INDEPENDENT_REVIEW_RAIL_PERMISSION` — the Owner-ruled reviewer `agent-claude` runs plan-only for every non-`BUILD` context mode in the protected Relay skill, so it can read but cannot run tests or write its report. This task must not patch that skill and must not substitute a weaker review.
 
-Note: `F-2` is still open at product level — the defect surface in `apps/booking-consumer/src/app/book/[slug]/page.tsx` (`?? 100`, merchant-name fallback, independent `900` countdown) is closed by LR-02 route wiring, not by LR-01 helper creation.
+Corrections recorded during the continuation (2026-09-24):
+- `LR-02B-WU02` was listed in `LR-02-EVIDENCE-2026-09-24.md` as a lane PASS; the raw lane record is `SWARM_WORK_UNIT_FAIL` (`WORKER_REPORTED_FAIL`). Corrected in place; its artifacts were independently re-verified before being relied on.
+- `LR-02` was marked `COMPLETE` at `d01725e` while its own required outcome (brief section B truthful states) was not yet met — `resolveBookingPageState` / `countOpenWeeklyDays` had zero app usage. Closed by LR-02C at `07558fe`.
+
+Note: `F-2` is closed at product level — `?? 100`, the merchant-name fallback and the independent `900` countdown are all gone from `apps/booking-consumer/src/app/book/[slug]/page.tsx`, and the three invented-data defects are covered by focused tests.
 
 ## Stage progress
 | Stage | State | Evidence |
@@ -103,8 +107,9 @@ Note: `F-2` is still open at product level — the defect surface in `apps/booki
 | LR-00 preflight / activation | PASS | `LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md` · commits `020e506`, `09f6dde` |
 | LR-01 pure helpers | COMPLETE | `LR-01-EVIDENCE-2026-09-24.md` · commits `f74ac29`, `c95a3bf`, `f135edb`, `e8fdef0` |
 | LR-02 consumer truth/payment | COMPLETE | `LR-02-EVIDENCE-2026-09-24.md` · commits `ce163ae`, `e1ff830` |
-| B1 independent review | DUE | reviewer `agent-claude` (LR-01 + LR-02 at exact SHA) |
-| LR-03 intake/work schema | PENDING | — |
+| LR-02C truthful-state wiring | COMPLETE | `LR-02C-EVIDENCE-2026-09-24.md` · commit `07558fe` |
+| B1 independent review | BLOCKED_INDEPENDENT_REVIEW_RAIL_PERMISSION | `B1-BLOCKER-INDEPENDENT-REVIEW-RAIL-2026-09-24.md` · no verdict exists at `07558fe` |
+| LR-03 intake/work schema | BLOCKED on B1 | — |
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no generic cross-domain capacity engine; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation; no canonical BK01 mutation.

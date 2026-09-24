@@ -191,12 +191,33 @@ Timeout decomposition: split by helper family; otherwise REVIEW_REQUIRED.
 
 ## LR-02 — Consumer truth/payment/expiry
 
-State: `COMPLETE` (2026-09-24) — F-2 closed; 3 work units PASS; see `LR-02-EVIDENCE-2026-09-24.md` · Review Batch: B1 (pending reviewer `agent-claude`)
+State: `COMPLETE` (LR-02A `ce163ae`, LR-02B `e1ff830`) — evidence `LR-02-EVIDENCE-2026-09-24.md`.
 Worker: `swarm-builder`; AGY only for a separately materialized UI/UX-only refinement if needed.
 Objective: wire truthful states, remove F-2 merchant-name/amount invention, use authoritative hold amount/expiry, preserve safe static-QR behavior.
-Acceptance: payment required + incomplete authority fails closed; no `?? 100`; no independent `900`; no invented merchant name.
-AUTO_GATE: tests, lint, build, focused browser state proof, diff/security scan.
-B1 boundary: Codex independent review on exact SHA.
+Acceptance: payment required + incomplete authority fails closed; no `?? 100`; no independent `900`; no invented merchant name. ✔ met.
+AUTO_GATE: tests, lint, build, focused browser state proof, diff/security scan. ✔ tests 86/86, lint 0 err, build PASS.
+B1 boundary: independent review on exact SHA — see the LR-02C/B1 note below.
+
+### LR-02C — Truthful-state wiring (completes the LR-02 required outcome)
+
+State: `COMPLETE` (`07558fe`) — evidence `LR-02C-EVIDENCE-2026-09-24.md`.
+Worker: `swarm-builder` (capability `implementation`), lane `LR02C-WU01-TRUTHFUL-STATE-WIRING`, checks 8/8.
+Why it was needed: at `d01725e` the LR-01 truthful-state helpers were pure modules with
+**zero app usage**, so a partly-configured shop still reached a dead stepper under HTTP 200 —
+brief section B (`NO_SERVICES` / `NO_STAFF` / `NO_SCHEDULE` / payment-not-configured
+fail-closed) was not actually met. The page now calls `resolveBookingPageState` and derives
+`NO_SCHEDULE` through `countOpenWeeklyDays` from the KMO shop-weekly model, with a dedicated
+screen per non-OK state and both new i18n keys present in `th.json` and `en.json`.
+AUTO_GATE: tests 98/98, lint 0 errors, consumer build PASS, `git diff --check` clean, secret scan 0 findings, two hash-verified non-vacuity controls.
+
+### Correction to the LR-02 evidence record
+
+The LR-02 work-unit ledger listed `LR02B-WU02-EXPIRED-STATE-CORRECTION` as a lane PASS.
+The persisted lane record is `SWARM_WORK_UNIT_FAIL` / `WORKER_REPORTED_FAIL` (envelope exit 2);
+the worker's own qualifier states the unit was incomplete. Its commander checks were 9/9 PASS
+and its artifacts were independently re-verified before being relied on, but the state is
+corrected in `LR-02-EVIDENCE-2026-09-24.md` with a dated note. No worker `FAIL` was converted
+into a PASS by explanation.
 
 ## LR-03 — KMO DB contract
 
