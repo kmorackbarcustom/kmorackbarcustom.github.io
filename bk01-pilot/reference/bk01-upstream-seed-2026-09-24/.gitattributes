@@ -1,0 +1,2 @@
+# Keep upstream bytes exact: no EOL normalisation inside the seed pack.
+* -text
