@@ -88,12 +88,22 @@ Do not touch KMO Control implementation, Order, Claim, or canonical BK01.
 | D1G Convergence wait | PENDING | wait for Control adapter-ready candidate |
 
 ## Current Worker / Checkpoint
-Current Worker: `swarm-inspector` / `swarm-builder` / `swarm-tester` / `swarm-db` via `hermes-native-swarm` (per capability class); Hermes = orchestrator/state holder only.
-Current Checkpoint: `LR-00 PREFLIGHT` — source freeze verified, branch/worktree created at `ac3c147`.
-Latest Dispatch/Relay stage pointer: none released yet (LR-01 not materialized).
+Current Worker: `swarm-builder` via `hermes-native-swarm` (capability `implementation`); Hermes = orchestrator/state holder only.
+Current Checkpoint: `LR-01 COMPLETE` — three pure helper families implemented, tested and committed (`f74ac29`, `c95a3bf`, `f135edb`, evidence `e8fdef0`).
+Latest Dispatch/Relay stage pointer: `LR01-WU01-RQ` / `LR01-WU02` / `LR01-WU03` — all `SWARM_WORK_UNIT_PASS`.
 Expected Stop: `BOOKING_READY_FOR_CONTROL_CANDIDATE = PASS` or an exact declared blocked/Owner-decision checkpoint.
 
-Next Allowed Action: complete LR-00 by materializing the swarm dispatch package for LR-01 only after the LR-00 gate passes.
+Next Allowed Action: materialize `LR-02 — consumer truth/payment/expiry` work units, then submit Review Batch B1 (LR-01 + LR-02) to the independent reviewer `agent-claude` with a revision-bound Reviewer Evidence Packet.
+
+Note: `F-2` is still open at product level — the defect surface in `apps/booking-consumer/src/app/book/[slug]/page.tsx` (`?? 100`, merchant-name fallback, independent `900` countdown) is closed by LR-02 route wiring, not by LR-01 helper creation.
+
+## Stage progress
+| Stage | State | Evidence |
+|---|---|---|
+| LR-00 preflight / activation | PASS | `LR-00-PREFLIGHT-EVIDENCE-2026-09-24.md` · commits `020e506`, `09f6dde` |
+| LR-01 pure helpers | COMPLETE | `LR-01-EVIDENCE-2026-09-24.md` · commits `f74ac29`, `c95a3bf`, `f135edb`, `e8fdef0` |
+| LR-02 consumer truth/payment | PENDING | — |
+| B1 independent review | PENDING | reviewer `agent-claude` |
 
 ## Hard Stops
 No Order/Claim; no KMO Control implementation; no generic cross-domain capacity engine; no cross-workstream schema redesign; no universal customer PK; no secret disclosure; no production mutation/deploy unless a stage has explicit authority; no automatic Integration Task creation; no canonical BK01 mutation.
