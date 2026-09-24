@@ -1,7 +1,7 @@
 # Codex Independent Review — KMO BK01 Seed Pack Adoption
 
-Date: 2026-09-24  
-Review mode: READ-ONLY / INDEPENDENT VERIFICATION  
+Date: 2026-09-24
+Review mode: READ-ONLY / INDEPENDENT VERIFICATION
 Target SHA: `9b236df9aee9dcaae73e4ee9d8218ca37ccf0a0b`
 
 ## Verdict
@@ -127,4 +127,3 @@ No build, test, migration, deploy, or runtime command was run because this revie
 ## Reviewer Statement
 
 This was an independent, exact-SHA, read-only review. No source, SQL, documentation, runtime, database, branch, or remote state was modified. The assessment is not ready for adoption until the F-3 scope is corrected and the lifecycle/reschedule authority gates are made explicit.
-
