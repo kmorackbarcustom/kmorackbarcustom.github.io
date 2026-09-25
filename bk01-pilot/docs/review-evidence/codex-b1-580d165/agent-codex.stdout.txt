@@ -1,0 +1,49 @@
+## 1. Revision and provenance
+
+ตรวจเองแล้ว: `HEAD` คือ `580d165e642e10ceb0ce26da473542cd1d65f504` ตรงกับ revision ที่ระบุ และ `git status --porcelain` ว่าง (clean).
+
+รัน test suite ตามคำสั่งและจากโฟลเดอร์ที่กำหนด: **98 ผ่าน, 0 ไม่ผ่าน**.
+
+## 2. Verdict
+
+**REMEDIATE**
+
+## 3. Stage-by-stage assessment
+
+- **LR-01:** Helper ทั้งสามอยู่ในขอบเขตที่กำหนดและมี behavior tests โดยตรง `NO_SCHEDULE` นับแถวเปิดจาก shop weekly schedule; payment helper ปฏิเสธ tuple ที่ไม่ครบ; countdown แยกค่าหมดเวลา `0` จากค่าที่อ่านไม่ได้ `null`.
+- **LR-02:** ไม่พบ literal deposit `100`, fallback ชื่อร้าน หรือ countdown เริ่มต้น `900` ในหน้า booking แล้ว แต่หน้าเว็บยังมีทางแสดง/คัดลอก PromptPay number ดิบ แม้ payment authority tuple ไม่ครบ และจำนวนเงินที่ใช้สร้าง QR ยัง fallback ไปยัง service amount หลังมี hold แล้ว จึงยังไม่ผ่านข้อกำหนด authority ครบถ้วน
+- **LR-02C/LR-02D:** สถานะหลักมีหน้าของตัวเองและ `LOAD_ERROR` แยกจาก `SHOP_NOT_FOUND`; `NO_SCHEDULE` ใช้ shop weekly model. อย่างไรก็ตาม `NO_SLOT_FOR_DATE` ยังเป็น inline banner ไม่ใช่สถานะของ resolver ตาม brief และมีการอ้าง i18n key ที่ไม่มีใน message files.
+
+## 4. Findings
+
+- **HIGH — blocking — จำนวนเงินหลังสร้าง hold ยัง fallback ไปใช้ค่าก่อน hold.** ที่ [page.tsx](/D:/AI-Workspace/runtime/worktrees/kmo-b1-codex-580d165/bk01-pilot/apps/booking-consumer/src/app/book/%5Bslug%5D/page.tsx:168) `holdResult?.deposit_amount ?? selectedService?.deposit_amount` ทำให้ `resolvePaymentInstruction` อาจสร้าง QR จาก service amount เมื่อ hold row ไม่มีจำนวนเงินที่ยืนยันแล้ว ซึ่งขัดกับข้อกำหนดให้ใช้ hold/server state เป็น authoritative payable deposit. ควร fail closed เมื่อ hold ไม่มี amount ที่ใช้ได้.
+
+- **HIGH — blocking — ยัง copy และแสดง PromptPay number เมื่อ authority tuple ไม่ครบ.** [page.tsx](/D:/AI-Workspace/runtime/worktrees/kmo-b1-codex-580d165/bk01-pilot/apps/booking-consumer/src/app/book/%5Bslug%5D/page.tsx:209) ตรวจเพียงว่าค่าไม่ว่างก่อน copy; ที่บรรทัด 966 UI ก็แสดงและเปิดปุ่ม copy จาก `promptpayNumber` ดิบ แม้ recipient จะผิดรูปแบบ หรือชื่อ/จำนวนเงินที่จำเป็นต่อ payment instruction ไม่มีอยู่. Brief C ระบุให้ทดสอบ no-copy เมื่อ authority ไม่ครบ; test ปัจจุบันไม่ได้คุมเส้นทาง UI นี้.
+
+- **MEDIUM — blocking — เรียก i18n key ที่ไม่มีในไฟล์ภาษา.** หน้าใช้ `t('step3.amountUnavailable')` ที่บรรทัด 635 และ 960 แต่ทั้ง [en.json](/D:/AI-Workspace/runtime/worktrees/kmo-b1-codex-580d165/bk01-pilot/apps/booking-consumer/messages/en.json:127) และ [th.json](/D:/AI-Workspace/runtime/worktrees/kmo-b1-codex-580d165/bk01-pilot/apps/booking-consumer/messages/th.json:127) กำหนด key นี้ไว้ใต้ `payment.amountUnavailable` ไม่ใช่ `step3.amountUnavailable`. Test ตรวจ parity ของ setup-state keys เท่านั้น จึงไม่พบ key ที่ขาดนี้.
+
+- **MEDIUM — blocking — `NO_SLOT_FOR_DATE` ยังไม่อยู่ใน state resolver ตาม brief B.** Resolver มีสถานะ shop-level ครบ แต่วันซึ่งไม่มี slot ยังแสดงเพียง inline banner ที่ [page.tsx](/D:/AI-Workspace/runtime/worktrees/kmo-b1-codex-580d165/bk01-pilot/apps/booking-consumer/src/app/book/%5Bslug%5D/page.tsx:824). นี่ไม่ตรงกับข้อกำหนดที่ระบุ `NO_SLOT_FOR_DATE` ในรายการ state อย่างชัดเจน.
+
+- **MEDIUM — blocking — evidence ledger ให้สถานะ lane ขัดกันเอง และ raw lane records ตรวจยืนยันไม่ได้จาก revision นี้.** `LR-02-EVIDENCE` ตาราง work-unit ระบุ WU02 เป็น `SWARM_WORK_UNIT_FAIL` ตามคำแก้ไข แต่ attempt ledger ภายหลังระบุ attempt 5 เป็น `SWARM_WORK_UNIT_PASS` และกล่าวว่า committed unit ได้ lane PASS. Raw evidence JSON ที่ใช้ตัดสินความขัดแย้งนี้ไม่อยู่ใน git tree/ไฟล์ที่ตรวจใน candidate นี้ จึงยืนยันข้ออ้าง “ไม่มี FAIL ที่ถูกอธิบายจนกลายเป็น PASS” จาก raw record ไม่ได้. หลักฐานในเอกสารยืนยันได้เพียงว่าผู้เขียนรายงานค่า fail ไว้ในส่วนหนึ่งและ pass ไว้อีกส่วนหนึ่ง.
+
+- **LOW — ไม่ blocking — test count สูงกว่าความครอบคลุม runtime จริง.** Helper tests เรียกฟังก์ชันจริง แต่ page wiring, state rendering, i18n usage และ authority gates ส่วนใหญ่เป็น regex/source assertions. ตัวอย่างเช่น test เช็กว่ามี resolver branches และ key บางตัว แต่ไม่ได้ render หน้า หรือยืนยันว่า key ทุกตัวที่เรียกมีอยู่. ดังนั้น 98/98 เป็นผลรันทดสอบจริง แต่ไม่ใช่หลักฐาน behavior ของหน้าเว็บครบถ้วน.
+
+## 5. Evidence-doc claim check
+
+ยืนยันจาก source ได้ว่า `NO_SCHEDULE` ใช้ `shopWeeklySchedule`, payment gate ระดับหน้าพิจารณาแต่ละ service, hold countdown คำนวณจาก `expires_at`, static QR ต้องได้ URL ที่ระบุชัด และสอง setup-state keys มีทั้งภาษาไทยและอังกฤษ.
+
+แต่ claim ว่า payment instruction ใช้เฉพาะ hold amount ไม่ตรงกับหน้าเว็บจริง เพราะมี fallback ไป `selectedService.deposit_amount`. การตรวจ parity ใน test ก็ไม่ครอบคลุม key `step3.amountUnavailable`.
+
+รายงาน reviewer เก่าระบุ SHA `234603d...` ไม่ใช่ revision นี้ จึงใช้เป็นรายการประเด็นให้ตรวจเท่านั้น. ประเด็นที่ยืนยันซ้ำได้: test ส่วน page เป็น source-pattern checks; `NO_SLOT_FOR_DATE` ไม่ได้อยู่ใน resolver. ประเด็นที่เปลี่ยนแล้ว: dead `isBookingBlocked` branch ถูกเอาออก และ comment ที่เคย overclaim เรื่อง contact fallback แก้แล้ว. ข้อสรุปเก่าที่ว่าไม่มี lane FAIL ถูกแปลงเป็น PASS ยังยืนยันไม่ได้ เพราะ raw lane record ไม่มีใน candidate และ ledger ปัจจุบันมีสถานะขัดกันเอง.
+
+## 6. Unverified areas
+
+- ไม่สามารถตรวจ raw lane JSON/envelopes ได้: ไม่มีไฟล์ดังกล่าวใน revision ที่กำหนดหรือเอกสารที่ตรวจ จึงไม่ได้อ้างว่า lane state ตรงกับ raw records.
+- ไม่ได้รัน build, lint หรือ browser/mobile checks: contract อนุญาตเฉพาะ read-only test suite ที่ระบุ; ผลที่รายงานจึงจำกัดอยู่ที่ suite 98/98 และการอ่าน source/git objects.
+- LR-03 SQL อยู่นอกขอบเขตตามที่กำหนด.
+
+## 7. Independence statement
+
+ข้ายืนยันว่าไม่ได้เขียนงานที่ตรวจ และตัดสินจากไฟล์และ git objects ของ revision ที่กำหนด ไม่ได้รับเอาคำสรุปของผู้เขียนหรือ reviewer ก่อนหน้ามาเป็นข้อเท็จจริง.
+
+B1_BATCH_VERDICT: REMEDIATE

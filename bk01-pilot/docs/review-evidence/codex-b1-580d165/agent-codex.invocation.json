@@ -1,0 +1,52 @@
+{
+  "EXECUTOR_READY": "PASS",
+  "auth_readiness": {
+    "detail": "text_authenticated",
+    "method": "codex_login_status",
+    "status": "PASS"
+  },
+  "context_mode": "INDEPENDENT-QA",
+  "declared_agent_identity": "agent-codex",
+  "executable": "D:\\AI-Workspace\\runtime\\npm-global\\npm\\codex.cmd",
+  "executable_health": {
+    "executable": "D:\\AI-Workspace\\runtime\\npm-global\\npm\\codex.cmd",
+    "status": "PASS",
+    "version": "codex-cli 0.156.1",
+    "wrapper": "D:\\AI-Workspace\\runtime\\hermes-native\\data\\skills\\devops\\kanban-external-agent-dispatch\\scripts\\invoke-codex-worker.ps1",
+    "wrapper_sha256": "sha256:d106f2a78210c9384291e31dcad383bf34ea15b9c7dae4e48d813c0a614fe6a9"
+  },
+  "execution_backend": "direct_external_process",
+  "executor_identity": "agent-codex",
+  "executor_ready": true,
+  "executor_registration": "codex-wrapper",
+  "exit_code": 0,
+  "invocation_probe": {
+    "detail": "READY",
+    "method": "codex_isolated_probe_session1",
+    "provenance_session": 1,
+    "session_route_code": "CODEX_SESSION_1_SELECTED",
+    "status": "PASS"
+  },
+  "launcher_executable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.EXE",
+  "output_file": "C:\\Users\\Win11\\AppData\\Local\\Temp\\kmo-b1-codex\\evidence\\agent-codex.stdout.txt",
+  "prompt_persisted": false,
+  "prompt_sha256": "sha256:e072b096e0133005632f6e8820bd5f58cac84bba7de28e884983991d6a71536c",
+  "provenance": {
+    "declared_agent_identity": "agent-codex",
+    "execution_backend": "direct_external_process",
+    "executor_identity": "agent-codex",
+    "executor_registration": "codex-wrapper",
+    "provenance_session": 1,
+    "session_route_code": "CODEX_SESSION_1_SELECTED",
+    "transport_model": "none"
+  },
+  "provenance_session": 1,
+  "session_route_code": "CODEX_SESSION_1_SELECTED",
+  "stderr_file": "C:\\Users\\Win11\\AppData\\Local\\Temp\\kmo-b1-codex\\evidence\\agent-codex.stderr.txt",
+  "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "sha256:948ee1cdbb2fa0c78f62e2bd1dc029610f25996daf8488894af054dd1b443f1c",
+  "transport_model": "none",
+  "version": "codex-cli 0.156.1",
+  "wrapper": "D:\\AI-Workspace\\runtime\\hermes-native\\data\\skills\\devops\\kanban-external-agent-dispatch\\scripts\\invoke-codex-worker.ps1",
+  "wrapper_sha256": "sha256:d106f2a78210c9384291e31dcad383bf34ea15b9c7dae4e48d813c0a614fe6a9"
+}
