@@ -73,6 +73,14 @@ bk01-pilot/docs/LR-03-EVIDENCE-2026-09-24.md + QUALIFICATION-LR03-WU01-2026-09-2
 bk01-pilot/KMO_SCHEMA_CONTRACT.md + KMO_EXTENSION_DESIGN.md                            (LOCKED; อยู่ที่ bk01-pilot/ root ไม่ใช่ docs/)
 ```
 
+## 6.1 เศษที่ค้างอยู่ (ไม่ใช่ปัญหา แต่จะเห็น)
+
+- `D:\AI-Workspaceuntime\worktrees\kmo-b1-codex-580d165` — **directory ยังอยู่ แต่ deregistered จาก git แล้ว**
+  (ไม่อยู่ใน `git worktree list`, ไม่มีไฟล์ค้าง `git status` = 0 รายการ) ถูก process ล็อกไว้ตอน `rm -rf`
+  ⇒ **ไม่ต้องใช้ ไม่ต้อง review จากที่นี่** · ทำใหม่ได้ด้วย `git worktree add --detach <path> <sha>`
+  ถ้าต้อง review ซ้ำ · หลักฐานรีวิวทั้งหมดถูก commit เข้า tree แล้ว (ข้อ 6) จึงไม่ได้พึ่ง directory นี้
+- **ห้าม** `git worktree prune` แบบหว่าน หรือ `git clean` ใน product worktree — เสี่ยงลบ evidence
+
 ## 7. ข้อควรระวังด้านความซื่อสัตย์
 
 - **`LR-02B-WU02` lane = FAIL จริง** (`WORKER_REPORTED_FAIL`, exit 2) แม้ artifact ดี — อย่ากลับไปเขียนเป็น PASS
