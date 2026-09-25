@@ -1,5 +1,18 @@
 # B1 BLOCKER — independent reviewer rail cannot execute
 
+> **STATUS: SUPERSEDED FOR RAIL-RESOLUTION (2026-09-25).** The rail condition described below was
+> worked around from the **prompt side** (an output contract that makes the reviewer's message text the
+> deliverable), which produced two real `agent-claude` verdicts. It has since been **superseded as the
+> governing review** by the Owner's 2026-09-25 ruling, which overrides D-2 for this run and binds
+> `agent-codex` instead. The Claude non-BUILD rail defect itself remains **open** and is assigned to
+> separate Relay/runtime hardening work, not to this KMO D1A run.
+>
+> **Revision cited below is STALE.** This doc references `d01725e…`; the current repository HEAD and the
+> corrected B1 candidate are recorded in `B1-CANDIDATE-RECONCILIATION-2026-09-25.md`. Do not dispatch a
+> review keyed to the SHA in this historical document.
+>
+> Retained as the provenance record of the original rail blocker. Nothing below is deleted.
+
 Date: 2026-09-24 (Asia/Bangkok)
 Task: `KMO-DOMAIN-BOOKING-READINESS-001` (D1A LONG_RUN, `WF-DEV-01 v1.4.0`)
 Revision under review: `d01725e5ecca0cd7c3492f37b1427c6cb6e15f63`

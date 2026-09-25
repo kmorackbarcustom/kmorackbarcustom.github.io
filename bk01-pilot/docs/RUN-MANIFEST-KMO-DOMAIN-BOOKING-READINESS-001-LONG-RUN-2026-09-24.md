@@ -290,6 +290,25 @@ No merge/deploy is implied.
 
 ## Review batches
 
+### B1 — Owner ruling 2026-09-25 (supersedes the activation-time binding below)
+
+```text
+LR-03                     ON HOLD (Owner ruling 2026-09-25); may resume only after B1 = PASS
+active reviewer           agent-codex  (Owner overrides deviation D-2 for this run)
+authorized model pin      gpt-5.6-luna
+enforced runtime pin      gpt-6-luna     -> mismatch; B1 STOPPED, see CODEX-READINESS-PROBE-2026-09-25.md
+B1 candidate (corrected)  580d165e642e10ceb0ce26da473542cd1d65f504  (bk01-pilot/apps tip)
+repo HEAD at ruling       ec9a3c7b48595b33a6cdc1c0e00ad9f7abbaef93
+```
+
+The activation-time binding `active_reviewer_this_run: agent-claude` and the D-2 deviation are
+superseded by this ruling. The Claude verdicts already obtained are retained as evidence but are no
+longer the governing review. Protected Relay skill must NOT be edited to fix the Claude rail in this
+run; that is separate hardening work.
+
+See `B1-CANDIDATE-RECONCILIATION-2026-09-25.md` for the corrected candidate definitions (the SHAs cited
+in the ruling text were stale by eight commits).
+
 ### B1 — Consumer authority
 Stages: LR-01, LR-02.
 Critical attention: payment truth, error-vs-empty state, server expiry, KMO static QR.
