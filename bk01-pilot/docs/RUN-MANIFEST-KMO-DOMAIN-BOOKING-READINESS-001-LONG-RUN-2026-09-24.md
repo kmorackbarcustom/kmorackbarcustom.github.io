@@ -290,6 +290,44 @@ No merge/deploy is implied.
 
 ## Review batches
 
+### D-3 — Owner ruling 2026-09-25: Codex model pin, Option A (BOUNDED to this run)
+
+Owner authorized **Option A** for `KMO-DOMAIN-BOOKING-READINESS-001` D1A only, resolving the
+`CODEX_PIN_MISMATCH` stop recorded in `CODEX-READINESS-PROBE-2026-09-25.md`.
+
+```yaml
+independent_reviewer_b1: agent-codex
+windows_route:           Session-1 only
+required_provenance:     provenance_session=1
+required_route_code:     CODEX_SESSION_1_SELECTED
+provider:                openai
+model:                   gpt-6-luna
+reasoning_effort:        medium
+bounded_to:              this D1A run / B1 only
+changes_canonical_policy: false
+```
+
+Rationale (Owner): the live canonical Relay runtime `kanban-external-agent-dispatch v2.5.5` enforces
+`PIN_CODEX = openai / gpt-6-luna / medium`, and the current probe proves that model and the Session-1
+route actually work on this host.
+
+This is a **bounded Owner deviation for D1A/B1 only** and does **not** change canonical workflow or
+model policy for any other work. It sits alongside D-1 (swarm execution engine) and D-2 (Claude
+reviewer) as recorded, bounded, run-scoped deviations.
+
+**B1 review target (frozen):** `580d165e642e10ceb0ce26da473542cd1d65f504` — reviewed in a clean
+isolated worktree created at that exact SHA. Reviewing from the then-current HEAD (`36e3cc6`) is
+**forbidden** because LR-03 commits landed after the frozen candidate.
+
+**Prohibitions carried with D-3:** no `model_pins.py` edit; no Relay skill/runtime/config edit; no
+change to the Claude reviewer rail in this task; no production apply/deploy/cutover; no Order / Claim /
+KMO Control; **LR-03 remains ON HOLD until B1 PASS**.
+
+**Continue rule:** B1 `PASS` / `BATCH_APPROVED` → resume LR-03 from the persisted HOLD state. B1
+substantive finding → remediation/re-review contract. Provenance/session/model mismatch vs D-3 → STOP
+fail-closed and report Owner. **Previous Claude verdicts or artifacts may NOT be used as a substitute
+for this Codex verdict.**
+
 ### B1 — Owner ruling 2026-09-25 (supersedes the activation-time binding below)
 
 ```text

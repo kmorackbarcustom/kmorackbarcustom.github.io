@@ -113,7 +113,8 @@ Note: `F-2` is closed at product level — `?? 100`, the merchant-name fallback 
 | LR-02 consumer truth/payment | COMPLETE | `LR-02-EVIDENCE-2026-09-24.md` · commits `ce163ae`, `e1ff830` |
 | LR-02C truthful-state wiring | COMPLETE | `LR-02C-EVIDENCE-2026-09-24.md` · commit `07558fe` |
 | B1 independent review | `APPROVED_WITH_FINDINGS` @ `234603d` (agent-claude) — **SUPERSEDED as governing review by Owner ruling 2026-09-25** | `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md` · `B1-CANDIDATE-RECONCILIATION-2026-09-25.md` |
-| B1 (Codex re-review per Owner ruling) | `STOP_CODEX_MODEL_PROVENANCE_MISMATCH` — waiting ruling | `CODEX-READINESS-PROBE-2026-09-25.md` · candidate `580d165` |
+| B1 (Codex, Owner D-3) | **AUTHORIZED** — reviewer `agent-codex`, `openai / gpt-6-luna / medium`, Session-1 only | D-3 in Run Manifest · `CODEX-READINESS-PROBE-2026-09-25.md` · candidate `580d165` |
+| B1 Codex verdict | PENDING — must review `580d165` in a clean isolated worktree | not yet obtained |
 | LR-02D B1 findings F1/F4 | COMPLETE @ `580d165` | `LR-02D-EVIDENCE-2026-09-24.md` · lane `LR02D-WU02` 10/10 |
 | B1 re-review of current tip | `APPROVED_WITH_FINDINGS` @ `8b67325` | F1/F4 confirmed closed, no new blocking finding · `REPORT-CLAUDE-KMO-D1A-B1-INDEPENDENT-REVIEW-2026-09-24.md` |
 | LR-03 intake/work schema | **ON HOLD** (Owner ruling 2026-09-25) — `REMEDIATE` pending | `LR-03-EVIDENCE-2026-09-24.md`, `QUALIFICATION-LR03-WU01-2026-09-25.md` |
