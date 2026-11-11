@@ -1,5 +1,10 @@
 import type { LineImageContent } from "./line.ts";
 import type { VisionObservation } from "./vision.ts";
+import {
+  type LineEventStateWriter,
+  type LineSendResult,
+  sendReplyOrPushFallback,
+} from "./line-delivery.ts";
 
 type HistoryItem = {
   role: "user" | "assistant" | "system";
@@ -44,6 +49,7 @@ export const IMAGE_READ_FALLBACK =
 // duplicate staff alerts under concurrent webhook invocations).
 export type BatchImageItem = {
   messageId: string;
+  webhookEventId?: string;
   replyToken?: string;
   timestamp?: number;
 };
@@ -57,10 +63,14 @@ export type ImageFlowDeps = {
     userMessage: string;
     history: Array<{ role: string; content: string }>;
   }): Promise<string>;
-  sendReply(replyToken: string, text: string): Promise<boolean>;
-  sendPush(userId: string, text: string): Promise<boolean>;
+  sendReply(replyToken: string, text: string): Promise<LineSendResult>;
+  sendPush(userId: string, text: string): Promise<LineSendResult>;
+  writeEventState?: LineEventStateWriter;
   notifyImageFailure(messageId: string, error: unknown): Promise<void>;
-  notifyPaymentProof?(messageId: string, observation: VisionObservation): Promise<void>;
+  notifyPaymentProof?(
+    messageId: string,
+    observation: VisionObservation,
+  ): Promise<void>;
   log?: (event: string, data: Record<string, unknown>) => void;
 };
 
@@ -69,13 +79,23 @@ export type ImageFlowResult = {
   visionSuccess: boolean;
   replied: boolean;
   pushed: boolean;
+  deliveryOutcome: LineSendResult["outcome"] | "not_attempted";
 };
 
 export function isLikelyPaymentProof(observation: VisionObservation): boolean {
-  const text = [observation.summary, ...observation.visible_text, ...observation.notable_details].join(" ");
-  const strong = /(โอนเงินสำเร็จ|โอนสำเร็จ|รายการสำเร็จ|สลิป|payment\s*(?:successful|complete)|transfer\s*(?:successful|complete))/i.test(text);
-  const provider = /(กสิกรไทย|K\+|กรุงไทย|ไทยพาณิชย์|SCB|ธนาคารกรุงเทพ|ttb|ทรูมันนี่|TrueMoney|พร้อมเพย์|PromptPay)/i.test(text);
-  const transaction = /(จำนวน|ยอดเงิน|บาท|เลขที่รายการ|รหัสรายการ|transaction|amount)/i.test(text);
+  const text = [
+    observation.summary,
+    ...observation.visible_text,
+    ...observation.notable_details,
+  ].join(" ");
+  const strong =
+    /(โอนเงินสำเร็จ|โอนสำเร็จ|รายการสำเร็จ|สลิป|payment\s*(?:successful|complete)|transfer\s*(?:successful|complete))/i
+      .test(text);
+  const provider =
+    /(กสิกรไทย|K\+|กรุงไทย|ไทยพาณิชย์|SCB|ธนาคารกรุงเทพ|ttb|ทรูมันนี่|TrueMoney|พร้อมเพย์|PromptPay)/i
+      .test(text);
+  const transaction =
+    /(จำนวน|ยอดเงิน|บาท|เลขที่รายการ|รหัสรายการ|transaction|amount)/i.test(text);
   return strong || (provider && transaction);
 }
 
@@ -84,14 +104,33 @@ async function sendWithFallback(
   userId: string,
   replyToken: string | undefined,
   text: string,
-): Promise<{ replied: boolean; pushed: boolean }> {
-  const replied = replyToken ? await deps.sendReply(replyToken, text) : false;
-  if (replied) return { replied: true, pushed: false };
-  const pushed = await deps.sendPush(userId, text);
-  return { replied: false, pushed };
+  eventIds: string[],
+): Promise<
+  {
+    replied: boolean;
+    pushed: boolean;
+    deliveryOutcome: LineSendResult["outcome"] | "not_attempted";
+  }
+> {
+  const result = await sendReplyOrPushFallback({
+    eventIds,
+    replyToken,
+    sendReply: (token) => deps.sendReply(token, text),
+    sendPush: () => deps.sendPush(userId, text),
+    writeState: deps.writeEventState ?? (() => Promise.resolve()),
+  });
+  return {
+    replied: result.replied,
+    pushed: result.pushed,
+    deliveryOutcome: result.outcome,
+  };
 }
 
-type VisionSuccess = { item: BatchImageItem; index: number; observation: VisionObservation };
+type VisionSuccess = {
+  item: BatchImageItem;
+  index: number;
+  observation: VisionObservation;
+};
 
 export async function processImageBatchConversation(
   deps: ImageFlowDeps,
@@ -99,6 +138,9 @@ export async function processImageBatchConversation(
 ): Promise<ImageFlowResult> {
   const items = input.items;
   const total = items.length;
+  const eventIds = items.map((item) => item.webhookEventId).filter(
+    (eventId): eventId is string => Boolean(eventId),
+  );
   const lastReplyToken = items[items.length - 1]?.replyToken;
   const lastTimestamp = items[items.length - 1]?.timestamp;
 
@@ -126,7 +168,9 @@ export async function processImageBatchConversation(
     );
 
     const successes = settled
-      .filter((r): r is PromiseFulfilledResult<VisionSuccess> => r.status === "fulfilled")
+      .filter((r): r is PromiseFulfilledResult<VisionSuccess> =>
+        r.status === "fulfilled"
+      )
       .map((r) => r.value)
       .sort((a, b) => a.index - b.index);
     const failureCount = settled.length - successes.length;
@@ -148,7 +192,9 @@ export async function processImageBatchConversation(
       // Whole batch unreadable - notify staff exactly once for the batch, not once per image.
       await deps.notifyImageFailure(
         items[items.length - 1].messageId,
-        (settled.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)
+        (settled.find((r) => r.status === "rejected") as
+          | PromiseRejectedResult
+          | undefined)
           ?.reason,
       ).catch(() => undefined);
       const placeholder = total > 1
@@ -164,16 +210,27 @@ export async function processImageBatchConversation(
         content: IMAGE_READ_FALLBACK,
         timestamp: Date.now(),
       }).catch(() => undefined);
-      const sent = await sendWithFallback(deps, input.userId, lastReplyToken, IMAGE_READ_FALLBACK);
+      const sent = await sendWithFallback(
+        deps,
+        input.userId,
+        lastReplyToken,
+        IMAGE_READ_FALLBACK,
+        eventIds,
+      );
       return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
     }
 
     // Payment-proof check runs before reply generation and notifies at most once per batch, so a
     // slip is flagged to staff even if the chat-reply step below fails for some reason.
     if (deps.notifyPaymentProof) {
-      const paymentHit = successes.find(({ observation }) => isLikelyPaymentProof(observation));
+      const paymentHit = successes.find(({ observation }) =>
+        isLikelyPaymentProof(observation)
+      );
       if (paymentHit) {
-        await deps.notifyPaymentProof(paymentHit.item.messageId, paymentHit.observation).catch(
+        await deps.notifyPaymentProof(
+          paymentHit.item.messageId,
+          paymentHit.observation,
+        ).catch(
           (error) => {
             deps.log?.("payment_proof_notify_failure", {
               messageId: paymentHit.item.messageId,
@@ -201,13 +258,22 @@ export async function processImageBatchConversation(
     });
     userHistoryAppended = true;
 
-    const reply = await deps.generateReply({ userMessage: synthetic, history: priorHistory });
+    const reply = await deps.generateReply({
+      userMessage: synthetic,
+      history: priorHistory,
+    });
     await deps.sessions.appendHistory(input.userId, {
       role: "assistant",
       content: reply,
       timestamp: Date.now(),
     });
-    const sent = await sendWithFallback(deps, input.userId, lastReplyToken, reply);
+    const sent = await sendWithFallback(
+      deps,
+      input.userId,
+      lastReplyToken,
+      reply,
+      eventIds,
+    );
     return { reply, visionSuccess: true, ...sent };
   } catch (error) {
     // Outer safety net: batching raised the blast radius of a mid-pipeline crash from "one image's
@@ -234,9 +300,15 @@ export async function processImageBatchConversation(
       content: IMAGE_READ_FALLBACK,
       timestamp: Date.now(),
     }).catch(() => undefined);
-    await deps.notifyImageFailure(items[items.length - 1].messageId, error).catch(() => undefined);
-    const sent = await sendWithFallback(deps, input.userId, lastReplyToken, IMAGE_READ_FALLBACK)
-      .catch(() => ({ replied: false, pushed: false }));
+    await deps.notifyImageFailure(items[items.length - 1].messageId, error)
+      .catch(() => undefined);
+    const sent = await sendWithFallback(
+      deps,
+      input.userId,
+      lastReplyToken,
+      IMAGE_READ_FALLBACK,
+      eventIds,
+    );
     return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
   }
 }

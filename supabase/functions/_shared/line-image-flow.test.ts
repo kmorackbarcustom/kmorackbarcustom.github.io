@@ -80,11 +80,11 @@ function makeDeps(overrides: Partial<ImageFlowDeps> = {}) {
     },
     sendReply: async (replyToken) => {
       sentReplyTokens.push(replyToken);
-      return true;
+      return { outcome: "accepted", statusCode: 200 };
     },
     sendPush: async () => {
       pushed++;
-      return true;
+      return { outcome: "accepted", statusCode: 200 };
     },
     notifyImageFailure: async () => {
       notified++;
@@ -117,8 +117,10 @@ Deno.test("single-image batch persists synthetic observation and reply, using pr
   assertEquals(t.getAgentHistory(), [{ role: "user", content: "รุ่นนี้ทำได้ไหม" }]);
 });
 
-Deno.test("reply failure pushes the same answer", async () => {
-  const t = makeDeps({ sendReply: async () => false });
+Deno.test("definite reply rejection pushes the same answer once", async () => {
+  const t = makeDeps({
+    sendReply: async () => ({ outcome: "rejected", statusCode: 400 }),
+  });
   const result = await processImageBatchConversation(t.deps, {
     userId: "U1",
     items: [{ messageId: "M1", replyToken: "R1" }],
@@ -126,6 +128,25 @@ Deno.test("reply failure pushes the same answer", async () => {
   assertEquals(result.replied, false);
   assertEquals(result.pushed, true);
   assertEquals(t.getPushed(), 1);
+});
+
+Deno.test("ambiguous reply result is recorded and does not push a second answer", async () => {
+  let pushCalls = 0;
+  const t = makeDeps({
+    sendReply: () => Promise.resolve({ outcome: "uncertain", statusCode: 504 }),
+    sendPush: () => {
+      pushCalls++;
+      return Promise.resolve({ outcome: "accepted" as const });
+    },
+  });
+  const result = await processImageBatchConversation(t.deps, {
+    userId: "U1",
+    items: [{ messageId: "M1", webhookEventId: "01ABC", replyToken: "R1" }],
+  });
+  assertEquals(result.replied, false);
+  assertEquals(result.pushed, false);
+  assertEquals(result.deliveryOutcome, "uncertain");
+  assertEquals(pushCalls, 0);
 });
 
 Deno.test("vision failure returns safe fallback, notifies staff once and persists no raw image", async () => {
@@ -146,15 +167,28 @@ Deno.test("vision failure returns safe fallback, notifies staff once and persist
 });
 
 Deno.test("payment proof detector recognizes bank slip observations", () => {
-  assertEquals(isLikelyPaymentProof({ ...observation, summary: "โอนเงินสำเร็จ", visible_text: ["K+", "จำนวน 500.00 บาท"] }), true);
+  assertEquals(
+    isLikelyPaymentProof({
+      ...observation,
+      summary: "โอนเงินสำเร็จ",
+      visible_text: ["K+", "จำนวน 500.00 บาท"],
+    }),
+    true,
+  );
   assertEquals(isLikelyPaymentProof(observation), false);
 });
 
 Deno.test("payment proof notifies staff immediately after vision success", async () => {
   let paymentNotified = 0;
   const t = makeDeps({
-    analyzeImage: async () => ({ ...observation, summary: "โอนเงินสำเร็จ", visible_text: ["K+", "จำนวน 500.00 บาท"] }),
-    notifyPaymentProof: async () => { paymentNotified++; },
+    analyzeImage: async () => ({
+      ...observation,
+      summary: "โอนเงินสำเร็จ",
+      visible_text: ["K+", "จำนวน 500.00 บาท"],
+    }),
+    notifyPaymentProof: async () => {
+      paymentNotified++;
+    },
   });
   const result = await processImageBatchConversation(t.deps, {
     userId: "U1",
@@ -166,7 +200,11 @@ Deno.test("payment proof notifies staff immediately after vision success", async
 
 Deno.test("ordinary image does not notify payment review", async () => {
   let paymentNotified = 0;
-  const t = makeDeps({ notifyPaymentProof: async () => { paymentNotified++; } });
+  const t = makeDeps({
+    notifyPaymentProof: async () => {
+      paymentNotified++;
+    },
+  });
   await processImageBatchConversation(t.deps, {
     userId: "U1",
     items: [{ messageId: "M1", replyToken: "R1" }],
@@ -182,7 +220,10 @@ Deno.test("a burst of 4 images produces exactly one reply, replied on the last i
     { messageId: "M3", replyToken: "R3" },
     { messageId: "M4", replyToken: "R4" },
   ];
-  const result = await processImageBatchConversation(t.deps, { userId: "U1", items });
+  const result = await processImageBatchConversation(t.deps, {
+    userId: "U1",
+    items,
+  });
   assertEquals(t.getGenerateReplyCalls(), 1);
   assertEquals(t.persisted.map((x) => x.role), ["user", "assistant"]);
   assert(t.persisted[0].content.includes("[รูปที่ 1/4]"));
@@ -199,7 +240,11 @@ Deno.test("one bad image in a batch does not sink the whole reply (Promise.allSe
     downloadImage: async (messageId) => {
       call++;
       if (messageId === "BAD") throw new Error("download failed");
-      return { bytes: new Uint8Array([0xff, 0xd8, 0xff]), mimeType: "image/jpeg", byteLength: 3 };
+      return {
+        bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+        mimeType: "image/jpeg",
+        byteLength: 3,
+      };
     },
   };
   const result = await processImageBatchConversation(badDeps, {
@@ -213,7 +258,9 @@ Deno.test("one bad image in a batch does not sink the whole reply (Promise.allSe
   assertEquals(result.visionSuccess, true);
   assertEquals(t.getGenerateReplyCalls(), 1);
   assert(t.persisted[0].content.includes("[รูปที่ 1/3]"));
-  assert(t.persisted[0].content.includes("[หมายเหตุ] มี 1 จาก 3 รูปที่ระบบอ่านไม่สำเร็จ"));
+  assert(
+    t.persisted[0].content.includes("[หมายเหตุ] มี 1 จาก 3 รูปที่ระบบอ่านไม่สำเร็จ"),
+  );
   assertEquals(call, 3);
 });
 
@@ -233,7 +280,11 @@ Deno.test("all images failing falls back exactly once, not once per image", asyn
   });
   assertEquals(result.visionSuccess, false);
   assertEquals(result.reply, IMAGE_READ_FALLBACK);
-  assertEquals(t.getNotified(), 1, "must notify staff once for the whole failed batch");
+  assertEquals(
+    t.getNotified(),
+    1,
+    "must notify staff once for the whole failed batch",
+  );
   assertEquals(t.getGenerateReplyCalls(), 0);
   assertEquals(t.persisted.map((x) => x.role), ["user", "assistant"]);
 });
@@ -243,14 +294,20 @@ Deno.test("payment proof found in one of several images notifies exactly once", 
   const t = makeDeps({
     analyzeImage: async (image) =>
       image.byteLength === 999
-        ? { ...observation, summary: "โอนเงินสำเร็จ", visible_text: ["K+", "จำนวน 500.00 บาท"] }
+        ? {
+          ...observation,
+          summary: "โอนเงินสำเร็จ",
+          visible_text: ["K+", "จำนวน 500.00 บาท"],
+        }
         : observation,
     downloadImage: async (messageId) => ({
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
       mimeType: "image/jpeg",
       byteLength: messageId === "SLIP" ? 999 : 3,
     }),
-    notifyPaymentProof: async () => { paymentNotified++; },
+    notifyPaymentProof: async () => {
+      paymentNotified++;
+    },
   });
   const result = await processImageBatchConversation(t.deps, {
     userId: "U1",

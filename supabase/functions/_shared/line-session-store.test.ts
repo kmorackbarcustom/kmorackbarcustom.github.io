@@ -10,7 +10,7 @@ function fakeSupabase(row: Record<string, unknown> | null) {
         }),
       }),
     }),
-  } as any;
+  } as unknown as ConstructorParameters<typeof PostgresSessionStore>[0];
 }
 
 Deno.test("get() returns null for a session older than ttlMs", async () => {
@@ -70,7 +70,7 @@ Deno.test("get() isolates persisted context_data by LINE user id", async () => {
         }),
       }),
     }),
-  } as any;
+  } as unknown as ConstructorParameters<typeof PostgresSessionStore>[0];
   const store = new PostgresSessionStore(supabase, 30 * 60 * 1000);
   assertEquals(
     (await store.get("userA"))?.contextData.pending_action,
@@ -104,9 +104,45 @@ Deno.test("appendHistoryAtomic calls the atomic RPC with the right args and maps
   const session = await store.appendHistoryAtomic("u1", message, 40);
 
   assertEquals(calledName, "line_append_chat_history");
-  assertEquals(calledArgs, { p_user_id: "u1", p_message: message, p_max_history: 40 });
+  assertEquals(calledArgs, {
+    p_user_id: "u1",
+    p_message: message,
+    p_max_history: 40,
+    p_event_ids: [],
+  });
   assertEquals(session.userId, "u1");
-  assertEquals(session.history, [{ role: "user", content: "hi", timestamp: 1 }]);
+  assertEquals(session.history, [{
+    role: "user",
+    content: "hi",
+    timestamp: 1,
+  }]);
+});
+
+Deno.test("appendHistoryAtomic passes active webhook event IDs for SQL-side history deduplication", async () => {
+  let calledArgs: Record<string, unknown> = {};
+  const supabase = {
+    rpc: (_name: string, args: Record<string, unknown>) => {
+      calledArgs = args;
+      return Promise.resolve({
+        data: {
+          user_id: "u1",
+          state: "IDLE",
+          context_data: {},
+          history: [],
+          last_interaction: new Date().toISOString(),
+        },
+        error: null,
+      });
+    },
+  } as unknown as ConstructorParameters<typeof PostgresSessionStore>[0];
+  const store = new PostgresSessionStore(supabase);
+  store.setWebhookEventIds(["event:01ABC", "event:01DEF"]);
+  await store.appendHistoryAtomic("u1", {
+    role: "assistant",
+    content: "ตอบ",
+    timestamp: 2,
+  }, 40);
+  assertEquals(calledArgs.p_event_ids, ["event:01ABC", "event:01DEF"]);
 });
 
 Deno.test("appendHistoryAtomic throws when the RPC errors", async () => {
@@ -116,7 +152,11 @@ Deno.test("appendHistoryAtomic throws when the RPC errors", async () => {
   const store = new PostgresSessionStore(supabase, 30 * 60 * 1000);
   let threw = false;
   try {
-    await store.appendHistoryAtomic("u1", { role: "user", content: "hi", timestamp: 1 }, 40);
+    await store.appendHistoryAtomic("u1", {
+      role: "user",
+      content: "hi",
+      timestamp: 1,
+    }, 40);
   } catch {
     threw = true;
   }

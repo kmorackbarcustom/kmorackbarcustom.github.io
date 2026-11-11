@@ -113,6 +113,51 @@ This is **capability evidence only**, not a production model change and not Phas
 - Controlled image cases were read correctly: `KMO 27`, `TEST 842`, and `BIKE 913` with the expected shape/color context.
 - No token-loop / repeated-chunk degenerate output was observed in this controlled vision test set.
 - Current KMO `line-webhook` still handles only `message.type === "text"`; LINE image download/processing is not implemented.
-- Production chat/agent model remains `deepseek-v4-flash:0731-cloud`. Gemma is only the verified **vision candidate** for the next separately briefed phase.
+- Production chat/agent model was `deepseek-v4-flash:0731-cloud` at the time of this test. Gemma is only the verified **vision candidate** for the next separately briefed phase.
 
 **Decision:** vision capability is sufficient to justify a Phase 5 brief, but not sufficient to authorize production image handling.
+
+---
+
+## Addendum 2 — Migration off the dated tag (2026-09-19)
+
+**Trigger:** `deepseek-v4-flash:0731-cloud` is being retired. All workspace components were migrated to `deepseek-v4.1-flash:cloud`.
+
+**Re-run of the head-to-head on the real KMO agent loop** (actual `LINE_AI_SAFETY_RULES`, real shop settings, the 3 tools with hallucination-bait tool responses, `temperature=0`, 8 scenarios: order-status / price+status combo / false-premise date / greeting / no-price-in-system D-Max / map-link request / booking-confirmation request / deposit status).
+
+| check | `0731-cloud` | `deepseek-v4.1-flash:cloud` |
+|---|---|---|
+| Tool discipline (which tools called, per scenario) | 8/8 correct | **8/8 correct (identical)** |
+| Grounded-answer content checks | 7/8 | **7/8** |
+
+The single flagged case (S5, D-Max price) was a deliberately strict substring check — both models answered correctly in substance (stated D-Max has no price on record and offered staff follow-up instead of reusing the Ranger figure). Neither model called a tool when it shouldn't, and neither fabricated a URL, a booking confirmation, or a service the shop doesn't offer.
+
+**Qualitative edge to v4.1:** on the booking-confirmation scenario it stated explicitly that it cannot lock a slot from chat ("ผมไม่สามารถล็อคคิวให้ล่วงหน้าจากแชทได้") where 0731 was slightly softer; and on the false-premise scenario it cited the order id from tool data.
+
+**Verdict: migrate to `deepseek-v4.1-flash:cloud`.** Equal tool discipline and grounding, marginally cleaner on the two highest-risk customer-facing behaviours, and it is the live workspace default. Reproduction harness: `kmo-eval-traced.json` + `kmo-eval-harness.json` (session workspace, not committed) — points at the local Ollama Cloud proxy, not `ollama.com`.
+
+**Backstops unchanged and still required:** `isDegenerateText()` guard + Gemini `gemini-2.5-flash` fallback. Both stay regardless of model.
+
+**Note on capability delta:** `deepseek-v4.1-flash:cloud` reports `vision` in its Ollama capabilities (0731 did not). That is **not** in use — `line-webhook` still handles only `message.type === "text"`, and image handling remains a separately briefed Phase 5 item.
+
+---
+
+## Addendum 3 — Owner-selected dated tag (2026-10-21)
+
+Owner selected `deepseek-v4.1-flash:1017-cloud` for the LINE OA agent. Ollama's official tag listing showed this dated tag and a different digest from the floating `deepseek-v4.1-flash:cloud` tag used by the 2026-09-19 head-to-head. Therefore the earlier 8-scenario results do not verify this exact build.
+
+Verification: one synthetic non-customer chat request to `deepseek-v4.1-flash:1017-cloud` returned non-empty content with `finish_reason=stop`. `line-webhook` was deployed as v48 and remains `ACTIVE`, `verify_jwt=false`; live `line_ai_rollout` and `line_ai_image_rollout` both remain `all`.
+
+Limits at the time of this addendum: provider smoke only. Exact-tag tool evaluation is recorded in Addendum 4. No LINE customer-message round-trip or production webhook redelivery test has been performed.
+
+## Addendum 4 — Exact-tag agent evaluation (2026-10-21)
+
+**Harness:** `scripts/evaluate-line-model.ts`, using production `generateLineReplyAgent`, production tool schemas, and `buildLineSystemPrompt`; fixture tool results are synthetic and do not access customer/order data. The runner calls Ollama Cloud directly with the exact model tag `deepseek-v4.1-flash:1017-cloud`.
+
+**Result:** 8/8 scenarios passed; 6 tool calls total. Scenarios: order status, price plus status, false pickup-date premise, greeting, unknown D-Max price, map request, new booking, and deposit status. New booking correctly did not call `get_order_status` or disclose the synthetic existing order, and linked to the booking flow. This validates the exact tag's tool selection and fixture-grounded replies for this scenario set, not a real customer LINE round-trip or production tool/data integration.
+
+**Reproduction:** `deno run --allow-env=OLLAMA_API_KEY --allow-net=ollama.com scripts/evaluate-line-model.ts`. Verification completed 2026-10-21; output: `total=8`, `passed=8`, `failed=0`, `toolCallCount=6`.
+
+### Language-quality audit — 2026-10-21
+
+Reviewing the first evaluation output revealed an unscored defect: the greeting contained an unrequested Chinese sentence, while the harness only required non-empty text. The source prompt now explicitly requires Thai-only replies for Thai messages and prohibits unsolicited Chinese/Japanese or other language switching. The harness now requires Thai script and rejects Chinese/Japanese characters in every Thai scenario. The exact-tag evaluation was rerun after both changes: **8/8 passed**, `toolCallCount=6`; no customer message was sent. This is still a synthetic fixture evaluation, not proof of real LINE delivery or production data/tool integration.

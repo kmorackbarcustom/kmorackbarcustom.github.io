@@ -1,9 +1,9 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
-**Last Updated:** 2026-09-03 — production truth reconciliation (docs were 4 function versions and one rollout stage behind)
-**Current Phase:** Phase 1–4 CLOSED and deployed. Phase 5 — LINE Image Understanding is live as line-webhook v46 with image rollout `all`; owner ran a live test and reported slip detection + Telegram staff alert working, but the 5-case matrix evidence is not yet recorded, so Phase 5 is NOT formally CLOSED.
-**Progress:** Phase 5 implementation commit `12a6dff`; `_shared` automated suite 31/31 PASS; production is v46 pinned to commit `4b98aac` (Phase 4 grounding + payment-proof staff notify included), `verify_jwt=false` verified 2026-09-03.
-**Next Session:** record the owner live-test evidence (Telegram payment-proof alerts carry real LINE messageIds) and fill the remaining matrix cases, then mark Phase 5 CLOSED. Rollout is already `all`.
+**Last Updated:** 2026-10-21 — reconciled production model/function/rollouts and local reliability work
+**Current Phase:** Phase 1–4 CLOSED and deployed. Phase 5 is deployed; production `line-webhook` v48 is ACTIVE with `verify_jwt=false`, and both text/image rollouts are `all` (live checked 2026-10-21). Phase 5 remains OPEN because written evidence for the remaining live image matrix cases is missing.
+**Progress:** Exact production model is `deepseek-v4.1-flash:1017-cloud`; its synthetic tool/grounding evaluation passed 8/8 on 2026-10-21. Local webhook deduplication and typed delivery-outcome work is uncommitted and not deployed; migration has not been applied.
+**Next Session:** complete local verification and migration review, then request separate Owner GO before any production migration/deploy or customer-facing LINE round-trip. Record remaining image matrix evidence before closing Phase 5.
 
 ---
 
@@ -43,12 +43,14 @@
 |---|---|---|---|
 | 1 | `customers.line_display_name` แยกจาก `name`; helper `upsertLineCustomer`; trigger comment; migration `20260828160000` | 38efad7 | 29 line customers มี line_display_name ครบ; 8 ที่โดนทับ (K.9=บุณยสิทธิ์ ฯลฯ) กู้ชื่อ LINE จริงจาก getProfile() แล้ว |
 | 1 | admin-line-reply + staff-reply แสดง 2 ชื่อ | 38efad7 | staff-reply `list` คืน line_display_name, ทดสอบด้วย anon key ของหน้าจริง — เห็น "บุณยสิทธิ์ วรุตม์พงศ์ / LINE:K.9" |
-| 2 | Eval + production model selection | d294b30 / b317d22 / 423794c | initial Gemma eval ผ่าน แต่ final head-to-head เลือก `deepseek-v4-flash:0731-cloud`; เพิ่ม degenerate guard + Gemini fallback |
+| 2 | Eval + production model selection | d294b30 / b317d22 / 423794c | initial Gemma eval ผ่าน; 0731 ถูก retire และ migrated เป็น `deepseek-v4.1-flash:cloud` (head-to-head 8 scenarios); 2026-10-21 selected `deepseek-v4.1-flash:1017-cloud`, deployed v48, exact-tag synthetic tool/grounding eval 8/8. LINE customer round-trip ยังไม่ทำ |
 | 3 | Agent loop (`generateLineReplyAgent`, ≤3 รอบ), 3 tools (`search_products`,`get_order_status`,`check_queue`), FAQ inline | b083cd1 | E2E signed webhook → 200, agent เรียก tool + ตอบจริง (4.7s). exclusive-once-linked: stranger เห็น 0 rows, เจ้าของเห็น 1 |
 | 3 | `getCustomerContext` exclusive-once-linked (แยก own vs phone-unlinked query แทน OR) | b083cd1 | SQL proof |
 | 4 | Reply-first → Push-fallback เมื่อ LINE Reply ล้มเหลว | 9a6e194 | handler path อยู่ใน production; ยังไม่เจอ expired reply token จริง จึงคงเป็น monitoring limitation |
 
-### Phase 5 implementation / deploy — 2026-08-29
+### Phase 5 initial implementation / deploy snapshot — 2026-08-29
+
+This table is a historical snapshot; the current production version and rollout are recorded in the status header above.
 
 | Item | Current truth |
 |---|---|
@@ -65,7 +67,7 @@
 | งาน | Commit | Current truth |
 |---|---|---|
 | ป้องกัน token-loop / repeated-chunk garbage | 423794c | `isDegenerateText()` guard ทำให้ Ollama failure ตกไป Gemini fallback |
-| สลับ production model เป็น DeepSeek dated tag | d294b30 | `deepseek-v4-flash:0731-cloud` คือ chat/agent model ปัจจุบัน |
+| สลับ production model เป็น DeepSeek dated tag | d294b30 | `deepseek-v4-flash:0731-cloud` เคยเป็น chat/agent model — retired 2026-09-19; **production ปัจจุบัน `deepseek-v4.1-flash:1017-cloud` (line-webhook v48, 2026-10-21)** |
 | บันทึก final model-eval verdict | b317d22 | `phase2-model-eval.md` ต้องอ่าน final addendum เป็น authoritative verdict |
 | ใส่ current Thai date ใน system prompt | 92bc3f5 | ลดการตีความ due/pickup date ผิดบริบทเวลา |
 | log คำตอบ AI สำเร็จ | 927c18d | มี success logging สำหรับ post-deploy monitoring ไม่ใช่ log เฉพาะ error |

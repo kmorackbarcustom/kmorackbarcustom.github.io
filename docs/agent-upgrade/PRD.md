@@ -3,7 +3,7 @@
 **Project Owner:** Gutumrod (คุณฟรี)
 **Execution:** Claude Code, working directly in `kmorackbarcustom.github.io`
 **Created:** 2026-08-28
-**Last Updated:** 2026-08-29 — documentation truth reconciliation after production hardening
+**Last Updated:** 2026-10-21 — exact-tag model evaluation and LINE reliability follow-up status
 
 ---
 
@@ -24,14 +24,14 @@
 - Agent tools 3 ตัว (read-only): `search_products`, `get_order_status`, `check_queue`; FAQ ยังคงเป็นข้อมูลคงที่ใน system prompt ไม่ใช่ tool แยก
 - Identity model: เพิ่ม `customers.line_display_name`, แก้ trigger, backfill 8 คนที่ตรวจพบจริงว่าชื่อ LINE ถูกทับ
 - กติกาจับคู่ตัวตนใหม่: line_uid exclusive เมื่อผูกแล้ว, เบอร์โทร fallback ได้แค่ตอนยังไม่เคยผูก (one-time claim)
-- Reply/Push strategy: พยายามตอบผ่าน Reply (ฟรี ไม่กินโควตา) ก่อนเสมอ, fallback ไป Push (กินโควตา 300/เดือน) เฉพาะเมื่อใกล้หมดเวลา reply token จริงๆ
+- Reply/Push strategy on deployed v48: ส่ง Reply ก่อนและ fallback ไป Push เมื่อ Reply ล้มเหลว; ยังไม่มีการแยก definite rejection จาก timeout/network/5xx (local reliability follow-up ยังไม่ deploy)
 - จำกัด tool-call loop ไม่เกิน 3 รอบ
 
 **นอกขอบเขต (ไม่ทำเฟสนี้ — เก็บไว้อนาคต):**
 - Write tools (จองจริง/ยกเลิกจริงผ่าน agent) — รอดูผลเฟส read-only ก่อน
 - Facebook Messenger integration เต็มรูป (ต้องมี Facebook App + App Secret + ผ่าน Meta App Review ก่อน — ยังไม่ได้เตรียม)
 - pgvector / semantic search แทน ILIKE keyword match — ใช้ FAQ เดิม (4 ข้อ) ไปก่อน พอโตค่อยอัปเกรด
-- LINE image/vision understanding — ยังไม่ใช่ production feature; `gemma4:31b-cloud` ผ่าน capability verification ด้านภาพแล้วเมื่อ 2026-08-29 แต่ต้องทำเป็น Phase ถัดไปพร้อม brief/eval แยก
+- ปรับ/เพิ่มความสามารถ LINE image/vision — Phase 5 ส่งขึ้น production แล้วและ rollout เป็น `all`; งานที่เหลือคือเก็บหลักฐาน live image matrix ให้ครบก่อนปิด Phase 5
 - ย้ายระบบ booking/order ไป SaaS Product Hub (BK01) — ตรวจสอบแล้ว (28/08) ว่า BK01 เองอยู่ระหว่าง truth-reconciliation เรื่องความสมบูรณ์ และยังไม่มี concept "ออเดอร์สั่งผลิต" เลย ตัดสินใจเดินหน้าระบบเดิมต่อ ไม่รอ
 - "ลูกค้าเลือกวันติดตั้งเอง" สำหรับ CustomerOrder.html — ยืนยันแล้วว่าต้องการ (เหมือน `bookings.appointment_date`) แต่ยังไม่ได้ออกแบบ schema/validation กับตัวจัดคิวการผลิต — ต้องคุยรายละเอียดเป็นงานแยกก่อนเริ่ม
 
@@ -48,11 +48,11 @@
 | Component | Technology |
 |-----------|------------|
 | Webhook / Agent runtime | Supabase Edge Function (`line-webhook`, Deno) |
-| Model หลัก (production chat/agent) | `deepseek-v4-flash:0731-cloud` ผ่าน Ollama Cloud |
+| Model หลัก (production chat/agent) | `deepseek-v4.1-flash:1017-cloud` ผ่าน Ollama Cloud; exact-tag synthetic tool eval 8/8 (2026-10-21), ยังไม่มี LINE customer E2E |
 | Model สำรอง | Gemini 2.5 Flash — single-shot fallback เมื่อ Ollama ล้มเหลว/ตรวจพบ degenerate output |
-| Vision candidate (ยังไม่ production) | `gemma4:31b-cloud` — verified image-capable 2026-08-29; รอ Phase ถัดไป |
+| Vision model (Phase 5 production) | `gemma4:31b-cloud` — image understanding deployed; remaining live matrix evidence pending |
 | Data store | Supabase Postgres (project `xfhpwxjywqgqefbncumm`) |
-| ส่งข้อความ | LINE Messaging API — Reply (หลัก, ฟรี) + Push (สำรอง, กินโควตา 300/เดือน) |
+| ส่งข้อความ | LINE Messaging API — v48 Reply-first + Push fallback; ambiguous send-result handling remains a local, undeployed follow-up |
 | Staff console | `admin-line-reply.html` → `staff-reply` edge function |
 
 ### Data flow (production Phase 3–4)
@@ -67,7 +67,7 @@ search_products  get_order_status  check_queue
    (tool)             (tool)          (tool)
 FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แยก
                    ↓
-         ตอบผ่าน Reply ก่อน → ถ้า Reply ล้มเหลว → Push fallback
+         v48: ตอบผ่าน Reply → ถ้าล้มเหลว Push fallback (ยังไม่แยก ambiguous outcome)
 ```
 
 ---
@@ -93,7 +93,7 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 
 ## 4. Success Criteria
 
-- [x] Agent เรียก tool ได้จริงผ่าน production `deepseek-v4-flash:0731-cloud`; tool loop จำกัดไม่เกิน 3 รอบ
+- [x] Exact dated tag `deepseek-v4.1-flash:1017-cloud` ผ่าน synthetic tool-call/grounding eval 8/8 เมื่อ 2026-10-21; ยังไม่มี LINE customer round-trip evidence
 - [x] ลูกค้าถามสถานะออเดอร์ได้คำตอบจาก tool จริง ไม่ใช่คำตอบลอยๆ
 - [x] คนพิมพ์เบอร์คนอื่นที่มี `line_uid` ผูกแล้วไม่สามารถอ่านสถานะของเจ้าของได้
 - [x] ลูกค้า 8 รายที่ชื่อ LINE ถูกทับได้รับ `line_display_name` กลับคืน และ staff เห็นทั้งชื่อจริง/ชื่อ LINE
@@ -108,7 +108,7 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 
 | ความเสี่ยง | ผลกระทบ | วิธีแก้ |
 |-----------|----------|----------|
-| Ollama model อาจเสื่อม/retire หรือพ่น degenerate output | ลูกค้าได้คำตอบผิด/ขยะ หรือ agent ล้ม | Production ใช้ `deepseek-v4-flash:0731-cloud`; มี `isDegenerateText()` guard + Gemini fallback + success logging และต้อง monitor traffic จริงต่อเนื่อง |
+| Ollama model อาจเสื่อม/retire หรือพ่น degenerate output | ลูกค้าได้คำตอบผิด/ขยะ หรือ agent ล้ม | Production ใช้ `deepseek-v4.1-flash:1017-cloud`; มี `isDegenerateText()` guard + Gemini fallback + success logging และต้อง monitor traffic จริงต่อเนื่อง |
 | Push quota 300/เดือน หมดถ้าใช้พร่ำเพรื่อ | ลูกค้าตอบไม่ได้กลางเดือน | Reply เป็นทางหลักเสมอ, Push แค่ทางสำรอง; พิจารณานับ usage ถ้าปริมาณโตขึ้นจริง (ตอนนี้ 40 ข้อความทั้งหมด ยังไม่ต้องรีบ) |
 | Trigger sync เขียนทับ identity ผิดอีกในอนาคตถ้ามีคนแก้โดยไม่รู้ที่มา | ชื่อ LINE หายซ้ำแบบ K.9 | Comment เตือนในโค้ด + memory ผูกไว้ |
 | `internal-proxy` policy ถูกล็อกไว้ ต้องขออนุญาตก่อนแก้ทุกครั้ง | งานล่าช้าถ้าลืมขอ | เช็ค [[internal-proxy-locked]] ก่อนแตะไฟล์นั้นเสมอ |
@@ -123,7 +123,7 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 | Phase 2 — Model Eval / Selection | CLOSED | N/A | Yes |
 | Phase 3 — Agent Tool-Calling Loop | CLOSED | Yes | Yes |
 | Phase 4 — Reply-First / Push-Fallback | CLOSED (monitoring limitation recorded) | Yes | Yes |
-| Phase 5 — LINE Image Understanding | DEPLOYED — OWNER E2E PENDING | Owner-only | In progress |
+| Phase 5 — LINE Image Understanding | DEPLOYED — remaining live evidence pending | All | In progress |
 
 ---
 
@@ -137,5 +137,5 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 
 ---
 
-**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed to production behind owner_only image rollout and remains OPEN pending live owner E2E
+**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed and text/image rollouts are `all` (live verified 2026-10-21), remains OPEN pending written live image matrix evidence. Webhook idempotency and typed delivery-outcome changes are local only and have not been migrated or deployed.
 **Priority:** High

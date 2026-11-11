@@ -1,35 +1,59 @@
 import { requiredEnv } from "./database.ts";
 
 type ChatHistoryItem = { role: string; content: string };
-type ChatInput = { userMessage: string; history: ChatHistoryItem[]; systemPrompt: string };
+type ChatInput = {
+  userMessage: string;
+  history: ChatHistoryItem[];
+  systemPrompt: string;
+};
 type ChatOutput = { reply: string; provider: "ollama" | "gemini" };
 
 // deno-lint-ignore no-explicit-any
 type OllamaMessage = Record<string, any>;
 export type ToolDef = {
   type: "function";
-  function: { name: string; description: string; parameters: Record<string, unknown> };
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 };
-export type ToolRunner = (name: string, args: Record<string, unknown>) => Promise<string>;
-type AgentInput = ChatInput & { tools: ToolDef[]; runTool: ToolRunner; maxRounds?: number };
+export type ToolRunner = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<string>;
+type AgentInput = ChatInput & {
+  tools: ToolDef[];
+  runTool: ToolRunner;
+  maxRounds?: number;
+};
 
-// deepseek-v4-flash:0731-cloud is Hermes' default across the workspace and beat the other
-// Ollama Cloud tool-calling models on the KMO grounding eval (docs/agent-upgrade/phase2-model-eval.md):
-// clean on hallucination bait, correct tool discipline, and - unlike gemma4 - no token-loop history.
-// If this dated tag is ever retired on Ollama Cloud, the Gemini fallback takes over; swap to a
-// current tag here.
-const OLLAMA_MODEL = "deepseek-v4-flash:0731-cloud";
+// Owner-selected dated tag. The KMO head-to-head in phase2-model-eval.md used the floating
+// `deepseek-v4.1-flash:cloud` tag, whose published digest differs from this dated tag; do not
+// treat that evaluation as verification of this exact model build. Keep Gemini fallback enabled.
+export const OLLAMA_MODEL = "deepseek-v4.1-flash:1017-cloud";
 const OLLAMA_URL = "https://ollama.com/v1/chat/completions";
 export const PROVIDER_TIMEOUT_MS = 9000;
 // Agent loop can fan out to a few tool calls per round, so give it more headroom than a single shot.
 const AGENT_TIMEOUT_MS = 20000;
 
-async function ollamaChat(messages: OllamaMessage[], tools?: ToolDef[], timeoutMs = PROVIDER_TIMEOUT_MS): Promise<OllamaMessage> {
+async function ollamaChat(
+  messages: OllamaMessage[],
+  tools?: ToolDef[],
+  timeoutMs = PROVIDER_TIMEOUT_MS,
+): Promise<OllamaMessage> {
   const apiKey = requiredEnv("OLLAMA_API_KEY");
   const response = await fetch(OLLAMA_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: OLLAMA_MODEL, messages, ...(tools ? { tools } : {}) }),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      messages,
+      ...(tools ? { tools } : {}),
+    }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
@@ -45,7 +69,10 @@ async function ollamaChat(messages: OllamaMessage[], tools?: ToolDef[], timeoutM
 function baseMessages(input: ChatInput): OllamaMessage[] {
   return [
     { role: "system", content: input.systemPrompt },
-    ...input.history.map((h) => ({ role: h.role === "assistant" ? "assistant" : "user", content: h.content })),
+    ...input.history.map((h) => ({
+      role: h.role === "assistant" ? "assistant" : "user",
+      content: h.content,
+    })),
     { role: "user", content: input.userMessage },
   ];
 }
@@ -58,7 +85,9 @@ export function isDegenerateText(text: string): boolean {
 }
 
 function assertNotDegenerate(text: string): void {
-  if (isDegenerateText(text)) throw new Error("model output looks degenerate (token loop)");
+  if (isDegenerateText(text)) {
+    throw new Error("model output looks degenerate (token loop)");
+  }
 }
 
 async function callOllamaCloud(input: ChatInput): Promise<string> {
@@ -82,7 +111,10 @@ export async function generateLineReply(input: ChatInput): Promise<ChatOutput> {
     try {
       return { reply: await callGeminiFallback(input), provider: "gemini" };
     } catch (fallbackError) {
-      console.error("[ai] Gemini fallback also failed (or not configured)", fallbackError);
+      console.error(
+        "[ai] Gemini fallback also failed (or not configured)",
+        fallbackError,
+      );
       throw error;
     }
   }
@@ -94,13 +126,19 @@ export async function generateLineReply(input: ChatInput): Promise<ChatOutput> {
  * drop the `tools` param so the model is forced to produce a text answer with whatever it has.
  * If Ollama fails at any point, falls back to a single-shot Gemini reply (text-only, no tools).
  */
-export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOutput> {
+export async function generateLineReplyAgent(
+  input: AgentInput,
+): Promise<ChatOutput> {
   const maxRounds = input.maxRounds ?? 3;
   const messages = baseMessages(input);
   try {
     for (let round = 0; round < maxRounds; round++) {
       const offerTools = round < maxRounds - 1;
-      const message = await ollamaChat(messages, offerTools ? input.tools : undefined, AGENT_TIMEOUT_MS);
+      const message = await ollamaChat(
+        messages,
+        offerTools ? input.tools : undefined,
+        AGENT_TIMEOUT_MS,
+      );
       const toolCalls = offerTools ? (message.tool_calls ?? []) : [];
 
       if (toolCalls.length === 0) {
@@ -115,7 +153,9 @@ export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOut
         const name = call.function?.name ?? "";
         let result: string;
         try {
-          const args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+          const args = call.function?.arguments
+            ? JSON.parse(call.function.arguments)
+            : {};
           result = await input.runTool(name, args);
         } catch (toolError) {
           console.error("[ai-agent] tool failed", name, toolError);

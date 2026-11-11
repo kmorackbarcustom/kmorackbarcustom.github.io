@@ -1,5 +1,12 @@
-import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { isDegenerateText } from "./ai-providers.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { isDegenerateText, OLLAMA_MODEL } from "./ai-providers.ts";
+
+Deno.test("Ollama agent uses the owner-selected dated model tag", () => {
+  assertEquals(OLLAMA_MODEL, "deepseek-v4.1-flash:1017-cloud");
+});
 
 Deno.test("isDegenerateText flags token loops", () => {
   assert(isDegenerateText("a a a a a a a a"));

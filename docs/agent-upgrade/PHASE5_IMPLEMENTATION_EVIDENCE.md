@@ -1,10 +1,10 @@
 ﻿# Phase 5 — LINE Image Understanding Implementation Evidence
 
-**Date:** 2026-08-29
+**Date:** 2026-08-29 (implementation record; current status appended 2026-10-21)
 **Implementation commit:** `12a6dff`
 **Brief commit:** `adb48ed`
-**Production function:** `line-webhook` v46 (entrypoint pins `4b98aac`; v42 was the original Phase 5 deploy)
-**Current rollout:** `line_ai_image_rollout=all` (owner expanded it; verified live 2026-09-03)
+**Production function at initial evidence update:** `line-webhook` v46 (entrypoint pins `4b98aac`; v42 was the original Phase 5 deploy)
+**Current rollout:** text and image are both `all`, verified live 2026-10-21; `line-webhook` v48 ACTIVE, `verify_jwt=false`
 **Phase status:** RELEASED TO ALL / E2E EVIDENCE NOT RECORDED — NOT CLOSED
 
 ## Implemented
@@ -40,3 +40,11 @@ Rollout is already `all` — the owner expanded it and ran a live test himself. 
 What is missing is **written evidence**, not the test. Every Telegram payment-proof alert embeds the real LINE `messageId`, so those messages are usable raw evidence. Outstanding matrix cases: full-bike photo, close-up part, text-then-image session continuity, and an out-of-context image (must not invent service/product). Phase 5 stays NOT CLOSED until those results are recorded here.
 
 Verified live 2026-09-03: `verify_jwt=false` on v46; `internal-proxy` and vendored `line-oa-ai-module` untouched; no raw image/base64 in session history.
+
+## Current status reconciliation — 2026-10-21
+
+- Live state checked: `line-webhook` v48 ACTIVE, `verify_jwt=false`; `line_ai_rollout=all`; `line_ai_image_rollout=all`.
+- The historical v46/v42 entries above describe earlier deployment snapshots. Image rollout is already `all`; remaining image cases are a retrospective evidence gate, not a pre-rollout gate.
+- Remaining live image evidence: full-bike photo, close-up part, text-then-image session continuity, and an out-of-context image that must not invent a service/product. Record timestamp, LINE messageId, expected behavior, observed result, and staff alert outcome; redact customer-identifying content.
+- A real LINE text redelivery test is also still outstanding. Do not infer it from local tests or model evaluation.
+- Current local webhook idempotency/delivery migration and source changes are not deployed; no live behavior change is claimed for them.
