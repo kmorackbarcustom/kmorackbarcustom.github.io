@@ -570,12 +570,11 @@ serve(async (req) => {
           timestamp: number;
           provider_type: string | null;
         };
-        const claimedBatch = (claimedItems ?? null) as {
-          items?: QueuedImageItem[];
-          event_ids?: string[];
-        } | null;
-        const queuedItems = claimedBatch?.items ?? [];
-        const claimedEventIds = claimedBatch?.event_ids ?? [];
+        // claim keeps the v48 contract (plain items array) so old/new code and DB can overlap.
+        const queuedItems = (claimedItems ?? []) as QueuedImageItem[];
+        const claimedEventIds = queuedItems
+          .map((it) => it.webhook_event_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
         if (queuedItems.length === 0) {
           // Superseded: a newer image arrived while we were waiting, so that later invocation
           // owns the whole batch (including this image) instead of us. No vision/LLM cost paid.

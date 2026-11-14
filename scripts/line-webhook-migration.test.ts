@@ -133,7 +133,7 @@ Deno.test("LINE webhook migration behavior on isolated PGlite", async () => {
     );
 
     const claimedBatch = await queryOne(
-      "select public.line_image_batch_claim('user-2',clock_timestamp()+interval '10 sec')->'event_ids'->>0 event_id",
+      "select public.line_image_batch_claim('user-2',clock_timestamp()+interval '10 sec')->0->>'webhook_event_id' event_id",
     );
     assert(
       claimedBatch.event_id === "image-event",

@@ -82,6 +82,7 @@ grant execute on function public.line_webhook_event_claim(text, text, integer) t
 -- Associate both user and assistant history entries with the processing event IDs. This makes a
 -- safe pre-send retry idempotent even if a prior attempt appended history before it crashed.
 drop function if exists public.line_append_chat_history(text, jsonb, integer);
+drop function if exists public.line_append_chat_history(text, jsonb, integer, text[]);
 create function public.line_append_chat_history(
   p_user_id text,
   p_message jsonb,
@@ -147,6 +148,7 @@ alter table public.line_image_batches
   add column if not exists event_ids text[] not null default '{}';
 
 drop function if exists public.line_image_batch_append(text, text, text, bigint, text);
+drop function if exists public.line_image_batch_append(text, text, text, bigint, text, text);
 create function public.line_image_batch_append(
   p_line_uid text,
   p_message_id text,
@@ -224,7 +226,7 @@ begin
       updated_at <= p_since
       or created_at < clock_timestamp() - make_interval(secs => p_max_wait_seconds)
     )
-  returning jsonb_build_object('items', items, 'event_ids', to_jsonb(event_ids)) into v_items;
+  returning items into v_items;
   return v_items;
 end;
 $$;
