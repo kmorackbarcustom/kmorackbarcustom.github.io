@@ -6,11 +6,17 @@ import type {
 } from "./vendor/line-oa-ai-module/core/types.ts";
 
 export class PostgresSessionStore implements SessionStore {
+  private activeWebhookEventIds: string[] = [];
+
   constructor(
     private supabase: ReturnType<typeof createServiceClient>,
     // ponytail: fallback only - line-webhook normally passes settings.session_ttl_hours (admin-editable) explicitly
-    private ttlMs = 1000 * 60 * 30
+    private ttlMs = 1000 * 60 * 30,
   ) {}
+
+  setWebhookEventIds(eventIds: string[]): void {
+    this.activeWebhookEventIds = [...eventIds];
+  }
 
   async get(userId: string): Promise<UserSession | null> {
     const { data, error } = await this.supabase
@@ -38,20 +44,26 @@ export class PostgresSessionStore implements SessionStore {
     };
   }
 
-  async set(userId: string, session: UserSession, _ttlMs?: number): Promise<void> {
+  async set(
+    userId: string,
+    session: UserSession,
+    _ttlMs?: number,
+  ): Promise<void> {
     const { error } = await this.supabase.from("line_chat_sessions").upsert({
       user_id: userId,
       state: session.state,
       context_data: session.contextData ?? {},
       history: session.history ?? [],
-      last_interaction: new Date(session.lastInteraction ?? Date.now()).toISOString(),
+      last_interaction: new Date(session.lastInteraction ?? Date.now())
+        .toISOString(),
     });
 
     if (error) console.error("[line-session-store] set failed", error);
   }
 
   async delete(userId: string): Promise<void> {
-    const { error } = await this.supabase.from("line_chat_sessions").delete().eq("user_id", userId);
+    const { error } = await this.supabase.from("line_chat_sessions").delete()
+      .eq("user_id", userId);
     if (error) console.error("[line-session-store] delete failed", error);
   }
 
@@ -62,11 +74,15 @@ export class PostgresSessionStore implements SessionStore {
     message: ChatMessageHistory,
     maxHistory: number,
   ): Promise<UserSession> {
-    const { data, error } = await this.supabase.rpc("line_append_chat_history", {
-      p_user_id: userId,
-      p_message: message,
-      p_max_history: maxHistory,
-    });
+    const { data, error } = await this.supabase.rpc(
+      "line_append_chat_history",
+      {
+        p_user_id: userId,
+        p_message: message,
+        p_max_history: maxHistory,
+        p_event_ids: this.activeWebhookEventIds,
+      },
+    );
     if (error || !data) {
       console.error("[line-session-store] appendHistoryAtomic failed", error);
       throw error ?? new Error("line_append_chat_history returned no row");

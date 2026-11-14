@@ -1,51 +1,84 @@
 import { requiredEnv } from "./database.ts";
 
 type ChatHistoryItem = { role: string; content: string };
-type ChatInput = { userMessage: string; history: ChatHistoryItem[]; systemPrompt: string };
+type ChatInput = {
+  userMessage: string;
+  history: ChatHistoryItem[];
+  systemPrompt: string;
+};
 type ChatOutput = { reply: string; provider: "ollama" | "gemini" };
 
 // deno-lint-ignore no-explicit-any
 type OllamaMessage = Record<string, any>;
+type OllamaCompletion = { message: OllamaMessage; finishReason?: string };
 export type ToolDef = {
   type: "function";
-  function: { name: string; description: string; parameters: Record<string, unknown> };
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 };
-export type ToolRunner = (name: string, args: Record<string, unknown>) => Promise<string>;
-type AgentInput = ChatInput & { tools: ToolDef[]; runTool: ToolRunner; maxRounds?: number };
+export type ToolRunner = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<string>;
+type AgentInput = ChatInput & {
+  tools: ToolDef[];
+  runTool: ToolRunner;
+  maxRounds?: number;
+};
 
-// deepseek-v4-flash:0731-cloud is Hermes' default across the workspace and beat the other
-// Ollama Cloud tool-calling models on the KMO grounding eval (docs/agent-upgrade/phase2-model-eval.md):
-// clean on hallucination bait, correct tool discipline, and - unlike gemma4 - no token-loop history.
-// If this dated tag is ever retired on Ollama Cloud, the Gemini fallback takes over; swap to a
-// current tag here.
-const OLLAMA_MODEL = "deepseek-v4-flash:0731-cloud";
+// Owner-selected dated tag. The KMO head-to-head in phase2-model-eval.md used the floating
+// `deepseek-v4.1-flash:cloud` tag, whose published digest differs from this dated tag; do not
+// treat that evaluation as verification of this exact model build. Single-shot callers retain Gemini fallback.
+export const OLLAMA_MODEL = "deepseek-v4.1-flash:1017-cloud";
 const OLLAMA_URL = "https://ollama.com/v1/chat/completions";
 export const PROVIDER_TIMEOUT_MS = 9000;
 // Agent loop can fan out to a few tool calls per round, so give it more headroom than a single shot.
 const AGENT_TIMEOUT_MS = 20000;
 
-async function ollamaChat(messages: OllamaMessage[], tools?: ToolDef[], timeoutMs = PROVIDER_TIMEOUT_MS): Promise<OllamaMessage> {
+async function ollamaChat(
+  messages: OllamaMessage[],
+  tools?: ToolDef[],
+  timeoutMs = PROVIDER_TIMEOUT_MS,
+): Promise<OllamaCompletion> {
   const apiKey = requiredEnv("OLLAMA_API_KEY");
   const response = await fetch(OLLAMA_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: OLLAMA_MODEL, messages, ...(tools ? { tools } : {}) }),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      messages,
+      ...(tools ? { tools } : {}),
+    }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Ollama Cloud error (${response.status}): ${text}`);
+    throw new Error(`Ollama Cloud error (${response.status})`);
   }
   const json = await response.json();
-  const message = json.choices?.[0]?.message;
+  const choice = json.choices?.[0];
+  const message = choice?.message;
   if (!message) throw new Error("Ollama Cloud returned no message");
-  return message;
+  return {
+    message,
+    finishReason: typeof choice.finish_reason === "string"
+      ? choice.finish_reason
+      : undefined,
+  };
 }
 
 function baseMessages(input: ChatInput): OllamaMessage[] {
   return [
     { role: "system", content: input.systemPrompt },
-    ...input.history.map((h) => ({ role: h.role === "assistant" ? "assistant" : "user", content: h.content })),
+    ...input.history.map((h) => ({
+      role: h.role === "assistant" ? "assistant" : "user",
+      content: h.content,
+    })),
     { role: "user", content: input.userMessage },
   ];
 }
@@ -57,12 +90,29 @@ export function isDegenerateText(text: string): boolean {
   return /(.)\1{9,}/s.test(text) || /(.{2,20})\1{5,}/s.test(text);
 }
 
+export function containsUnstructuredToolCall(
+  text: string,
+  tools: ToolDef[],
+): boolean {
+  return /เรียก(?:ใช้)?เครื่องมือ|tool[_ -]?calls?|function[_ -]?calls?/i.test(
+    text,
+  ) ||
+    tools.some(({ function: tool }) =>
+      text.toLowerCase().includes(tool.name.toLowerCase())
+    );
+}
+
 function assertNotDegenerate(text: string): void {
-  if (isDegenerateText(text)) throw new Error("model output looks degenerate (token loop)");
+  if (isDegenerateText(text)) {
+    throw new Error("model output looks degenerate (token loop)");
+  }
 }
 
 async function callOllamaCloud(input: ChatInput): Promise<string> {
-  const message = await ollamaChat(baseMessages(input));
+  const { message, finishReason } = await ollamaChat(baseMessages(input));
+  if (finishReason === "length") {
+    throw new Error("Ollama Cloud output was truncated");
+  }
   const reply = message.content;
   if (!reply) throw new Error("Ollama Cloud returned no content");
   assertNotDegenerate(reply);
@@ -82,7 +132,10 @@ export async function generateLineReply(input: ChatInput): Promise<ChatOutput> {
     try {
       return { reply: await callGeminiFallback(input), provider: "gemini" };
     } catch (fallbackError) {
-      console.error("[ai] Gemini fallback also failed (or not configured)", fallbackError);
+      console.error(
+        "[ai] Gemini fallback also failed (or not configured)",
+        fallbackError,
+      );
       throw error;
     }
   }
@@ -92,20 +145,32 @@ export async function generateLineReply(input: ChatInput): Promise<ChatOutput> {
  * Tool-calling agent loop. The model decides which read-only tools to call; we execute them and
  * feed results back. Bounded to `maxRounds` (default 3) model calls total - on the final round we
  * drop the `tools` param so the model is forced to produce a text answer with whatever it has.
- * If Ollama fails at any point, falls back to a single-shot Gemini reply (text-only, no tools).
+ * Provider errors, truncation, or tool-call prose fail closed so the caller can send its safe fallback.
  */
-export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOutput> {
+export async function generateLineReplyAgent(
+  input: AgentInput,
+): Promise<ChatOutput> {
   const maxRounds = input.maxRounds ?? 3;
   const messages = baseMessages(input);
   try {
     for (let round = 0; round < maxRounds; round++) {
       const offerTools = round < maxRounds - 1;
-      const message = await ollamaChat(messages, offerTools ? input.tools : undefined, AGENT_TIMEOUT_MS);
+      const { message, finishReason } = await ollamaChat(
+        messages,
+        offerTools ? input.tools : undefined,
+        AGENT_TIMEOUT_MS,
+      );
+      if (finishReason === "length") {
+        throw new Error("Ollama Cloud agent output was truncated");
+      }
       const toolCalls = offerTools ? (message.tool_calls ?? []) : [];
 
       if (toolCalls.length === 0) {
         const reply = (message.content ?? "").trim();
         if (!reply) throw new Error("Ollama Cloud returned empty content");
+        if (containsUnstructuredToolCall(reply, input.tools)) {
+          throw new Error("Ollama Cloud returned unstructured tool-call text");
+        }
         assertNotDegenerate(reply);
         return { reply, provider: "ollama" };
       }
@@ -115,7 +180,9 @@ export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOut
         const name = call.function?.name ?? "";
         let result: string;
         try {
-          const args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+          const args = call.function?.arguments
+            ? JSON.parse(call.function.arguments)
+            : {};
           result = await input.runTool(name, args);
         } catch (toolError) {
           console.error("[ai-agent] tool failed", name, toolError);
@@ -127,7 +194,7 @@ export async function generateLineReplyAgent(input: AgentInput): Promise<ChatOut
     // Shouldn't reach here (last round has no tools -> returns above), but guard anyway.
     throw new Error("agent loop exhausted without a text reply");
   } catch (error) {
-    console.error("[ai] agent loop failed, trying Gemini fallback", error);
-    return { reply: await callGeminiFallback(input), provider: "gemini" };
+    console.error("[ai] agent loop failed; failing closed", error);
+    throw error;
   }
 }

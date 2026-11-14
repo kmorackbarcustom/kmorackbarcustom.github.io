@@ -132,4 +132,4 @@ FAQ ไม่ได้เป็น tool แยกใน production; `shop_faqs` 
 
 Phase 5 ใช้ brief แยก BRIEF-phase5-line-image-understanding.md; implementation commit 12a6dff ถูก deploy เป็น line-webhook v42 แล้ว. Automated _shared suite ผ่าน 31/31 และ `verify_jwt=false` ถูกตรวจหลัง deploy.
 
-สถานะ rollout ปัจจุบัน: text AI = `all`; image AI = owner_only. ห้ามเปิด `all` หรือ mark Phase 5 CLOSED จน owner-only live E2E 5 เคสผ่านและ evidence ถูกบันทึกใน PHASE5_IMPLEMENTATION_EVIDENCE.md.
+สถานะ production ตรวจล่าสุด 2026-10-21: text AI = `all`; image AI = `all`; `line-webhook` v48 ACTIVE, `verify_jwt=false`. Rollout `all` ถูกเปิดไปแล้ว จึงเป็นหลักฐานย้อนหลังที่ยังต้องเก็บ ไม่ใช่ release gate ก่อนเปิด rollout. Phase 5 ยัง OPEN จนกว่าจะบันทึกผล live image E2E ที่เหลือใน `PHASE5_IMPLEMENTATION_EVIDENCE.md`.

@@ -7,11 +7,23 @@
 **Status:** APPROVED — CEO approved 2026-08-29; implementation authorized under this locked scope
 **Workflow:** `DEVELOPMENT_WORKFLOW.md` Gate A applies
 
+## Current operational reconciliation — 2026-10-21
+
+This brief preserves the original implementation plan. For live status, this section supersedes the historical snapshot in Section 2, the pre-release rollout sequence in Section 9, and the owner-only release checklist in Section 15:
+
+- Production `line-webhook` is v48 ACTIVE with `verify_jwt=false`; text and image rollout are both `all`.
+- Production chat/agent model is `deepseek-v4.1-flash:1017-cloud`.
+- Image rollout is already `all`; do not treat the historical `off` → `owner_only` → `all` sequence below as a pending operational step.
+- Phase 5 remains open for retrospective live evidence. The payment-slip case was reported passing; outstanding cases are a full-bike photo, close-up part, text-then-image continuity, and an out-of-context image that must not invent a service or product.
+- The separate local webhook idempotency and delivery-outcome changes are not deployed, and their migration has not been applied in production.
+
+See `PHASE5_IMPLEMENTATION_EVIDENCE.md` for the evidence ledger and `BRIEF-line-webhook-idempotency-and-delivery.md` for the local webhook candidate and its gates.
+
 ---
 
 ## 1. Objective
 
-เพิ่มความสามารถให้ KMO LINE AI รับรูปจากลูกค้าในแชท 1:1 แล้วใช้รูปเป็นบริบทในการตอบ โดยคง production chat/agent model ปัจจุบัน (`deepseek-v4-flash:0731-cloud`) และใช้ `gemma4:31b-cloud` เป็น vision extractor เท่านั้น
+เพิ่มความสามารถให้ KMO LINE AI รับรูปจากลูกค้าในแชท 1:1 แล้วใช้รูปเป็นบริบทในการตอบ โดยคง production chat/agent model ณ วันที่อนุมัติ brief (`deepseek-v4-flash:0731-cloud`) และใช้ `gemma4:31b-cloud` เป็น vision extractor เท่านั้น
 
 เป้าหมายสำคัญ:
 - ลูกค้าส่งรูปรถ/อุปกรณ์/ชิ้นส่วน/ข้อความบนภาพ แล้ว AI เข้าใจสิ่งที่มองเห็นในระดับช่วยสนทนาได้
@@ -21,7 +33,7 @@
 
 ---
 
-## 2. Verified Current Truth
+## 2. Verified Current Truth — historical snapshot from 2026-08-29
 
 - `line-webhook/index.ts` รับ AI เฉพาะ `event.message.type === "text"`; รูปถูก ignore อยู่ในปัจจุบัน
 - `_shared/line.ts` ยังไม่มี LINE Content API binary download helper

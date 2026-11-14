@@ -1,5 +1,8 @@
 import { requiredEnv } from "./database.ts";
 import { createHttpClient } from "./vendor/http-client/index.ts";
+import { HttpError } from "./vendor/http-client/core/error.ts";
+import type { LineMessage } from "./vendor/line-oa-ai-module/core/types.ts";
+import { classifyLineSendResult } from "./line-delivery.ts";
 import { GenericHmacVerifier } from "./vendor/webhook-receiver/providers/generic-hmac/index.ts";
 
 const LINE_API_BASE = "https://api.line.me/v2/bot";
@@ -163,32 +166,60 @@ export async function downloadLineImageContent(
   }
 }
 
-type LineMessage = { type: "text"; text: string };
+export type LineApiDeliveryResult = {
+  outcome: "accepted" | "rejected" | "uncertain";
+  statusCode?: number;
+  error?: string;
+};
 
 async function callLineApi(
   path: string,
   body: Record<string, unknown>,
-): Promise<boolean> {
+): Promise<LineApiDeliveryResult> {
   try {
-    await createHttpClient({ defaultTimeoutMs: 8000 }).request({
-      url: `${LINE_API_BASE}${path}`,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${requiredEnv("LINE_CHANNEL_ACCESS_TOKEN")}`,
+    const response = await createHttpClient({ defaultTimeoutMs: 8000 }).request(
+      {
+        url: `${LINE_API_BASE}${path}`,
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${requiredEnv("LINE_CHANNEL_ACCESS_TOKEN")}`,
+        },
+        body,
       },
-      body,
-    });
-    return true;
+    );
+    return { outcome: "accepted", statusCode: response.status };
   } catch (error) {
-    console.error(`[line] ${path} failed`, error);
-    return false;
+    const statusCode = error instanceof HttpError ? error.status : undefined;
+    const result = classifyLineSendResult({
+      success: false,
+      statusCode,
+      error: error instanceof HttpError ? error.code : "transport_error",
+    });
+    console.error(`[line] ${path} failed`, {
+      statusCode: result.statusCode,
+      errorCode: result.error,
+      outcome: result.outcome,
+    });
+    return result;
   }
 }
 
-export const replyMessage = (replyToken: string, messages: LineMessage[]) =>
-  callLineApi("/message/reply", { replyToken, messages });
-export const pushMessage = (to: string, messages: LineMessage[]) =>
+export const replyMessageWithOutcome = (
+  replyToken: string,
+  messages: LineMessage[],
+) => callLineApi("/message/reply", { replyToken, messages });
+
+export const pushMessageWithOutcome = (to: string, messages: LineMessage[]) =>
   callLineApi("/message/push", { to, messages });
+
+export const replyMessage = async (
+  replyToken: string,
+  messages: LineMessage[],
+) =>
+  (await replyMessageWithOutcome(replyToken, messages)).outcome === "accepted";
+
+export const pushMessage = async (to: string, messages: LineMessage[]) =>
+  (await pushMessageWithOutcome(to, messages)).outcome === "accepted";
 
 export async function getProfile(
   userId: string,
