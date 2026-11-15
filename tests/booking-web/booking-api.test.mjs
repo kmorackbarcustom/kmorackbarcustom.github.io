@@ -190,3 +190,35 @@ test('pages delegate booking rules and legacy endpoints only appear inside the A
   assert.match(booking, /if \(error && error\.kind === 'rejected'.*rotateRequestId/);
   assert.match(booking, /error\.kind === 'network' \? 'networkError' : 'unknownError'/);
 });
+
+test('request id stays the same after network/unknown failures (retry must replay, never double-book)', async () => {
+  const store = new Map();
+  const fake = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  const before = globalThis.sessionStorage;
+  globalThis.sessionStorage = fake;
+  try {
+    const failures = [
+      () => { throw new TypeError('Failed to fetch'); },
+      () => json('<html>502</html>', 502),
+      () => json({ code: '23505', message: 'duplicate key value violates unique constraint "bookings_job_id_key"' }, 409),
+      () => json({ code: 'P0001', message: 'KMO_DAY_FULL' }, 400)
+    ];
+    for (const fail of failures) {
+      const api = apiWith(async () => fail());
+      const id1 = api.getRequestId();
+      await assert.rejects(api.submitBooking({ payload, requestId: id1 }));
+      assert.equal(api.getRequestId(), id1);
+      assert.equal(store.get('kmo_booking_request_id'), id1);
+    }
+  } finally { globalThis.sessionStorage = before; }
+});
+
+test('booking page rotates request id only after success or a rule rejection, and surfaces replay', async () => {
+  const page = await readFile(new URL('../../booking.html', import.meta.url), 'utf8');
+  const lines = page.split(/\r?\n/).filter(line => line.includes('rotateRequestId('));
+  assert.equal(lines.length, 2);
+  assert.ok(page.indexOf(lines[0]) < page.indexOf('showBookingSuccess(booking.job_id'));
+  assert.match(lines[1], /error\.kind === 'rejected'/);
+  assert.match(page, /if \(booking\.replay\) showWarning\(t\('replayNotice'\)\)/);
+  assert.equal((page.match(/replayNotice:/g) || []).length, 2);
+});
