@@ -108,6 +108,9 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';
   END;
+  IF v_total IS NOT NULL AND (v_total = 'NaN'::numeric OR v_total < 0) THEN
+    RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';
+  END IF;
 
   IF v_appointment < public.kmo_today() THEN
     RAISE EXCEPTION 'KMO_APPOINT_PAST' USING ERRCODE = 'P0001';
@@ -271,6 +274,7 @@ DROP TRIGGER IF EXISTS holidays_notify_conflicts ON public.holidays;
 CREATE TRIGGER holidays_notify_conflicts AFTER INSERT OR UPDATE OF date ON public.holidays
 FOR EACH ROW EXECUTE FUNCTION public.holidays_notify_conflicts();
 
+REVOKE ALL ON FUNCTION public.holidays_notify_conflicts(), public.bookings_status_sync() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.kmo_next_job_id(text), public.create_booking(jsonb, uuid),
   public.attach_booking_images(uuid, text[]), public.get_booking_day_usage(date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_booking(jsonb, uuid), public.attach_booking_images(uuid, text[]),
