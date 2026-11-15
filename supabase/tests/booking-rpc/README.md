@@ -40,7 +40,7 @@ Only `customer_name`, `phone`, `source`, `line_uid`, `brand`, `model`, `product`
 | `KMO_APPOINT_HOLIDAY` | Appointment date exists in `holidays` |
 | `KMO_PICKUP_MISSING` | Pickup date is empty |
 | `KMO_PICKUP_BEFORE_APPOINT` | Pickup precedes appointment |
-| `KMO_MIN_WORKDAYS` | Fewer than two working days, excluding Tuesdays only |
+| `KMO_MIN_WORKDAYS` | Fewer than two working days after excluding Tuesdays and dates in `holidays` |
 | `KMO_DAY_FULL` | Three active bookings already use that appointment date |
 
 ### `attach_booking_images(p_request_id uuid, p_images text[]) returns void`
@@ -82,6 +82,12 @@ Apply `20261116090000_booking_rpc_hardening.sql` (T3) first, then `2026111610000
 
 `generate_job_id` now allocates from the same counter as `kmo_next_job_id`. Its month uses Bangkok time, so on the first day of a month it switches at 00:00 Thailand time instead of waiting until 07:00. Each call consumes a sequence value even if the caller does not insert a booking, so job ID gaps can occur.
 
-**T6 Phase A warning:** T3b changes the existing live `generate_job_id` function; T3 only adds new objects. The live function hash has not been checked before or after applying T3b (`UNVERIFIED`).
+### Special holidays do not count as working days
+
+`create_booking` counts dates in the inclusive `[appointment_date, pickup_date]` range that are neither regular closed weekdays (Tuesday) nor present in `holidays`. The count stops as soon as the configured minimum is reached, so a distant pickup date does not require scanning the entire range. The appointment date is still rejected when closed; a pickup date on a closed day remains allowed but does not count as a working day. Adding or removing a holiday affects the next booking call immediately.
+
+`HOLIDAY_CONFLICT` behavior is unchanged: inserting a special holiday still notifies staff when it overlaps an already-booked appointment or pickup date. Existing bookings are not revalidated when a holiday is later added.
+
+**T6 Phase A warning:** this migration updates the T3 `create_booking` function, which has not been applied to the real system, and `generate_job_id`, which exists in the real system. Previously accepted bookings are not checked retroactively. The real function hashes were not checked before or after this offline migration (`UNVERIFIED`).
 
 Rollback T3b first with `20261116100000_booking_rpc_followup_f8_f9.down.sql`, then rollback T3 with `20261116090000_booking_rpc_hardening.down.sql`. The T3b rollback removes the FK and restores the baseline `generate_job_id` definition; T3 removes the counter and RPC objects.
