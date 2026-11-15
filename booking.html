@@ -928,7 +928,7 @@
       document.querySelectorAll('#previewGrid img').forEach((img, index) => { img.alt = t('photoAlt', { index: index + 1 }); });
       document.querySelectorAll('#previewGrid .preview-remove').forEach(button => { button.setAttribute('aria-label', t('removePhoto')); button.title = t('removePhoto'); });
       const submitButton = document.getElementById('submitBtn');
-      if (submitButton?.disabled) submitButton.textContent = t('submitting');
+      if (submitButton && submitInFlight) submitButton.textContent = t('submitting');
       if (uploadProgressState) document.getElementById('uploadProgress').textContent = t('uploadProgress', uploadProgressState);
       if (copyStatusKey) document.getElementById('copySlipMessageBtn').textContent = t(copyStatusKey);
       if (lastBookingData && !document.getElementById('slipMessageBox').classList.contains('hidden')) {
@@ -1093,12 +1093,16 @@
       if (calendarLoadFailed) {
         const error = document.createElement('div');
         error.className = 'calendar-error';
+        error.style.cssText = 'grid-column:1/-1;text-align:center;padding:16px 8px;';
         error.textContent = t('calendarLoadFailed');
         const retry = document.createElement('button');
         retry.type = 'button';
+        retry.className = 'btn';
+        retry.style.cssText = 'display:block;margin:12px auto 0;width:auto;padding:10px 24px;';
         retry.textContent = t('retry');
         retry.addEventListener('click', loadCalendar);
-        grid.append(error, retry);
+        error.appendChild(retry);
+        grid.append(error);
         return;
       }
       
