@@ -227,6 +227,17 @@ async function runLockProofs(today) {
   record('lock proof: B waits for uncommitted A and sees the full day', aRes.code === 0 && checkExpectedError(b, 'KMO_DAY_FULL') && active === '3',
     `A=${aRes.code}, B full=${checkExpectedError(b, 'KMO_DAY_FULL')}, rows=${active}`);
 
+  // Lock key must not depend on DateStyle: B uses a different DateStyle than A yet must still serialize behind A.
+  await clearFixtures();
+  const dsDay = plus(findDow(today, 1), 77);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('DS-1','${dsDay}','${plus(dsDay, 3)}'),('DS-2','${dsDay}','${plus(dsDay, 3)}');`);
+  const dsA = holdOpen(`SET DateStyle='ISO, YMD'; ${call(dsDay, plus(dsDay, 3), uuid(8004))}`);
+  await delay(700);
+  const dsB = await asyncPsql(`SET DateStyle='SQL, DMY'; ${call(dsDay, plus(dsDay, 3), uuid(8005))}`);
+  const dsARes = await dsA;
+  record('lock proof: advisory lock key is DateStyle-independent', dsARes.code === 0 && checkExpectedError(dsB, 'KMO_DAY_FULL'),
+    `A=${dsARes.code}, B full=${checkExpectedError(dsB, 'KMO_DAY_FULL')}`);
+
   await clearFixtures();
   const dayA = plus(findDow(today, 1), 70);
   const dayB = plus(dayA, 7);
@@ -363,7 +374,7 @@ async function runStatusAndHoliday(today) {
   sql(`INSERT INTO public.holidays(date,reason) VALUES ('${noConflictDay}','no conflict');`);
   record('holiday without overlapping bookings sends nothing', sql("SELECT count(*) FROM net._calls WHERE body->>'type'='HOLIDAY_CONFLICT'") === '1');
   sql('UPDATE net._config SET fail=true;');
-  const failInsert = await asyncPsql(`INSERT INTO public.holidays(date,reason) VALUES ('${plus(holiday,9)}','stub fails');`);
+  const failInsert = await asyncPsql(`INSERT INTO public.holidays(date,reason) VALUES ('${plus(holiday,2)}','stub fails');`);
   record('holiday insert survives notification exception', failInsert.code === 0, failInsert.code === 0 ? 'insert succeeded' : failInsert.stderr);
   sql('UPDATE net._config SET fail=false;');
 }
