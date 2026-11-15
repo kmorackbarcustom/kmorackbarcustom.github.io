@@ -1,11 +1,11 @@
 # PRD: KMO LINE Chat Agent Upgrade (Tool-Calling + Identity Model Fix)
 
 **Project Owner:** Gutumrod (คุณฟรี)
-**Execution:** Claude Code, working directly in `kmorackbarcustom.github.io`
+**Execution:** Qwen and Hermes build; OpenCode and AGY review; Codex coordinates the brief and release in `kmorackbarcustom.github.io`
 **Created:** 2026-08-28
-**Last Updated:** 2026-11-14 — local LINE Inbox Dashboard implementation; production status below remains the 2026-10-21 snapshot
+**Last Updated:** 2026-11-15 — LINE Inbox Dashboard and delivery safeguards deployed; live LINE acceptance pending
 
-> The separate Inbox Dashboard is implemented locally and remains uncommitted. Its migration is unapplied and no Edge Function is deployed. Current scope, verification, and release limits are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+> The separate Inbox Dashboard is deployed from `main`. Migration `20261114120000` is applied; `line-webhook` v52 and `staff-reply` v10 are active. Live LINE acceptance and the Phase 5 image evidence remain open. Current evidence and the Telegram secret gate are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ---
 
@@ -26,7 +26,7 @@
 - Agent tools 3 ตัว (read-only): `search_products`, `get_order_status`, `check_queue`; FAQ ยังคงเป็นข้อมูลคงที่ใน system prompt ไม่ใช่ tool แยก
 - Identity model: เพิ่ม `customers.line_display_name`, แก้ trigger, backfill 8 คนที่ตรวจพบจริงว่าชื่อ LINE ถูกทับ
 - กติกาจับคู่ตัวตนใหม่: line_uid exclusive เมื่อผูกแล้ว, เบอร์โทร fallback ได้แค่ตอนยังไม่เคยผูก (one-time claim)
-- Reply/Push strategy on deployed v48: ส่ง Reply ก่อนและ fallback ไป Push เมื่อ Reply ล้มเหลว; ยังไม่มีการแยก definite rejection จาก timeout/network/5xx (local reliability follow-up ยังไม่ deploy)
+- Reply/Push strategy on deployed v52: ส่ง Reply ก่อนและ fallback ไป Push เฉพาะเมื่อ LINE ปฏิเสธชัดเจน; timeout/network/5xx เป็นผลไม่ชัดเจนและไม่ retry อัตโนมัติ
 - จำกัด tool-call loop ไม่เกิน 3 รอบ
 
 **นอกขอบเขต (ไม่ทำเฟสนี้ — เก็บไว้อนาคต):**
@@ -54,8 +54,8 @@
 | Model สำรอง | Gemini 2.5 Flash — single-shot fallback เมื่อ Ollama ล้มเหลว/ตรวจพบ degenerate output |
 | Vision model (Phase 5 production) | `gemma4:31b-cloud` — image understanding deployed; remaining live matrix evidence pending |
 | Data store | Supabase Postgres (project `xfhpwxjywqgqefbncumm`) |
-| ส่งข้อความ | LINE Messaging API — v48 Reply-first + Push fallback; ambiguous send-result handling remains a local, undeployed follow-up |
-| Staff console | `admin-line-reply.html` → `staff-reply` edge function |
+| ส่งข้อความ | LINE Messaging API — v52 Reply-first + Push fallback only after definite rejection; uncertain delivery is not retried automatically |
+| Staff console | `admin-line-reply.html` → `staff-reply` v10 edge function (active; `verify_jwt=false`, staff passcode enforced by the function) |
 
 ### Data flow (production Phase 3–4)
 
@@ -69,7 +69,7 @@ search_products  get_order_status  check_queue
    (tool)             (tool)          (tool)
 FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แยก
                    ↓
-         v48: ตอบผ่าน Reply → ถ้าล้มเหลว Push fallback (ยังไม่แยก ambiguous outcome)
+         v52: Reply → Push fallback only on definite rejection; uncertain outcomes stay unretried
 ```
 
 ---
@@ -139,5 +139,5 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 
 ---
 
-**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed and text/image rollouts are `all` (live verified 2026-10-21), remains OPEN pending written live image matrix evidence. Webhook idempotency and typed delivery-outcome changes are local only and have not been migrated or deployed.
+**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed and text/image rollouts are `all` (live verified 2026-10-21), remains OPEN pending written live image matrix evidence. LINE Inbox Dashboard migration `20261114120000`, `line-webhook` v52, and `staff-reply` v10 are deployed. Owner live LINE acceptance is pending. Telegram webhook auth update is not deployed until `TELEGRAM_WEBHOOK_SECRET` is configured.
 **Priority:** High
