@@ -13,9 +13,12 @@ import {
   startLineDeliveryHeartbeat,
 } from "../_shared/line-inbox.ts";
 import {
+  decodeStaffPasscodeHeader,
   forwardedClientIp,
+  issueStaffSessionToken,
   staffIpFingerprint,
   staffPasscodeMatches,
+  staffSessionTokenMatches,
 } from "../_shared/staff-auth.ts";
 import { createAuditLog } from "../_shared/vendor/audit-log/core/index.ts";
 
@@ -26,7 +29,8 @@ const PAGE_SIZE = 50;
 const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers":
-    "authorization, apikey, content-type, x-staff-key",
+    "authorization, apikey, content-type, x-staff-key, x-staff-key-b64, x-staff-session",
+  "Access-Control-Expose-Headers": "x-staff-session",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Cache-Control": "no-store",
 };
@@ -38,6 +42,20 @@ function jsonResponse(body: unknown, status = 200): Response {
       ...corsHeaders,
       "Content-Type": "application/json; charset=utf-8",
     },
+  });
+}
+
+function attachStaffSession(
+  response: Response,
+  token: string | null,
+): Response {
+  if (!token) return response;
+  const headers = new Headers(response.headers);
+  headers.set("x-staff-session", token);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
   });
 }
 
@@ -528,36 +546,61 @@ serve(async (req) => {
   }
 
   const staffPasscode = Deno.env.get("STAFF_PASSCODE");
-  if (!staffPasscode) {
+  const sessionSecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!staffPasscode || !sessionSecret) {
     return jsonResponse({ ok: false, error: "staff_auth_unavailable" }, 500);
   }
 
   try {
-    const clientIp = forwardedClientIp(req);
-    if (!clientIp) {
-      return jsonResponse({ ok: false, error: "staff_auth_unavailable" }, 503);
-    }
-    const passcodeMatches = await staffPasscodeMatches(
-      req.headers.get("x-staff-key") ?? "",
-      staffPasscode,
-    );
-    const ipHash = await staffIpFingerprint(clientIp, staffPasscode);
     const supabase = createServiceClient();
-    const { data: authResult, error: authError } = await supabase.rpc(
-      "line_staff_auth_attempt",
-      { p_ip_hash: ipHash, p_success: passcodeMatches },
-    );
-    if (authError || typeof authResult !== "string") {
-      return fail("staff_auth_rate_limit", authError ?? "invalid_result");
-    }
-    if (authResult === "blocked") {
-      return jsonResponse({ ok: false, error: "too_many_attempts" }, 429);
-    }
-    if (authResult === "denied") {
-      return jsonResponse({ ok: false, error: "unauthorized" }, 401);
-    }
-    if (authResult !== "allowed") {
-      return fail("staff_auth_rate_limit", "invalid_result");
+    const suppliedSession = req.headers.get("x-staff-session");
+    let sessionToIssue: string | null = null;
+    if (suppliedSession) {
+      if (
+        !await staffSessionTokenMatches(
+          suppliedSession,
+          sessionSecret,
+          staffPasscode,
+        )
+      ) {
+        return jsonResponse({ ok: false, error: "staff_session_expired" }, 401);
+      }
+    } else {
+      const clientIp = forwardedClientIp(req);
+      if (!clientIp) {
+        return jsonResponse(
+          { ok: false, error: "staff_auth_unavailable" },
+          503,
+        );
+      }
+      const passcodeMatches = await staffPasscodeMatches(
+        decodeStaffPasscodeHeader(
+          req.headers.get("x-staff-key-b64"),
+          req.headers.get("x-staff-key"),
+        ),
+        staffPasscode,
+      );
+      const ipHash = await staffIpFingerprint(clientIp, staffPasscode);
+      const { data: authResult, error: authError } = await supabase.rpc(
+        "line_staff_auth_attempt",
+        { p_ip_hash: ipHash, p_success: passcodeMatches },
+      );
+      if (authError || typeof authResult !== "string") {
+        return fail("staff_auth_rate_limit", authError ?? "invalid_result");
+      }
+      if (authResult === "blocked") {
+        return jsonResponse({ ok: false, error: "too_many_attempts" }, 429);
+      }
+      if (authResult === "denied") {
+        return jsonResponse({ ok: false, error: "unauthorized" }, 401);
+      }
+      if (authResult !== "allowed") {
+        return fail("staff_auth_rate_limit", "invalid_result");
+      }
+      sessionToIssue = await issueStaffSessionToken(
+        sessionSecret,
+        staffPasscode,
+      );
     }
 
     const url = new URL(req.url);
@@ -568,20 +611,52 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const audit = createAuditLog({ store: new SupabaseAuditStore(supabase) });
 
-    if (action === "list") return await handleList(supabase, body);
-    if (action === "history") return await handleHistory(supabase, body);
+    if (action === "list") {
+      return attachStaffSession(
+        await handleList(supabase, body),
+        sessionToIssue,
+      );
+    }
+    if (action === "history") {
+      return attachStaffSession(
+        await handleHistory(supabase, body),
+        sessionToIssue,
+      );
+    }
     if (action === "takeover") {
-      return await setHumanMode(supabase, body, true);
+      return attachStaffSession(
+        await setHumanMode(supabase, body, true),
+        sessionToIssue,
+      );
     }
     if (action === "resume") {
-      return await setHumanMode(supabase, body, false);
+      return attachStaffSession(
+        await setHumanMode(supabase, body, false),
+        sessionToIssue,
+      );
     }
-    if (action === "send") return await handleSend(supabase, audit, body);
+    if (action === "send") {
+      return attachStaffSession(
+        await handleSend(supabase, audit, body),
+        sessionToIssue,
+      );
+    }
     if (action === "audit-log") {
-      return await handleAuditHistory(supabase, audit, body);
+      return attachStaffSession(
+        await handleAuditHistory(supabase, audit, body),
+        sessionToIssue,
+      );
     }
-    if (action === "image") return await handleImage(supabase, body);
-    return jsonResponse({ ok: false, error: "unknown_action" }, 404);
+    if (action === "image") {
+      return attachStaffSession(
+        await handleImage(supabase, body),
+        sessionToIssue,
+      );
+    }
+    return attachStaffSession(
+      jsonResponse({ ok: false, error: "unknown_action" }, 404),
+      sessionToIssue,
+    );
   } catch (error) {
     return fail("request", error);
   }

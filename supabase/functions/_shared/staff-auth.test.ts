@@ -1,8 +1,11 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  decodeStaffPasscodeHeader,
   forwardedClientIp,
+  issueStaffSessionToken,
   staffIpFingerprint,
   staffPasscodeMatches,
+  staffSessionTokenMatches,
 } from "./staff-auth.ts";
 
 Deno.test("staff authentication helpers normalize and conceal client identity", async () => {
@@ -38,4 +41,76 @@ Deno.test("staff passcode comparison handles equal and unequal lengths", async (
     false,
   );
   assertEquals(await staffPasscodeMatches("short", "longer-passcode"), false);
+});
+
+Deno.test("staff session token is signed, tamper-resistant, and expires", async () => {
+  const now = 1_800_000_000_000;
+  const token = await issueStaffSessionToken(
+    "synthetic-service-secret",
+    "synthetic-passcode",
+    now,
+  );
+  assertEquals(
+    await staffSessionTokenMatches(
+      token,
+      "synthetic-service-secret",
+      "synthetic-passcode",
+      now,
+    ),
+    true,
+  );
+  assertEquals(
+    await staffSessionTokenMatches(
+      token,
+      "different-secret",
+      "synthetic-passcode",
+      now,
+    ),
+    false,
+  );
+  assertEquals(
+    await staffSessionTokenMatches(
+      token,
+      "synthetic-service-secret",
+      "rotated-passcode",
+      now,
+    ),
+    false,
+  );
+  assertEquals(
+    await staffSessionTokenMatches(
+      token,
+      "synthetic-service-secret",
+      "synthetic-passcode",
+      now + 8 * 60 * 60 * 1000,
+    ),
+    false,
+  );
+  assertEquals(
+    await staffSessionTokenMatches(
+      `${token.slice(0, -1)}x`,
+      "synthetic-service-secret",
+      "synthetic-passcode",
+      now,
+    ),
+    false,
+  );
+});
+
+Deno.test("staff passcode header decodes UTF-8 and preserves legacy callers", () => {
+  const bytes = new TextEncoder().encode("รหัสทดสอบ-123");
+  const encoded = btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  assertEquals(decodeStaffPasscodeHeader(encoded, null), "รหัสทดสอบ-123");
+  assertEquals(
+    decodeStaffPasscodeHeader(null, "legacy-test-passcode"),
+    "legacy-test-passcode",
+  );
+  assertEquals(decodeStaffPasscodeHeader("_w", null), "");
+  assertEquals(
+    decodeStaffPasscodeHeader("bad+header", "fallback-must-not-be-used"),
+    "",
+  );
 });

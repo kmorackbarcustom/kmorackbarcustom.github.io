@@ -263,7 +263,7 @@
         <button type="button" id="clearPasscodeBtn" class="secondary-btn">ล้าง passcode</button>
       </div>
       <label for="staffPasscode">รหัสพนักงาน</label>
-      <input id="staffPasscode" type="password" autocomplete="current-password" placeholder="กรอกรหัสร้านก่อนใช้งาน">
+      <input id="staffPasscode" type="password" autocomplete="off" placeholder="กรอกรหัสร้านก่อนใช้งาน">
     </section>
 
     <div class="inbox-layout">
@@ -337,20 +337,29 @@
     const pageStatus = document.getElementById('pageStatus');
 
     const ROLE_LABEL = { customer: 'ลูกค้า', ai: 'AI', staff: 'พนักงาน' };
+    const STAFF_SESSION_KEY = 'kmo-admin-inbox-session';
     let selectedCustomer = null;
     let historyMessages = [];
     let historyOffset = 0;
     let historySeq = 0;
-    let imageObjectUrls = [];
+    const imageObjectUrls = new Map();
     let pageOffset = 0;
     let customerListSeq = 0;
     let hasMoreCustomers = false;
     let listTimer;
     let replyRequest = null;
+    let inboxRefreshBusy = false;
+    let activeCustomerLoads = 0;
+    let activeHistoryLoads = 0;
+    let authGeneration = 0;
+    let lastCustomerResultsKey = null;
 
     function mergeLoadedHistory(messages) {
+      const byTimeAndId = (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) ||
+        String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+      const orderedMessages = [...messages].sort(byTimeAndId);
       const seenIds = new Set();
-      const persisted = messages.filter((message) => {
+      const persisted = orderedMessages.filter((message) => {
         if (message.deliveryStatus === 'legacy' || seenIds.has(String(message.id))) return false;
         seenIds.add(String(message.id));
         return true;
@@ -359,7 +368,7 @@
         message.eventId ? [`${message.role}:${message.eventId}`] : []
       ));
       const matchedIds = new Set();
-      const legacy = messages.filter((message) => {
+      const legacy = orderedMessages.filter((message) => {
         if (message.deliveryStatus !== 'legacy' || seenIds.has(String(message.id))) return false;
         seenIds.add(String(message.id));
         return true;
@@ -378,40 +387,73 @@
           matchedIds.add(matches[0].id);
           return false;
         });
-      return [...persisted, ...legacy].sort((a, b) =>
-        Date.parse(a.timestamp) - Date.parse(b.timestamp) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
-      );
+      return [...persisted, ...legacy].sort(byTimeAndId);
     }
 
-    async function loadHistory(offset = 0) {
+    function historyRenderKey(messages) {
+      return JSON.stringify(messages.map((message) => [
+        message.id,
+        message.role,
+        message.messageType,
+        message.content,
+        message.deliveryStatus,
+        message.timestamp,
+      ]));
+    }
+
+    async function loadHistory(offset = 0, silent = false, signal) {
       if (!selectedCustomer) return;
       const customerId = selectedCustomer.id;
       const sequence = ++historySeq;
       const staffKey = requireStaffKey(chatStatus);
       if (!staffKey) return;
+      const wasAtBottom = chatThread.scrollHeight - chatThread.clientHeight - chatThread.scrollTop < 48;
 
-      setStatus(chatStatus, 'กำลังโหลดแชท...', '');
+      activeHistoryLoads++;
+      if (!silent) setStatus(chatStatus, 'กำลังโหลดแชท...', '');
       try {
-        const result = await callFunction('history', { customerId, offset }, staffKey);
+        const result = await callFunction('history', { customerId, offset }, staffKey, false, signal);
         if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
-        historyMessages = mergeLoadedHistory(offset === 0
-          ? result.messages
+        const refreshedHistory = mergeLoadedHistory(offset === 0
+          ? silent ? [...result.messages, ...historyMessages] : result.messages
           : [...result.messages, ...historyMessages]);
-        historyOffset = result.nextOffset;
-        olderMessagesBtn.hidden = !result.hasMore;
-        renderChatThread(historyMessages, offset === 0);
+        const historyChanged = historyRenderKey(refreshedHistory) !== historyRenderKey(historyMessages);
+        historyMessages = refreshedHistory;
+        historyOffset = silent ? Math.max(historyOffset, result.nextOffset) : result.nextOffset;
+        if (!silent || historyOffset <= result.nextOffset) {
+          olderMessagesBtn.hidden = !result.hasMore;
+        }
+        if (historyChanged || !silent) {
+          renderChatThread(
+            historyMessages,
+            offset === 0 && (!silent || wasAtBottom),
+            silent && !wasAtBottom,
+          );
+        }
         chatStatus.hidden = true;
       } catch (error) {
         if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
+        if (silent && (error.code === 'staff_session_expired' || signal?.aborted)) return;
         setStatus(chatStatus, `โหลดแชทไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        activeHistoryLoads--;
       }
     }
 
-    function renderChatThread(messages, scrollToBottom = true) {
+    function renderChatThread(messages, scrollToBottom = true, preserveTop = false) {
       const oldHeight = chatThread.scrollHeight;
       const oldTop = chatThread.scrollTop;
-      imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
-      imageObjectUrls = [];
+      const visibleImageIds = new Set((messages || [])
+        .filter((message) => message.messageType === 'image')
+        .map((message) => String(message.id)));
+      for (const [id, url] of imageObjectUrls) {
+        if (!visibleImageIds.has(id)) {
+          URL.revokeObjectURL(url);
+          imageObjectUrls.delete(id);
+        }
+      }
+      const loadedImages = new Map([...chatThread.querySelectorAll('img[data-message-id]')]
+        .map((image) => [image.dataset.messageId, image]));
       chatThread.replaceChildren();
       if (!messages || messages.length === 0) {
         const empty = document.createElement('p');
@@ -428,34 +470,40 @@
         meta.textContent = `${ROLE_LABEL[msg.role] || msg.role} · ${new Date(msg.timestamp).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
         bubble.appendChild(meta);
         if (msg.messageType === 'image') {
-          const imageButton = document.createElement('button');
-          imageButton.type = 'button';
-          imageButton.className = 'secondary-btn';
-          imageButton.textContent = 'โหลดรูป';
-          imageButton.addEventListener('click', async () => {
-            const staffKey = requireStaffKey(chatStatus);
-            if (!staffKey || !selectedCustomer) return;
-            imageButton.disabled = true;
-            try {
-              const blob = await callFunction('image', { customerId: selectedCustomer.id, messageRecordId: msg.id }, staffKey, true);
-              const url = URL.createObjectURL(blob);
-              if (!bubble.isConnected) {
-                URL.revokeObjectURL(url);
-                return;
+          const loadedImage = loadedImages.get(String(msg.id));
+          if (loadedImage) {
+            bubble.appendChild(loadedImage);
+          } else {
+            const imageButton = document.createElement('button');
+            imageButton.type = 'button';
+            imageButton.className = 'secondary-btn';
+            imageButton.textContent = 'โหลดรูป';
+            imageButton.addEventListener('click', async () => {
+              const staffKey = requireStaffKey(chatStatus);
+              if (!staffKey || !selectedCustomer) return;
+              imageButton.disabled = true;
+              try {
+                const blob = await callFunction('image', { customerId: selectedCustomer.id, messageRecordId: msg.id }, staffKey, true);
+                const url = URL.createObjectURL(blob);
+                if (!bubble.isConnected) {
+                  URL.revokeObjectURL(url);
+                  return;
+                }
+                imageObjectUrls.set(String(msg.id), url);
+                const image = document.createElement('img');
+                image.className = 'chat-image';
+                image.alt = 'รูปลูกค้าจาก LINE';
+                image.dataset.messageId = String(msg.id);
+                image.src = url;
+                imageButton.replaceWith(image);
+              } catch (error) {
+                imageButton.disabled = false;
+                imageButton.textContent = 'โหลดรูปอีกครั้ง';
+                setStatus(chatStatus, `โหลดรูปไม่สำเร็จ: ${error.message}`, 'error');
               }
-              imageObjectUrls.push(url);
-              const image = document.createElement('img');
-              image.className = 'chat-image';
-              image.alt = 'รูปลูกค้าจาก LINE';
-              image.src = url;
-              imageButton.replaceWith(image);
-            } catch (error) {
-              imageButton.disabled = false;
-              imageButton.textContent = 'โหลดรูปอีกครั้ง';
-              setStatus(chatStatus, `โหลดรูปไม่สำเร็จ: ${error.message}`, 'error');
-            }
-          });
-          bubble.appendChild(imageButton);
+            });
+            bubble.appendChild(imageButton);
+          }
         } else {
           const content = document.createElement('div');
           content.textContent = msg.content || '';
@@ -473,15 +521,42 @@
         }
         chatThread.appendChild(bubble);
       }
-      chatThread.scrollTop = scrollToBottom ? chatThread.scrollHeight : oldTop + chatThread.scrollHeight - oldHeight;
+      chatThread.scrollTop = scrollToBottom
+        ? chatThread.scrollHeight
+        : preserveTop ? oldTop : oldTop + chatThread.scrollHeight - oldHeight;
     }
 
     reloadHistoryBtn.addEventListener('click', () => loadHistory(0));
     olderMessagesBtn.addEventListener('click', () => loadHistory(historyOffset));
 
     document.getElementById('clearPasscodeBtn').addEventListener('click', () => {
+      authGeneration++;
+      customerListSeq++;
+      historySeq++;
       passcodeInput.value = '';
-      setStatus(searchStatus, 'ล้าง passcode แล้ว', 'success');
+      try { sessionStorage.removeItem(STAFF_SESSION_KEY); } catch { /* Storage may be disabled. */ }
+      imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+      imageObjectUrls.clear();
+      selectedCustomer = null;
+      historyMessages = [];
+      historyOffset = 0;
+      lastCustomerResultsKey = null;
+      replyRequest = null;
+      pageOffset = 0;
+      hasMoreCustomers = false;
+      pageStatus.textContent = 'หน้า 1';
+      prevPageBtn.disabled = true;
+      nextPageBtn.disabled = true;
+      searchQuery.value = '';
+      selectedName.textContent = '';
+      replyMessage.value = '';
+      chatStatus.hidden = true;
+      replyStatus.hidden = true;
+      replyPanel.hidden = true;
+      searchResults.replaceChildren();
+      chatThread.replaceChildren();
+      olderMessagesBtn.hidden = true;
+      setStatus(searchStatus, 'ออกจากระบบแล้ว', 'success');
     });
 
     passcodeInput.addEventListener('change', () => {
@@ -489,8 +564,19 @@
       if (value) loadCustomers(0);
     });
 
+    function getStoredStaffSession() {
+      try { return sessionStorage.getItem(STAFF_SESSION_KEY) || ''; } catch { return ''; }
+    }
+
+    function encodeStaffPasscodeHeader(passcode) {
+      const bytes = new TextEncoder().encode(passcode);
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
     function requireStaffKey(statusEl) {
-      const staffKey = passcodeInput.value.trim();
+      const staffKey = passcodeInput.value.trim() || getStoredStaffSession();
       if (!staffKey) {
         setStatus(statusEl, 'กรุณากรอก staff passcode ก่อน', 'error');
         passcodeInput.focus();
@@ -499,18 +585,40 @@
       return staffKey;
     }
 
-    async function callFunction(action, payload, staffKey, asBlob = false) {
+    async function callFunction(action, payload, staffKey, asBlob = false, signal) {
+      const requestGeneration = authGeneration;
+      const storedSession = getStoredStaffSession();
+      const usingSession = Boolean(storedSession && storedSession === staffKey);
       const res = await fetch(`${FUNCTION_URL}/${action}`, {
         method: 'POST',
+        signal,
         headers: {
           'apikey': SUPA_KEY,
           'Authorization': `Bearer ${SUPA_KEY}`,
           'Content-Type': 'application/json',
-          'x-staff-key': staffKey,
+          ...(usingSession
+            ? { 'x-staff-session': staffKey }
+            : { 'x-staff-key-b64': encodeStaffPasscodeHeader(staffKey) }),
         },
         body: JSON.stringify(payload),
       });
+      const sessionToken = res.headers.get('x-staff-session');
+      if (sessionToken && requestGeneration === authGeneration) {
+        try {
+          sessionStorage.setItem(STAFF_SESSION_KEY, sessionToken);
+          passcodeInput.value = '';
+        } catch { /* Keep the entered passcode when session storage is unavailable. */ }
+      }
       if (res.status === 401) {
+        if (usingSession) {
+          if (requestGeneration === authGeneration) {
+            try { sessionStorage.removeItem(STAFF_SESSION_KEY); } catch { /* Storage may be disabled. */ }
+          }
+          const error = new Error('session หมดอายุ กรุณาใส่ passcode ใหม่');
+          error.code = 'staff_session_expired';
+          throw error;
+        }
+        try { sessionStorage.removeItem(STAFF_SESSION_KEY); } catch { /* Storage may be disabled. */ }
         passcodeInput.value = '';
         throw new Error('รหัสพนักงานไม่ถูกต้อง');
       }
@@ -540,18 +648,19 @@
       return json;
     }
 
-    async function loadCustomers(offset = 0) {
+    async function loadCustomers(offset = 0, silent = false, signal) {
       const sequence = ++customerListSeq;
       const staffKey = requireStaffKey(searchStatus);
       if (!staffKey) return;
 
-      setStatus(searchStatus, 'กำลังโหลด...', '');
+      activeCustomerLoads++;
+      if (!silent) setStatus(searchStatus, 'กำลังโหลด...', '');
       try {
         const result = await callFunction('list', {
           search: searchQuery.value.trim(),
           status: modeFilter.value,
           offset,
-        }, staffKey);
+        }, staffKey, false, signal);
         if (sequence !== customerListSeq) return;
         pageOffset = offset;
         hasMoreCustomers = result.hasMore;
@@ -564,10 +673,13 @@
           selectedCustomer = refreshed;
           updateCustomerMode();
         }
-        setStatus(searchStatus, `แสดง ${result.matches.length} รายการ${hasMoreCustomers ? ' · มีหน้าถัดไป' : ''}`, 'success');
+        if (!silent) setStatus(searchStatus, `แสดง ${result.matches.length} รายการ${hasMoreCustomers ? ' · มีหน้าถัดไป' : ''}`, 'success');
       } catch (error) {
         if (sequence !== customerListSeq) return;
+        if (silent && signal?.aborted) return;
         setStatus(searchStatus, `โหลดไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        activeCustomerLoads--;
       }
     }
 
@@ -591,7 +703,46 @@
       if (hasMoreCustomers) loadCustomers(pageOffset + 50);
     });
 
+    async function refreshInbox() {
+      if (inboxRefreshBusy || document.visibilityState !== 'visible' ||
+        activeCustomerLoads || activeHistoryLoads ||
+        (!getStoredStaffSession() && !passcodeInput.value.trim())) return;
+      inboxRefreshBusy = true;
+      let timeout;
+      try {
+        const controller = new AbortController();
+        timeout = setTimeout(() => controller.abort(), 8000);
+        const signal = controller.signal;
+        await loadCustomers(pageOffset, true, signal);
+        if (selectedCustomer && !activeHistoryLoads &&
+          (getStoredStaffSession() || passcodeInput.value.trim())) {
+          await loadHistory(0, true, signal);
+        }
+      } finally {
+        clearTimeout(timeout);
+        inboxRefreshBusy = false;
+      }
+    }
+
+    setInterval(() => void refreshInbox(), 10000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void refreshInbox();
+    });
+
     function renderResults(matches) {
+      const resultsKey = JSON.stringify(matches.map((customer) => [
+        customer.id,
+        customer.name,
+        customer.line_display_name,
+        customer.phone,
+        customer.last_activity_at,
+        customer.human_takeover,
+        Boolean(customer.paused_until && new Date(customer.paused_until).getTime() > Date.now()),
+      ]));
+      if (resultsKey === lastCustomerResultsKey) return;
+      const focusedCustomerId = document.activeElement?.dataset.customerId;
+      const oldScrollTop = searchResults.scrollTop;
+      lastCustomerResultsKey = resultsKey;
       searchResults.replaceChildren();
       if (matches.length === 0) {
         const empty = document.createElement('p');
@@ -602,6 +753,7 @@
       }
       for (const customer of matches) {
         const row = document.createElement('div');
+        row.dataset.customerId = String(customer.id);
         const selected = selectedCustomer?.id === customer.id;
         row.className = `result-row${selected ? ' selected' : ''}`;
         row.setAttribute('role', 'button');
@@ -637,6 +789,12 @@
           }
         });
         searchResults.appendChild(row);
+      }
+      searchResults.scrollTop = oldScrollTop;
+      if (focusedCustomerId) {
+        [...searchResults.children]
+          .find((row) => row.dataset.customerId === focusedCustomerId)
+          ?.focus({ preventScroll: true });
       }
     }
 
@@ -822,6 +980,10 @@
       el.className = `status${type ? ` ${type}` : ''}`;
       el.textContent = message;
     }
+
+    try {
+      if (sessionStorage.getItem(STAFF_SESSION_KEY)) void loadCustomers(0);
+    } catch { /* Storage may be disabled; the passcode field remains available. */ }
   </script>
 </body>
 </html>
