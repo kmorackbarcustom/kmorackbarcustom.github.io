@@ -4,7 +4,7 @@ import { holidayConflictMessage } from "./holiday-conflict.ts";
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID")!;
 
-async function sendTelegram(text: string): Promise<void> {
+async function sendTelegram(text: string): Promise<boolean> {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
   const res = await fetch(url, {
     method: "POST",
@@ -18,7 +18,9 @@ async function sendTelegram(text: string): Promise<void> {
   if (!res.ok) {
     const body = await res.text();
     console.error("Telegram error:", body);
+    return false;
   }
+  return true;
 }
 
 function formatBooking(r: Record<string, unknown>): string {
@@ -102,7 +104,12 @@ serve(async (req) => {
       const message = holidayConflictMessage(payload);
       if (message === null) return new Response("invalid payload", { status: 400 });
       if (!message) return new Response("skip", { status: 200 });
-      await sendTelegram(message);
+      if (!await sendTelegram(message)) {
+        return new Response(JSON.stringify({ ok: false, error: "telegram_send_failed" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
