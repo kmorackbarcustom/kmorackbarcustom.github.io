@@ -1,3 +1,4 @@
+import "../_testing/env.ts";
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import "./index.ts";
 import { lastHandler } from "../_testing/server.ts";
@@ -65,11 +66,14 @@ Deno.test("telegram-notify handles HOLIDAY_CONFLICT and preserves old INSERT beh
     assertEquals([result.status, calls.length], [400, 0]);
   }
   mockFetch();
-  result = await handler(new Request("https://fake.invalid/functions/v1/telegram-notify", { method: "POST", body: "null" }));
-  assertEquals([result.status, calls.length], [400, 0]);
-  mockFetch();
-  result = await handler(new Request("https://fake.invalid/functions/v1/telegram-notify", { method: "POST", body: "{" }));
-  assertEquals([result.status, calls.length], [400, 0]);
+  // malformed JSON / null body keep the legacy error behaviour (500), same as the original handler
+  for (const body of ["null", "{"]) {
+    const mk = () => new Request("https://fake.invalid/functions/v1/telegram-notify", { method: "POST", body });
+    const legacy = await legacyHandler(mk());
+    mockFetch();
+    result = await handler(mk());
+    assertEquals([result.status, calls.length], [legacy.status, 0]);
+  }
 
   const goldenInputs = [
     { table: "bookings", type: "INSERT", record: { job_id: "KMO-42", customer_name: "Ada", phone: "0812345678", brand: "Honda", model: "ADV350", product: "Rack", color: "Black", appointment_date: "2026-11-19", pickup_date: "2026-11-21", source: "LINE" } },
