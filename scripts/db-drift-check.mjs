@@ -181,7 +181,7 @@ if (WRITE) {
 - \`cron-jobs.md\` ชื่อ+ตารางเวลา+active เท่านั้น (ไม่มี command)
 - \`manifest.json\` sha256 ของแต่ละบล็อกหลัง normalize (ตัดช่องว่างท้ายบรรทัด)
 
-เช็กว่าสดยังตรง baseline: \`node scripts/db-drift-check.mjs\` → 0 ตรง · 1 drift · 2 เรียกสดไม่ได้ · 3 พบค่าลับ (ต้องมี token ใน env \`SUPABASE_ACCESS_TOKEN\` · สคริปต์รับ token จาก env อย่างเดียว ไม่อ่านไฟล์คีย์เอง · ถ้าต้องการให้โหลดจากที่เก็บคีย์ของเครื่อง ให้รันผ่านตัวครอบนอก repo ที่ตั้ง env ให้แล้วเรียกสคริปต์นี้ต่อ)
+เช็กว่าสดยังตรง baseline: \`node scripts/db-drift-check.mjs\` → 0 ตรง · 1 drift · 2 เรียกสดไม่ได้ · 3 พบค่าลับ (ต้องมี token ใน env \`SUPABASE_ACCESS_TOKEN\` · สคริปต์รับ token จาก env อย่างเดียว)
 
 ไม่ครอบคลุม: สิทธิ์ระดับคอลัมน์ · view · sequence · ตารางอื่น (เช่น customers) · cron command · edge function
 

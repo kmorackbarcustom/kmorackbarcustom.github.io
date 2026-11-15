@@ -1,6 +1,6 @@
 {
   "project_ref": "xfhpwxjywqgqefbncumm",
-  "generated_at": "2026-11-15T02:38:45.313Z",
+  "generated_at": "2026-11-15T02:56:29.603Z",
   "tables": [
     "bookings",
     "holidays",
@@ -312,6 +312,18 @@
       "file": "cron-jobs.md",
       "sha256": "53d13ddef7218c70d9a7b04def81dbb1d62380bd31dba74168fcc5b422d194fe"
     },
+    "cron line-inbox-messages-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "9836fafdc62c95b83b98edfd5b5f64c12cc2c02ac38e4791d29a6f449b299a16"
+    },
+    "cron line-inbox-pending-reconciliation": {
+      "file": "cron-jobs.md",
+      "sha256": "53d13ddef7218c70d9a7b04def81dbb1d62380bd31dba74168fcc5b422d194fe"
+    },
+    "cron line-staff-auth-attempts-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "20e129c3c31560bb81ddca85184eeab83543849b99808d5c12e6672d3759bc8f"
+    },
     "cron line-webhook-events-cleanup": {
       "file": "cron-jobs.md",
       "sha256": "9836fafdc62c95b83b98edfd5b5f64c12cc2c02ac38e4791d29a6f449b299a16"
@@ -325,8 +337,14 @@
     "public.commit_next_doc_number(p_doc_type text, p_year integer)",
     "public.get_line_token()",
     "public.line_append_chat_history(p_user_id text, p_message jsonb, p_max_history integer, p_event_ids text[])",
+    "public.line_customer_set_human_mode(p_customer_id uuid, p_human_takeover boolean)",
+    "public.line_delivery_claim(p_customer_id uuid, p_event_id text, p_mode text)",
+    "public.line_delivery_release(p_customer_id uuid, p_event_id text)",
+    "public.line_delivery_renew(p_customer_id uuid, p_claim_token text)",
     "public.line_image_batch_append(p_line_uid text, p_message_id text, p_reply_token text, p_event_timestamp bigint, p_provider_type text, p_webhook_event_id text)",
     "public.line_image_batch_claim(p_line_uid text, p_since timestamp with time zone, p_max_wait_seconds integer)",
+    "public.line_inbox_list(p_search text, p_status text, p_offset integer, p_limit integer)",
+    "public.line_staff_auth_attempt(p_ip_hash text, p_success boolean)",
     "public.line_webhook_event_claim(p_event_id text, p_event_type text, p_reclaim_after_seconds integer)",
     "public.peek_next_doc_number(p_doc_type text, p_year integer)",
     "public.search_products(customer_message text)",
@@ -337,7 +355,7 @@
   "counts": {
     "columns": 4,
     "constraint": 12,
-    "cron": 8,
+    "cron": 11,
     "function": 24,
     "index": 18,
     "policy": 2,

@@ -24,6 +24,18 @@ active: true
 schedule: */5 * * * *
 active: true
 
+-- ==== cron line-inbox-messages-cleanup ====
+schedule: 17 3 * * *
+active: true
+
+-- ==== cron line-inbox-pending-reconciliation ====
+schedule: */5 * * * *
+active: true
+
+-- ==== cron line-staff-auth-attempts-cleanup ====
+schedule: 47 * * * *
+active: true
+
 -- ==== cron line-webhook-events-cleanup ====
 schedule: 17 3 * * *
 active: true
