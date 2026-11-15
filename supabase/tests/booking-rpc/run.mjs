@@ -139,6 +139,22 @@ async function snapshotBaseline() {
     INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');
     CREATE TABLE test_support.availability_before AS SELECT * FROM public.get_booking_availability(date '2026-11-16', date '2026-11-18');`);
 }
+async function snapshotPostT3() {
+  sql(`CREATE TABLE test_support.functions_before_t3b AS SELECT p.oid, p.proname, md5(pg_get_functiondef(p.oid)) hash FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public';
+    CREATE TABLE test_support.create_booking_before AS SELECT p.proargtypes::text argtypes, p.prorettype, p.prosecdef, coalesce(p.proconfig::text,'NULL') proconfig, coalesce(p.proacl::text,'NULL') proacl, md5(pg_get_functiondef(p.oid)) hash FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.oid='public.create_booking(jsonb,uuid)'::regprocedure;`);
+}
+function createBookingMetaMatches() {
+  return sql(`SELECT count(*) FROM test_support.create_booking_before b JOIN pg_proc p ON p.oid='public.create_booking(jsonb,uuid)'::regprocedure WHERE p.proargtypes::text=b.argtypes AND p.prorettype=b.prorettype AND p.prosecdef=b.prosecdef AND coalesce(p.proconfig::text,'NULL')=b.proconfig AND coalesce(p.proacl::text,'NULL')=b.proacl`) === '1';
+}
+async function comparePostT3(label) {
+  const changed = sql(`SELECT
+    (SELECT count(*) FROM test_support.functions_before_t3b b LEFT JOIN pg_proc p ON p.oid=b.oid WHERE (p.oid IS NULL OR md5(pg_get_functiondef(p.oid))<>b.hash) AND b.proname NOT IN ('create_booking','generate_job_id')) +
+    (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace LEFT JOIN test_support.functions_before_t3b b ON b.oid=p.oid WHERE n.nspname='public' AND b.oid IS NULL AND p.proname NOT IN ('create_booking','generate_job_id'));`);
+  record(`${label}: non-target functions unchanged`, changed === '0', `changed/added/removed=${changed}`);
+}
+function createBookingHashMatches() {
+  return sql(`SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure))=(SELECT hash FROM test_support.create_booking_before);`) === 't';
+}
 async function compareBaseline(label, ignoreGenerateJobId = false) {
   const generateFilter = ignoreGenerateJobId ? "AND f.proname <> 'generate_job_id'" : '';
   const diffs = sql(`SELECT
@@ -317,6 +333,74 @@ async function runDateRules(today) {
   record('calendar usage rejects ranges over 366 days', checkExpectedError(await asyncPsql(`SELECT * FROM public.get_booking_day_usage('${today}','${plus(today,366)}');`), 'KMO_BAD_RANGE'));
 }
 
+function referenceWorkdays(appointment, pickup, holidays = new Set()) {
+  let count = 0;
+  for (let day = appointment; day <= pickup; day = plus(day, 1)) {
+    if (dow(day) !== 2 && !holidays.has(day)) count++;
+  }
+  return count;
+}
+async function runHolidayWorkdays(today) {
+  await clearFixtures();
+  const monday = findDow(plus(today, 7), 1);
+  const wed = plus(monday, 2);
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${wed}','middle pickup holiday');`);
+  record('T3b special holiday inside Mon-Wed rejects with one workday', checkExpectedError(await asyncPsql(call(monday, wed, uuid(5201))), 'KMO_MIN_WORKDAYS'));
+
+  await clearFixtures();
+  const thu = plus(monday, 3), fri = plus(monday, 4), sat = plus(monday, 5);
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${plus(monday,2)}','before range'),('${sat}','after range');`);
+  record('T3b holiday outside [appointment,pickup] does not reduce count', (await asyncPsql(call(thu, fri, uuid(5202)))).code === 0);
+
+  await clearFixtures();
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${plus(monday,1)}','Tuesday overlap');`);
+  record('T3b holiday overlapping Tuesday counts once', checkExpectedError(await asyncPsql(call(monday, plus(monday,1), uuid(5203))), 'KMO_MIN_WORKDAYS'));
+
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${wed}','removable holiday');`);
+  sql(`DELETE FROM public.holidays WHERE date='${wed}';`);
+  record('T3b removing holiday immediately restores normal count', (await asyncPsql(call(monday, wed, uuid(5204)))).code === 0);
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${wed}','re-added middle pickup holiday');`);
+  record('T3b adding holiday immediately changes current count', checkExpectedError(await asyncPsql(call(monday, wed, uuid(5205))), 'KMO_MIN_WORKDAYS'));
+
+  const farStarted = performance.now();
+  const far = await asyncPsql(call(plus(monday, 7), '9999-12-31', uuid(5206)));
+  const farMs = Math.round(performance.now() - farStarted);
+  record('T3b year 9999 pickup returns under two seconds without overflow', far.code === 0 && parseJsonOutput(far.stdout)?.replay === false && farMs < 2000, `${farMs}ms; ${far.code === 0 ? far.stdout : far.stderr}`);
+
+  const cases = [];
+  for (let start = 0; start < 8; start++) for (let span = 0; span < 9; span++) {
+    const appointment = plus(monday, start), pickup = plus(appointment, span);
+    if (dow(appointment) === 2) continue;
+    const holidaySet = new Set([plus(appointment, (start + span) % (span + 1))]);
+    if (holidaySet.has(appointment)) holidaySet.clear();
+    cases.push({ appointment, pickup, holidaySet, expected: referenceWorkdays(appointment, pickup, holidaySet) >= 2 });
+  }
+  let matched = 0;
+  for (let i = 0; i < cases.length; i++) {
+    const { appointment, pickup, holidaySet, expected } = cases[i];
+    await clearFixtures();
+    if (holidaySet.size) sql(`INSERT INTO public.holidays(date,reason) VALUES ${[...holidaySet].map(d => `('${d}','reference fixture')`).join(',')};`);
+    const result = await asyncPsql(call(appointment, pickup, uuid(5300 + i)));
+    if ((result.code === 0) === expected) matched++;
+  }
+  record('T3b fixed edge-case date table matches JS reference', matched === cases.length, `${matched}/${cases.length}`);
+  const randomCases = Array.from({ length: 48 }, (_, i) => {
+    const appointment = plus(monday, (i * 17) % 56), span = (i * 11) % 15, pickup = plus(appointment, span);
+    const holidaySet = new Set([plus(appointment, (i * 7) % (span + 1))]);
+    if (holidaySet.has(appointment)) holidaySet.clear();
+    return { appointment, pickup, holidaySet, expected: referenceWorkdays(appointment, pickup, holidaySet) >= 2 };
+  }).filter(c => dow(c.appointment) !== 2);
+  matched = 0;
+  for (let i = 0; i < randomCases.length; i++) {
+    const { appointment, pickup, holidaySet, expected } = randomCases[i];
+    await clearFixtures();
+    if (holidaySet.size) sql(`INSERT INTO public.holidays(date,reason) VALUES ${[...holidaySet].map(d => `('${d}','fixed random fixture')`).join(',')};`);
+    const result = await asyncPsql(call(appointment, pickup, uuid(5400 + i)));
+    if ((result.code === 0) === expected) matched++;
+  }
+  record('T3b fixed-seed multiweek date table matches JS reference', matched === randomCases.length, `${matched}/${randomCases.length}`);
+}
+
 async function runIdempotencyAndIds(today) {
   await clearFixtures();
   const date = findDow(plus(today, 1), 1);
@@ -431,8 +515,45 @@ ROLLBACK;`;
   record('mutant rejected: migration is not idempotent', migrationMutant.status !== 0 && /already exists|duplicate/i.test(migrationMutant.out), migrationMutant.out.split(/\r?\n/).find(line => /already exists|duplicate/i.test(line)) || `exit=${migrationMutant.status}`);
 
   await mutant('rollback does not restore baseline function hash', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT IF EXISTS booking_requests_job_id_fkey; SELECT test_support.assert((SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=hash FROM test_support.generate_job_id_before), 'rollback hash invariant'); ROLLBACK;`);
+  const bookingDefinition = await readFile(migration, 'utf8');
+  const rollback = await readFile(path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql'), 'utf8');
+  const restoredFunction = rollback.match(/CREATE OR REPLACE FUNCTION public\.create_booking\([^)]*\)[\s\S]*?\$function\$;/)?.[0];
+  if (!restoredFunction || !bookingDefinition.includes('AND NOT EXISTS (') || !bookingDefinition.includes('public.holidays h WHERE h.date = d.day::date')) throw new Error('Cannot verify create_booking holiday or rollback mutant fixtures');
   // The good migration is idempotent; this final check ensures all mutant transactions rolled back.
   record('mutant transactions leave the working definitions intact', sql(`SELECT ${constraint} AND ((${functionMetaSql()}) = 1);`) === 't');
+  await runBookingMutants(migration);
+}
+
+async function runBookingMutants(migration) {
+  const source = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
+  const fn = source.match(/CREATE OR REPLACE FUNCTION public\.create_booking\(p_payload jsonb, p_request_id uuid\)[\s\S]*?\$function\$;/)?.[0];
+  const rollbackSource = (await readFile(path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql'), 'utf8')).replaceAll('\r\n', '\n');
+  const rollbackFn = rollbackSource.match(/CREATE OR REPLACE FUNCTION public\.create_booking\(p_payload jsonb, p_request_id uuid\)[\s\S]*?\$function\$;/)?.[0];
+  if (!fn || !rollbackFn) throw new Error('Cannot load create_booking mutant sources');
+  const run = async (name, definition, body) => {
+    if (definition === fn) throw new Error(`Could not construct create_booking mutant: ${name}`);
+    const file = path.join(dataDir, `mutant-booking-${name.replaceAll(/[^a-z0-9]+/gi, '-')}.sql`);
+    await writeFile(file, `BEGIN;\n${definition}\n${body}\nROLLBACK;\n`);
+    const result = tool(psql, psqlArgs(['-f', file]), { allowFailure: true });
+    record(`mutant rejected: create_booking ${name}`, result.status !== 0 && result.out.includes('ASSERTION_FAILED'), result.out.split(/\r?\n/).filter(line => /ERROR:|ASSERTION_FAILED/.test(line)).at(-1) || `exit=${result.status}`);
+  };
+  const appointment = findDow(plus(sql('SELECT public.kmo_today();'), 7), 1);
+  const pickup = plus(appointment, 2);
+  const holiday = pickup;
+  const holidayFixture = `INSERT INTO public.holidays(date,reason) VALUES ('${holiday}','mutant fixture');\nSELECT test_support.expect_error(${sqlLiteral(call(appointment, pickup, uuid(5901)))}, 'KMO_MIN_WORKDAYS');`;
+  const noHoliday = fn.replace('      AND NOT EXISTS (SELECT 1 FROM public.holidays h WHERE h.date = d.day::date)\n', '');
+  await run('holiday exclusion removed', noHoliday, holidayFixture);
+  const shortcut = fn.replace(/  SELECT count\(\*\)::integer INTO v_workdays[\s\S]*?  \) AS qualifying_workdays;/, `  IF v_pickup - v_appointment >= 2 THEN\n    v_workdays := public.kmo_min_booking_workdays();\n  ELSE\n    SELECT count(*)::integer INTO v_workdays FROM generate_series(v_appointment, v_pickup, interval '1 day') AS d(day) WHERE extract(dow FROM d.day)::integer <> ALL(public.kmo_closed_weekdays());\n  END IF;`);
+  await run('shortcut restored', shortcut, holidayFixture);
+  const thu = plus(appointment, 3), fri = plus(appointment, 4);
+  const acceptedFixture = `DO $test$ BEGIN BEGIN PERFORM public.create_booking(${sqlLiteral(jsonAscii(payload(thu, fri)))}::jsonb, '${uuid(5902)}'::uuid); EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'ASSERTION_FAILED: two inclusive workdays should pass'; END; END $test$;`;
+  await run('appointment boundary excluded', fn.replace('generate_series(v_appointment, v_pickup, interval', 'generate_series(v_appointment + 1, v_pickup, interval'), acceptedFixture);
+  await run('pickup boundary excluded', fn.replace('generate_series(v_appointment, v_pickup, interval', 'generate_series(v_appointment, v_pickup - 1, interval'), acceptedFixture);
+  const monday = findDow(plus(sql('SELECT public.kmo_today();'), 7), 1), tuesday = plus(monday, 1);
+  await run('Tuesday exclusion removed', fn.replace('extract(dow FROM d.day)::integer <> ALL(public.kmo_closed_weekdays())', 'true'), `SELECT test_support.expect_error(${sqlLiteral(call(monday, tuesday, uuid(5903)))}, 'KMO_MIN_WORKDAYS');`);
+  const badRollbackFn = rollbackFn.replace('IF v_pickup < v_appointment THEN', 'IF v_pickup <= v_appointment THEN');
+  const hashCheck = `SELECT test_support.assert(md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure))=(SELECT hash FROM test_support.create_booking_before), 'rollback must restore c54decf1 create_booking hash');`;
+  await run('rollback definition differs from c54decf1', badRollbackFn, hashCheck);
 }
 
 async function runStatusAndHoliday(today) {
@@ -542,6 +663,7 @@ try {
 
   const followup = path.join(repo, 'supabase/migrations/20261116100000_booking_rpc_followup_f8_f9.sql');
   const followupRollback = path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql');
+  await snapshotPostT3();
   sql("INSERT INTO public.booking_requests(request_id,job_id) VALUES ('00000000-0000-4000-8000-000000008000','ORPHAN-T3B-FIXTURE');");
   fileSql(followup);
   record('T3b migration removes pre-existing orphan before FK', sql("SELECT count(*) FROM public.booking_requests WHERE request_id='00000000-0000-4000-8000-000000008000';") === '0');
@@ -549,6 +671,9 @@ try {
   await clearFixtures();
   sql("INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');");
   await compareBaseline('after T3b migration', true);
+  await comparePostT3('after T3b migration');
+  record('T3b create_booking signature/security/config/ACL unchanged', createBookingMetaMatches());
+  await runHolidayWorkdays(today);
   record('T3b preserves generate_job_id signature/security/config/ACL', functionMetaMatches());
   await runF8(today);
   await runF9(today);
@@ -562,8 +687,11 @@ try {
   const restored = sql(`SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=(SELECT hash FROM test_support.generate_job_id_before) AND coalesce((SELECT p.proacl::text FROM pg_proc p WHERE p.oid='public.generate_job_id(text)'::regprocedure),'NULL')=(SELECT proacl FROM test_support.generate_job_id_before);`);
   const fkRemain = sql("SELECT count(*) FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey';");
   record('T3b rollback restores baseline generate_job_id hash and ACL', restored === 't');
+  record('T3b rollback restores create_booking hash to post-T3 snapshot', createBookingHashMatches());
+  record('T3b rollback preserves create_booking signature/security/config/ACL', createBookingMetaMatches());
   record('T3b rollback removes FK', fkRemain === '0');
   await compareBaseline('after T3b rollback');
+  await comparePostT3('after T3b rollback');
   await migrateTwice(followup);
   fileSql(followupRollback);
 
