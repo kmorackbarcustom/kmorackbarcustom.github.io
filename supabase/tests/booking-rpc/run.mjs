@@ -66,12 +66,44 @@ function parseJsonOutput(output) { try { return JSON.parse(output.trim().split(/
 function sectionBlocks(source) {
   return source.split(/(?=^-- ==== )/m).filter(s => s.startsWith('-- ==== '));
 }
+function sqlId(value) { return `"${value.replaceAll('"', '""')}"`; }
+function baselinePolicySql(source) {
+  const statements = [];
+  for (const block of sectionBlocks(source)) {
+    const rls = block.match(/^-- ==== rls public\.(\w+) ====/m);
+    if (rls) {
+      if (!['bookings', 'holidays'].includes(rls[1])) continue;
+      const meta = block.match(/rls_enabled=(true|false)[^\r\n]*acl=\{([^}]*)\}/m);
+      if (!meta) throw new Error(`Cannot parse baseline RLS metadata for ${rls[1]}`);
+      const table = rls[1];
+      const roles = [...meta[2].matchAll(/(?:^|,)([^=,]+)=/g)].map(m => m[1]).filter(role => role !== 'postgres');
+      if (meta[1] === 'true') statements.push(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`);
+      if (roles.length) statements.push(`GRANT ALL ON TABLE public.${table} TO ${roles.map(sqlId).join(', ')};`);
+      continue;
+    }
+    const policy = block.match(/^-- ==== policy public\.(\w+) (.+) ====/m);
+    if (!policy) continue;
+    if (!['bookings', 'holidays'].includes(policy[1])) continue;
+    const meta = block.match(/permissive=(PERMISSIVE|RESTRICTIVE) cmd=(SELECT|INSERT|UPDATE|DELETE|ALL) roles=\{([^}]*)\}/m);
+    const using = block.match(/^-- USING: (.*)$/m)?.[1];
+    const check = block.match(/^-- WITH CHECK: (.*)$/m)?.[1];
+    if (!meta || using === undefined || check === undefined) throw new Error(`Cannot parse baseline policy ${policy[2]}`);
+    const roles = meta[3].split(',').filter(Boolean).map(sqlId).join(', ');
+    const clauses = [`CREATE POLICY ${sqlId(policy[2])} ON public.${policy[1]} AS ${meta[1]} FOR ${meta[2]} TO ${roles}`];
+    if (using !== '-') clauses.push(`USING (${using})`);
+    if (check !== '-') clauses.push(`WITH CHECK (${check})`);
+    statements.push(`${clauses.join(' ')};`);
+  }
+  if (!statements.length) throw new Error('No baseline RLS/policy definitions parsed');
+  return `${statements.join('\n')}\n`;
+}
 async function sha(file) { return createHash('sha256').update(await readFile(file)).digest('hex'); }
 async function loadBaseline() {
   const base = path.join(repo, 'supabase/baseline/live-20261115');
   const tables = await readFile(path.join(base, 'tables.sql'), 'utf8');
   const functions = await readFile(path.join(base, 'functions.sql'), 'utf8');
   const triggers = await readFile(path.join(base, 'triggers.sql'), 'utf8');
+  const policies = await readFile(path.join(base, 'policies-rls.sql'), 'utf8');
   const tableBlocks = sectionBlocks(tables).filter(b => /^-- ==== (?:columns|constraint|index) public\.(?:bookings|holidays)\b/m.test(b));
   const constrainedIndexes = new Set(tableBlocks.filter(b => b.startsWith('-- ==== constraint ')).map(b => b.match(/^-- ==== constraint public\.\w+ ([^ ]+) ====/m)?.[1]).filter(Boolean));
   const selectedTables = tableBlocks.filter(b => !b.startsWith('-- ==== index ') || !constrainedIndexes.has(b.match(/^-- ==== index public\.\w+ ([^ ]+) ====/m)?.[1])).join('\n');
@@ -86,13 +118,14 @@ async function loadBaseline() {
   for (const [label, body] of [['tables', selectedTables], ['functions', selectedFunctions], ['triggers', selectedTriggers]]) {
     if (!body.trim()) throw new Error(`No baseline ${label} blocks selected`);
   }
-  const files = [
-    [path.join(testDir, 'setup.sql'), await readFile(path.join(testDir, 'setup.sql'), 'utf8')],
-    [path.join(testDir, 'rls.sql'), await readFile(path.join(testDir, 'rls.sql'), 'utf8')],
-  ];
+  const setup = await readFile(path.join(testDir, 'setup.sql'), 'utf8');
   const defs = path.join(dataDir, 'baseline-definitions.sql');
-  await writeFile(defs, `${files[0][1]}\n${selectedTables}\n${files[1][1]}\n${selectedFunctions}\n${selectedTriggers}\n`);
-  fileSql(defs);
+  await writeFile(defs, `${setup}\n${selectedTables}\n`);
+  const policiesFile = path.join(dataDir, 'baseline-policies.sql');
+  await writeFile(policiesFile, baselinePolicySql(policies));
+  const remainingDefs = path.join(dataDir, 'baseline-functions-triggers.sql');
+  await writeFile(remainingDefs, `${selectedFunctions}\n${selectedTriggers}\n`);
+  fileSql(defs); fileSql(policiesFile); fileSql(remainingDefs);
   fileSql(path.join(testDir, 'assertions.sql'));
   const baselineRefs = await sql(`SELECT count(*) FROM public.bookings;`);
   record('baseline definitions loaded from source blocks', baselineRefs === '0', `tables/functions/triggers extracted from baseline files; bookings=${baselineRefs}`);
