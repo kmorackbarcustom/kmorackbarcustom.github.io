@@ -835,7 +835,7 @@
       </div>
 
       <!-- Submit -->
-      <button type="submit" class="btn" id="submitBtn" data-i18n="submitBooking">ยืนยันการจอง</button>
+      <button type="submit" class="btn" id="submitBtn" data-i18n="submitBooking" disabled>ยืนยันการจอง</button>
 
       <!-- Deposit -->
       <div class="section">
@@ -888,13 +888,14 @@
   </div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="kmo-booking-api.js"></script>
   <script>
     const I18N = {
       th: {
-        title: 'จองคิว | KMO RACK BAR CUSTOM', language: 'ภาษา', qrAlt: 'QR Code PromptPay', headerTitle: 'จองคิวขึ้นงาน', calendarTitle: '🗓️ เช็ควันว่างก่อนจอง', dailyCapacity: 'รับได้วันละ 3 คิว', customerSection: 'ข้อมูลลูกค้า', nameLabel: 'ชื่อ<span class="required">*</span>', namePlaceholder: 'ชื่อ-นามสกุล', phoneLabel: 'เบอร์โทรศัพท์<span class="required">*</span>', phonePlaceholder: '0812345678', platformLabel: 'จองผ่านช่องทางไหน<span class="required">*</span>', platformPlaceholder: 'เลือกช่องทาง', platformWalkIn: 'มาหน้าร้าน', platformReferral: 'เพื่อนแนะนำ', other: 'อื่นๆ', vehicleSection: 'ข้อมูลรถ', brandLabel: 'ยี่ห้อรถ<span class="required">*</span>', brandPlaceholder: 'เช่น Honda, Yamaha', modelLabel: 'รุ่นรถ', modelPlaceholder: 'เช่น PCX 160, NMAX', servicesLabel: 'รายการที่ต้องการทำ<span class="required">*</span>', servicesPlaceholder: 'เช่น แคชบาร์, แร็คท้าย, แร็คข้าง', colorLabel: 'สี', colorPlaceholder: 'เช่น ดำด้าน, เงิน', photoSection: '📷 รูปภาพรถ (ไม่บังคับ)', uploadChoose: 'แตะเพื่อเลือกรูป', uploadDrag: 'หรือลากรูปมาวางตรงนี้', uploadLimits: 'JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)', dateSection: 'เลือกวันนัด', legendOpen: 'ว่าง 3 คิว', legendFew: 'ว่าง 1-2 คิว', legendClosed: 'ปิดรับคิว', previousMonth: 'เดือนก่อนหน้า', nextMonth: 'เดือนถัดไป', weekdaySun: 'อา', weekdayMon: 'จ', weekdayTue: 'อ', weekdayWed: 'พ', weekdayThu: 'พฤ', weekdayFri: 'ศ', weekdaySat: 'ส', calendarLoading: 'กำลังโหลดปฏิทิน...', pickupSection: 'วันรับรถ', pickupLabel: 'วันรับรถ (โดยประมาณ)<span class="required">*</span>', submitBooking: 'ยืนยันการจอง', depositSection: 'ชำระมัดจำ', depositInstructions: 'สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร', accountName: 'ชื่อบัญชี: เคโม บาย เอนเทคลิป', slipTitle: '📌 ส่งสลิปยืนยัน', slipInstructions: 'กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ', slipMessageTitle: 'ข้อความสำหรับส่งพร้อมสลิป', copySlip: 'คัดลอกข้อความส่งสลิป', addLine: 'Add Line OA เพื่อส่งสลิป', note: 'หมายเหตุ:', followupNote: 'หากยังไม่ได้ชำระมัดจำ<br>ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน', loading: 'กำลังโหลดปฏิทิน...', available: 'ว่าง {count} คิว', availableSingle: 'ว่าง {count} คิว', closed: 'ปิดรับคิว', submitting: 'กำลังบันทึก...', submitIdle: 'ยืนยันการจอง', success: 'จองคิวสำเร็จ! รหัสงาน: {id}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย', jobIdError: 'ไม่สามารถสร้างรหัสงานได้', saveError: 'ไม่สามารถบันทึกข้อมูลได้', errorPrefix: 'เกิดข้อผิดพลาด: ', maxImages: 'เลือกรูปได้สูงสุด 5 รูปเท่านั้น', imageTooLarge: 'รูป {name} ใหญ่เกิน 5MB', uploadProgress: 'กำลังอัปโหลดรูป {current}/{total}...', photoAlt: 'รูปที่ {index}', removePhoto: 'ลบรูป', copyDone: 'คัดลอกแล้ว', copySlip: 'คัดลอกข้อความส่งสลิป', copySelect: 'เลือกข้อความให้แล้ว กรุณากด Copy', slipIntro: 'แจ้งชำระมัดจำจองคิว', jobLabel: 'รหัสงาน', customerName: 'ชื่อ', phone: 'เบอร์', appointment: 'วันนัด', pickupDate: 'วันรับรถ', products: 'รายการทำ', noColor: '-', slipDeposit: 'แนบสลิปมัดจำ 500 บาท', thb: '฿500', unavailable: 'ปิดรับคิว'
+        title: 'จองคิว | KMO RACK BAR CUSTOM', language: 'ภาษา', qrAlt: 'QR Code PromptPay', headerTitle: 'จองคิวขึ้นงาน', calendarTitle: '🗓️ เช็ควันว่างก่อนจอง', dailyCapacity: 'ดูจำนวนคิวว่างในปฏิทิน', customerSection: 'ข้อมูลลูกค้า', nameLabel: 'ชื่อ<span class="required">*</span>', namePlaceholder: 'ชื่อ-นามสกุล', phoneLabel: 'เบอร์โทรศัพท์<span class="required">*</span>', phonePlaceholder: '0812345678', platformLabel: 'จองผ่านช่องทางไหน<span class="required">*</span>', platformPlaceholder: 'เลือกช่องทาง', platformWalkIn: 'มาหน้าร้าน', platformReferral: 'เพื่อนแนะนำ', other: 'อื่นๆ', vehicleSection: 'ข้อมูลรถ', brandLabel: 'ยี่ห้อรถ<span class="required">*</span>', brandPlaceholder: 'เช่น Honda, Yamaha', modelLabel: 'รุ่นรถ', modelPlaceholder: 'เช่น PCX 160, NMAX', servicesLabel: 'รายการที่ต้องการทำ<span class="required">*</span>', servicesPlaceholder: 'เช่น แคชบาร์, แร็คท้าย, แร็คข้าง', colorLabel: 'สี', colorPlaceholder: 'เช่น ดำด้าน, เงิน', photoSection: '📷 รูปภาพรถ (ไม่บังคับ)', uploadChoose: 'แตะเพื่อเลือกรูป', uploadDrag: 'หรือลากรูปมาวางตรงนี้', uploadLimits: 'JPG, PNG ไม่เกิน 5MB ต่อรูป (สูงสุด 5 รูป)', dateSection: 'เลือกวันนัด', legendOpen: 'ว่าง', legendFew: 'คิวแน่น', legendClosed: 'ปิดรับคิว', previousMonth: 'เดือนก่อนหน้า', nextMonth: 'เดือนถัดไป', weekdaySun: 'อา', weekdayMon: 'จ', weekdayTue: 'อ', weekdayWed: 'พ', weekdayThu: 'พฤ', weekdayFri: 'ศ', weekdaySat: 'ส', calendarLoading: 'กำลังโหลดปฏิทิน...', pickupSection: 'วันรับรถ', pickupLabel: 'วันรับรถ (โดยประมาณ)<span class="required">*</span>', submitBooking: 'ยืนยันการจอง', depositSection: 'ชำระมัดจำ', depositInstructions: 'สแกนจ่ายมัดจำ 500 บาท ผ่านแอปธนาคาร', accountName: 'ชื่อบัญชี: เคโม บาย เอนเทคลิป', slipTitle: '📌 ส่งสลิปยืนยัน', slipInstructions: 'กดยืนยันการจองด้านบนให้ได้รหัสงานก่อน<br>จากนั้นชำระมัดจำ แล้วกด Add LINE OA เพื่อส่งสลิปพร้อมรหัสงานครับ', slipMessageTitle: 'ข้อความสำหรับส่งพร้อมสลิป', copySlip: 'คัดลอกข้อความส่งสลิป', addLine: 'Add Line OA เพื่อส่งสลิป', note: 'หมายเหตุ:', followupNote: 'หากยังไม่ได้ชำระมัดจำ<br>ทางร้านจะติดต่อกลับภายใน 24 ชม. เพื่อยืนยันการจองและแจ้งช่องทางชำระเงิน', loading: 'กำลังโหลดปฏิทิน...', available: 'ว่าง {count} คิว', availableSingle: 'ว่าง {count} คิว', closed: 'ปิดรับคิว', submitting: 'กำลังบันทึก...', submitIdle: 'ยืนยันการจอง', success: 'จองคิวสำเร็จ! รหัสงาน: {id}<br>คัดลอกข้อความด้านล่าง แล้วส่งพร้อมสลิปใน LINE ได้เลย', errorPrefix: 'เกิดข้อผิดพลาด: ', maxImages: 'เลือกรูปได้สูงสุด 5 รูปเท่านั้น', imageTooLarge: 'รูป {name} ใหญ่เกิน 5MB', uploadProgress: 'กำลังอัปโหลดรูป {current}/{total}...', photoAlt: 'รูปที่ {index}', removePhoto: 'ลบรูป', copyDone: 'คัดลอกแล้ว', copySlip: 'คัดลอกข้อความส่งสลิป', copySelect: 'เลือกข้อความให้แล้ว กรุณากด Copy', slipIntro: 'แจ้งชำระมัดจำจองคิว', jobLabel: 'รหัสงาน', customerName: 'ชื่อ', phone: 'เบอร์', appointment: 'วันนัด', pickupDate: 'วันรับรถ', products: 'รายการทำ', noColor: '-', slipDeposit: 'แนบสลิปมัดจำ 500 บาท', thb: '฿500', unavailable: 'ปิดรับคิว', calendarLoadFailed: 'โหลดปฏิทิน/วันหยุดไม่ได้ ยังจองไม่ได้ตอนนี้', retry: 'ลองใหม่', denseWarning: '⚠️ ช่วงวันที่เลือกคิวค่อนข้างแน่น อาจส่งงานล่าช้ากว่ากำหนดที่แจ้งไว้ หากต้องการความชัวร์ แนะนำทักแอดมินก่อนจอง', imageAttachFailed: 'จองสำเร็จแล้ว แต่แนบรูปไม่ได้ กรุณาส่งรูปให้แอดมินทาง LINE', networkError: 'เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่', unknownError: 'ไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองอีกครั้ง', KMO_BAD_REQUEST: 'ข้อมูลการจองไม่ครบหรือไม่ถูกต้อง กรุณาตรวจสอบข้อมูลอีกครั้ง', KMO_APPOINT_PAST: 'วันที่นัดผ่านไปแล้ว กรุณาเลือกวันใหม่', KMO_APPOINT_CLOSED_WEEKDAY: 'ร้านปิดในวันที่เลือก กรุณาเลือกวันใหม่', KMO_APPOINT_HOLIDAY: 'ร้านปิดในวันที่เลือก กรุณาเลือกวันใหม่', KMO_PICKUP_MISSING: 'กรุณาเลือกวันรับรถ', KMO_PICKUP_BEFORE_APPOINT: 'วันรับรถต้องไม่ก่อนวันนัดเข้า', KMO_MIN_WORKDAYS: 'วันรับรถเร็วเกินไป กรุณาเลือกวันรับรถใหม่ หรือติดต่อแอดมิน', KMO_DAY_FULL: 'วันที่เลือกคิวเต็มแล้ว กรุณาเลือกวันใหม่', KMO_TOO_MANY_IMAGES: 'จำนวนรูปเกินที่ระบบรองรับ กรุณาเลือกรูปให้น้อยลง', KMO_IMAGE_URL_INVALID: 'แนบรูปไม่สำเร็จ กรุณาส่งรูปให้แอดมินทาง LINE', KMO_REQUEST_NOT_FOUND: 'จองสำเร็จแล้ว แต่แนบรูปไม่สำเร็จ กรุณาส่งรูปให้แอดมินทาง LINE', KMO_IMAGES_ALREADY_ATTACHED: 'รูปแนบกับรายการจองแล้ว', KMO_BAD_RANGE: 'โหลดช่วงวันไม่ได้ กรุณาลองใหม่'
       },
       en: {
-        title: 'Book a Service | KMO RACK BAR CUSTOM', language: 'Language', qrAlt: 'PromptPay QR code', headerTitle: 'Book a Service Slot', calendarTitle: '🗓️ Check availability before booking', dailyCapacity: 'Up to 3 bookings per day', customerSection: 'Customer Information', nameLabel: 'Name<span class="required">*</span>', namePlaceholder: 'Full name', phoneLabel: 'Phone number<span class="required">*</span>', phonePlaceholder: '+66 81 234 5678', platformLabel: 'How did you hear about us?<span class="required">*</span>', platformPlaceholder: 'Select a channel', platformWalkIn: 'Walk-in', platformReferral: 'Friend referral', other: 'Other', vehicleSection: 'Vehicle Information', brandLabel: 'Vehicle brand<span class="required">*</span>', brandPlaceholder: 'e.g. Honda, Yamaha', modelLabel: 'Vehicle model', modelPlaceholder: 'e.g. PCX 160, NMAX', servicesLabel: 'Requested work<span class="required">*</span>', servicesPlaceholder: 'e.g. crash bar, rear rack, side rack', colorLabel: 'Color', colorPlaceholder: 'e.g. matte black, silver', photoSection: '📷 Vehicle Photos (Optional)', uploadChoose: 'Tap to choose photos', uploadDrag: 'or drag and drop photos here', uploadLimits: 'JPG or PNG, up to 5 MB each (maximum 5 photos)', dateSection: 'Choose an appointment date', legendOpen: '3 slots available', legendFew: '1–2 slots available', legendClosed: 'Fully booked', previousMonth: 'Previous month', nextMonth: 'Next month', weekdaySun: 'Sun', weekdayMon: 'Mon', weekdayTue: 'Tue', weekdayWed: 'Wed', weekdayThu: 'Thu', weekdayFri: 'Fri', weekdaySat: 'Sat', calendarLoading: 'Loading calendar...', pickupSection: 'Vehicle Pickup', pickupLabel: 'Estimated pickup date<span class="required">*</span>', submitBooking: 'Confirm Booking', depositSection: 'Deposit Payment', depositInstructions: 'Scan to pay the THB 500 deposit using your banking app', accountName: 'Account name: เคโม บาย เอนเทคลิป', slipTitle: '📌 Send your payment slip', slipInstructions: 'Confirm your booking above to receive a job ID first.<br>Then pay the deposit and tap Add LINE OA to send your slip with the job ID.', slipMessageTitle: 'Message to send with your payment slip', copySlip: 'Copy payment message', addLine: 'Add LINE OA to send your payment slip', note: 'Note:', followupNote: 'If you have not paid the deposit yet,<br>we will contact you within 24 hours to confirm your booking and explain payment options.', loading: 'Loading calendar...', available: '{count} slots available', availableSingle: '{count} slot available', closed: 'Fully booked', submitting: 'Saving...', submitIdle: 'Confirm Booking', success: 'Booking confirmed! Job ID: {id}<br>Copy the message below and send it with your payment slip on LINE.', jobIdError: 'Unable to create a job ID.', saveError: 'Unable to save your booking.', errorPrefix: 'Error: ', maxImages: 'You can select up to 5 photos.', imageTooLarge: 'The image {name} exceeds 5 MB.', uploadProgress: 'Uploading photo {current}/{total}...', photoAlt: 'Photo {index}', removePhoto: 'Remove photo', copyDone: 'Copied', copySlip: 'Copy payment message', copySelect: 'Text selected. Please press Copy.', slipIntro: 'Deposit payment for a service booking', jobLabel: 'Job ID', customerName: 'Name', phone: 'Phone', appointment: 'Appointment date', pickupDate: 'Pickup date', products: 'Requested work', noColor: '-', slipDeposit: 'Attach the THB 500 deposit payment slip', thb: 'THB 500', unavailable: 'Fully booked'
+        title: 'Book a Service | KMO RACK BAR CUSTOM', language: 'Language', qrAlt: 'PromptPay QR code', headerTitle: 'Book a Service Slot', calendarTitle: '🗓️ Check availability before booking', dailyCapacity: 'See available slots in the calendar', customerSection: 'Customer Information', nameLabel: 'Name<span class="required">*</span>', namePlaceholder: 'Full name', phoneLabel: 'Phone number<span class="required">*</span>', phonePlaceholder: '+66 81 234 5678', platformLabel: 'How did you hear about us?<span class="required">*</span>', platformPlaceholder: 'Select a channel', platformWalkIn: 'Walk-in', platformReferral: 'Friend referral', other: 'Other', vehicleSection: 'Vehicle Information', brandLabel: 'Vehicle brand<span class="required">*</span>', brandPlaceholder: 'e.g. Honda, Yamaha', modelLabel: 'Vehicle model', modelPlaceholder: 'e.g. PCX 160, NMAX', servicesLabel: 'Requested work<span class="required">*</span>', servicesPlaceholder: 'e.g. crash bar, rear rack, side rack', colorLabel: 'Color', colorPlaceholder: 'e.g. matte black, silver', photoSection: '📷 Vehicle Photos (Optional)', uploadChoose: 'Tap to choose photos', uploadDrag: 'or drag and drop photos here', uploadLimits: 'JPG, PNG, up to 5 MB each (maximum 5 photos)', dateSection: 'Choose an appointment date', legendOpen: 'Available', legendFew: 'Filling fast', legendClosed: 'Closed', previousMonth: 'Previous month', nextMonth: 'Next month', weekdaySun: 'Sun', weekdayMon: 'Mon', weekdayTue: 'Tue', weekdayWed: 'Wed', weekdayThu: 'Thu', weekdayFri: 'Fri', weekdaySat: 'Sat', calendarLoading: 'Loading calendar...', pickupSection: 'Vehicle Pickup', pickupLabel: 'Estimated pickup date<span class="required">*</span>', submitBooking: 'Confirm Booking', depositSection: 'Deposit Payment', depositInstructions: 'Scan to pay the THB 500 deposit using your banking app', accountName: 'Account name: เคโม บาย เอนเทคลิป', slipTitle: '📌 Send your payment slip', slipInstructions: 'Confirm your booking above to receive a job ID first.<br>Then pay the deposit and tap Add LINE OA to send your slip with the job ID.', slipMessageTitle: 'Message to send with your payment slip', copySlip: 'Copy payment message', addLine: 'Add LINE OA to send your payment slip', note: 'Note:', followupNote: 'If you have not paid your deposit, we will contact you within 24 hours to confirm the booking and explain payment options.', loading: 'Loading calendar...', available: '{count} slots available', availableSingle: '{count} slot available', closed: 'Closed', submitting: 'Saving...', submitIdle: 'Confirm Booking', success: 'Booking confirmed! Job ID: {id}<br>Copy the message below and send it with your payment slip on LINE.', errorPrefix: 'Error: ', maxImages: 'You can select up to 5 photos.', imageTooLarge: 'The image {name} exceeds 5 MB.', uploadProgress: 'Uploading photo {current}/{total}...', photoAlt: 'Photo {index}', removePhoto: 'Remove photo', copyDone: 'Copied', copySlip: 'Copy payment message', copySelect: 'Text selected. Please press Copy.', slipIntro: 'Deposit payment for a service booking', jobLabel: 'Job ID', customerName: 'Name', phone: 'Phone', appointment: 'Appointment date', pickupDate: 'Pickup date', products: 'Requested work', noColor: '-', slipDeposit: 'Attach the THB 500 deposit payment slip', thb: 'THB 500', unavailable: 'Closed', calendarLoadFailed: 'Calendar or holiday information could not be loaded. Booking is unavailable right now.', retry: 'Try again', denseWarning: '⚠️ This date is filling up, so work may take longer than expected. Please contact the shop if you need to confirm timing.', imageAttachFailed: 'Your booking succeeded, but the photos could not be attached. Please send them to the shop through LINE.', networkError: 'Connection failed. Check your internet connection and try again.', unknownError: 'We could not complete this request. Please try again.', KMO_BAD_REQUEST: 'Some booking information is missing or invalid. Please check it and try again.', KMO_APPOINT_PAST: 'The appointment date has passed. Please choose another date.', KMO_APPOINT_CLOSED_WEEKDAY: 'The shop is closed on the selected date. Please choose another date.', KMO_APPOINT_HOLIDAY: 'The shop is closed on the selected date. Please choose another date.', KMO_PICKUP_MISSING: 'Please choose a pickup date.', KMO_PICKUP_BEFORE_APPOINT: 'The pickup date must be on or after the appointment date.', KMO_MIN_WORKDAYS: 'The pickup date is too soon. Choose a later date or contact the shop.', KMO_DAY_FULL: 'The selected date is fully booked. Please choose another date.', KMO_TOO_MANY_IMAGES: 'Too many photos were selected. Please choose fewer photos.', KMO_IMAGE_URL_INVALID: 'The photos could not be attached. Please send them to the shop through LINE.', KMO_REQUEST_NOT_FOUND: 'Your booking succeeded, but the photos could not be attached. Please send them to the shop through LINE.', KMO_IMAGES_ALREADY_ATTACHED: 'The photos are already attached to this booking.', KMO_BAD_RANGE: 'The selected date range could not be loaded. Please try again.'
       }
     };
     const LOCALE_KEY = 'kmo_locale';
@@ -945,6 +946,7 @@
     // Supabase Config
     const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_8sBSio03fAXOoBK3inSnSQ_gTXsEVGT';
+    const bookingApi = KmoBookingApi.createApi({ supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
     const LIFF_ID = '2011076704-ESBn0cYe';
     let lineGate = { friendFlag: false, userId: null, error: false };
 
@@ -988,34 +990,15 @@
     let currentMonth = new Date();
     let selectedDate = null;
     let availabilityData = {};
-    let holidays = new Set();
+    let calendarLoadFailed = false;
+    let submitInFlight = false;
     let latestSlipMessage = '';
     let cartMeta = null;
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
     const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
     const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
-    // Cap เดียว: รับรถเข้าใหม่ได้ DAILY_CAP คัน/วัน นับแค่วันรับรถเข้า (appointment_date)
-    // เท่านั้น — งานที่ค้างอยู่ในร้านนานถึง pickup_date ไม่ไปบล็อกคิวรับรถใหม่วันอื่น
-    // (เคย fix แบบนี้มาแล้วรอบ 656a791 แต่ถูก revert ตอนทำโมเดล 2 พูล ตอนนี้เอากลับมา)
-    // จองผ่านเว็บขั้นต่ำ MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคารที่ร้านปิด) คิวสั้นกว่านี้/
-    // เร่งด่วนให้ทักแอดมินแทน — วันไหนเหลือช่องไม่เกิน DENSE_THRESHOLD เตือนลูกค้าว่าคิวแน่น
-    const DAILY_CAP = 3;
-    const MIN_BOOKING_DAYS = 2;
     const DENSE_THRESHOLD = 1;
-
-    function buildPoolUsage(bookings) {
-      const usage = {};
-
-      bookings
-        .filter(b => b.queue_status !== 'ยกเลิก')
-        .forEach(b => {
-          const key = b.appointment_date;
-          usage[key] = (usage[key] || 0) + 1;
-        });
-
-      return usage;
-    }
 
     document.querySelectorAll('[data-locale]').forEach(button => button.addEventListener('click', () => setLocale(button.dataset.locale)));
     applyLocale();
@@ -1025,12 +1008,10 @@
       const dateParam = getDateFromQuery();
       if (dateParam) currentMonth = parseDateStr(dateParam);
 
-      await loadHolidays();
       await loadCalendar();
       setMinPickupDate();
-      if (dateParam) selectDate(dateParam);
+      if (dateParam && availabilityData[dateParam] && !availabilityData[dateParam].is_closed && availabilityData[dateParam].used < availabilityData[dateParam].cap && parseDateStr(dateParam) >= new Date(new Date().setHours(0, 0, 0, 0))) selectDate(dateParam);
       applyCartPrefillFromQuery();
-      document.getElementById('pickupDate').addEventListener('change', checkQueueDensity);
       document.getElementById('lineGateRecheckBtn').addEventListener('click', async () => {
         try {
           lineGate.friendFlag = (await liff.getFriendship()).friendFlag === true;
@@ -1043,37 +1024,10 @@
       initLineGate();
     });
 
-    // เตือนลูกค้าล่วงหน้าถ้าวันรับรถเข้าที่เลือกคิวเหลือน้อย (ไม่บล็อกการจอง แค่แจ้งเตือน)
-    // capacity นับแค่วันรับรถเข้าวันเดียว ไม่เกี่ยวกับ pickup_date
-    async function checkQueueDensity() {
-      const appointVal = document.getElementById('appointDate').value;
-      const pickupVal = document.getElementById('pickupDate').value;
-      if (!appointVal || !pickupVal) { hideWarning(); return; }
-      if (parseDateStr(pickupVal) < parseDateStr(appointVal)) { hideWarning(); return; }
-
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ p_start: appointVal, p_end: appointVal })
-        });
-        if (!res.ok) return; // ponytail: เช็คแบบ soft warning เน็ตมีปัญหาก็แค่ไม่เตือน ไม่บล็อกฟอร์ม
-
-        const usage = buildPoolUsage(await res.json());
-        const dense = DAILY_CAP - (usage[appointVal] || 0) <= DENSE_THRESHOLD;
-
-        if (dense) {
-          showWarning('⚠️ ช่วงวันที่เลือกคิวค่อนข้างแน่น อาจส่งงานล่าช้ากว่ากำหนดที่แจ้งไว้ หากต้องการความชัวร์ แนะนำทักแอดมินก่อนจอง');
-        } else {
-          hideWarning();
-        }
-      } catch (error) {
-        // เน็ตมีปัญหา ไม่บล็อกฟอร์ม
-      }
+    function checkQueueDensity() {
+      const row = availabilityData[document.getElementById('appointDate').value];
+      if (row && row.cap - row.used <= DENSE_THRESHOLD) showWarning(t('denseWarning'));
+      else hideWarning();
     }
 
     function toDateStr(date) {
@@ -1098,27 +1052,11 @@
       return ALLOWED_IMAGE_EXTENSIONS.includes(ext) && ALLOWED_IMAGE_MIME_TYPES.includes(file.type);
     }
 
-    // โหลด holidays จาก Supabase
-    async function loadHolidays() {
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=date`, {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
-        const data = await res.json();
-        holidays = new Set(data.map(h => h.date));
-      } catch (err) {
-        console.error('โหลด holidays ไม่ได้:', err);
-      }
-    }
-
     // Load Calendar
     async function loadCalendar() {
       renderCalendarHeader();
-      await fetchAvailability();
-      calendarReady = true;
+      calendarReady = await fetchAvailability();
+      document.getElementById('submitBtn').disabled = !calendarReady;
       renderCalendar();
     }
 
@@ -1137,27 +1075,14 @@
         const firstDay = toDateStr(new Date(year, month, 1));
         const lastDay = toDateStr(new Date(year, month + 1, 0));
 
-        // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
-        // RPC คืนแถวที่ overlap ช่วงเดือนนี้มาให้ (รวมงานที่เริ่มเดือนก่อนแต่ยัง
-        // ไม่รับคืน) แต่ buildPoolUsage นับความจุจากแค่ appointment_date เท่านั้น
-        // แถวที่ appointment_date ไม่ได้อยู่ในเดือนนี้จะไม่ไปแมตช์วันไหนในปฏิทิน — ไม่มีผล
-        const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ p_start: firstDay, p_end: lastDay })
-          }
-        );
-
-        const bookings = await response.json();
-        availabilityData = buildPoolUsage(bookings);
-      } catch (error) {
-        console.error('Error fetching availability:', error);
+        const rows = await bookingApi.loadDayUsage(firstDay, lastDay);
+        availabilityData = Object.fromEntries(rows.map(row => [row.day, row]));
+        calendarLoadFailed = false;
+        return true;
+      } catch (_) {
+        availabilityData = {};
+        calendarLoadFailed = true;
+        return false;
       }
     }
 
@@ -1165,6 +1090,17 @@
     function renderCalendar() {
       const grid = document.getElementById('dateGrid');
       grid.innerHTML = '';
+      if (calendarLoadFailed) {
+        const error = document.createElement('div');
+        error.className = 'calendar-error';
+        error.textContent = t('calendarLoadFailed');
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.textContent = t('retry');
+        retry.addEventListener('click', loadCalendar);
+        grid.append(error, retry);
+        return;
+      }
       
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
@@ -1185,13 +1121,12 @@
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const dateStr = toDateStr(date);
-        const used = (availabilityData || {})[dateStr] || 0;
-        const remaining = DAILY_CAP - used;
-        const isFullyClosed = remaining <= 0;
+        const row = availabilityData[dateStr];
+        const used = row ? row.used : 0;
+        const remaining = row ? row.cap - row.used : 0;
+        const isFullyClosed = !row || row.is_closed || used >= row.cap;
         const isDense = remaining <= DENSE_THRESHOLD;
         const isPast = date < today;
-        const isHol = holidays.has(dateStr);
-        const isTue = date.getDay() === 2;
         const isToday = dateStr === todayStr;
 
         const cell = document.createElement('div');
@@ -1199,7 +1134,7 @@
 
         if (isPast) {
           cell.classList.add('past', 'disabled');
-        } else if (isHol || isTue || isFullyClosed) {
+        } else if (isFullyClosed) {
           cell.classList.add('full', 'status-full', 'disabled');
         } else if (selectedDate === dateStr) {
           cell.classList.add('selected');
@@ -1213,7 +1148,7 @@
         if (isToday) cell.classList.add('today');
 
         let labelText = '';
-        if (!isPast && !isHol && !isTue) {
+        if (!isPast && row && !row.is_closed) {
           labelText = isFullyClosed ? t('closed') : t(remaining === 1 ? 'availableSingle' : 'available', { count: remaining });
         }
 
@@ -1225,7 +1160,7 @@
           ` : ''}
         `;
 
-        if (!isPast && !isHol && !isTue && !isFullyClosed) {
+        if (!isPast && row && !row.is_closed && !isFullyClosed) {
           cell.onclick = () => selectDate(dateStr);
         }
 
@@ -1239,19 +1174,8 @@
       document.getElementById('appointDate').value = dateStr;
       renderCalendar();
 
-      // วันรับรถต้องห่างจากวันนัดอย่างน้อย MIN_BOOKING_DAYS วันทำการ (ไม่นับวันอังคาร)
-      document.getElementById('pickupDate').min = minPickupFor(dateStr);
+      document.getElementById('pickupDate').min = dateStr;
       checkQueueDensity();
-    }
-
-    function minPickupFor(appointDateStr) {
-      const d = parseDateStr(appointDateStr);
-      let workingDays = 1; // วันนัดเองนับเป็นวันทำการวันที่ 1
-      while (workingDays < MIN_BOOKING_DAYS) {
-        d.setDate(d.getDate() + 1);
-        if (d.getDay() !== 2) workingDays++;
-      }
-      return toDateStr(d);
     }
 
     // Change Month
@@ -1259,14 +1183,13 @@
       currentMonth.setMonth(currentMonth.getMonth() + delta);
       selectedDate = null;
       document.getElementById('appointDate').value = '';
+      availabilityData = {};
       loadCalendar();
     }
 
     // Set Min Pickup Date
     function setMinPickupDate() {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      document.getElementById('pickupDate').min = toDateStr(tomorrow);
+      document.getElementById('pickupDate').min = document.getElementById('appointDate').value || '';
     }
 
     function getDateFromQuery() {
@@ -1317,11 +1240,12 @@
     // Form Submit
     document.getElementById('bookingForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (submitInFlight || !calendarReady) return;
       if (!lineGate.friendFlag || !lineGate.userId) {
         showError('กรุณาเพิ่มเพื่อน LINE OA ก่อนทำการจอง');
         return;
       }
-      
+      submitInFlight = true;
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.textContent = t('submitting');
@@ -1338,81 +1262,16 @@
           color: document.getElementById('color').value || null,
           appointment_date: document.getElementById('appointDate').value,
           pickup_date: document.getElementById('pickupDate').value,
-          queue_status: 'ยืนยัน',
-          production_status: 'รอเริ่มงาน',
           cart_meta: cartMeta,
           estimated_total: cartMeta && Number.isFinite(Number(cartMeta.estimated_total)) ? Number(cartMeta.estimated_total) : null,
           source_page: cartMeta?.source_page || null
         };
-
-        // ปฏิทินเช็คได้แค่ตอนโหลดเดือน ต้อง re-check วันรับรถเข้าจริงก่อนบันทึก
-        // กันคิวชนที่ปฏิทินตอนโหลดไม่รู้จัก (best-effort กัน race condition ไม่ใช่ DB-level guarantee)
-        // capacity นับแค่วันรับรถเข้า (appointment_date) วันเดียว ไม่เกี่ยวกับ pickup_date
-        const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ p_start: data.appointment_date, p_end: data.appointment_date })
-        });
-        if (!checkRes.ok) throw new Error('ไม่สามารถตรวจสอบคิวว่างได้');
-
-        const usage = buildPoolUsage(await checkRes.json());
-        const newStart = parseDateStr(data.appointment_date);
-        const newEnd = parseDateStr(data.pickup_date);
-        if (newEnd < newStart) throw new Error('วันรับรถต้องไม่ก่อนวันนัดเข้า');
-
-        // วันอังคารเป็นวันหยุดร้าน ไม่นับเป็นวันทำงาน — ไม่นับรวมในจำนวนวัน
-        let newSpanDays = 0;
-        for (const c = new Date(newStart); c <= newEnd; c.setDate(c.getDate() + 1)) {
-          if (c.getDay() !== 2) newSpanDays++;
-        }
-        if (newSpanDays < MIN_BOOKING_DAYS) {
-          throw new Error(`จองผ่านเว็บขั้นต่ำ ${MIN_BOOKING_DAYS} วันทำการ (ไม่นับวันอังคาร) หากต้องการคิววันเดียว/เร่งด่วน กรุณาติดต่อแอดมินโดยตรง`);
-        }
-
-        if ((usage[data.appointment_date] || 0) >= DAILY_CAP) {
-          throw new Error(`วันที่เลือก (${data.appointment_date}) คิวเต็มพอดี กรุณาเลือกวันใหม่`);
-        }
-
-        // Generate JobID
-        const jobIdResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/generate_job_id`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ p_platform: data.source })
-        });
-
-        if (!jobIdResponse.ok) throw Object.assign(new Error(t('jobIdError')), { i18nKey: 'jobIdError' });
-        
-        const jobId = await jobIdResponse.json();
-        data.job_id = jobId;
-
-        // อัปโหลดรูป (ถ้ามี) ก่อน insert
-        const imageUrls = await uploadImages(jobId);
-        if (imageUrls.length > 0) {
-          data.images = imageUrls;
-        }
-
-        // Insert booking
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(data)
-        });
-
-        if (!response.ok) throw Object.assign(new Error(t('saveError')), { i18nKey: 'saveError' });
-
+        const requestId = bookingApi.getRequestId();
+        const booking = await bookingApi.submitBooking({ payload: data, files: selectedFiles, requestId, uploadFile: uploadBookingImage });
+        uploadProgressState = null;
+        document.getElementById('uploadProgress').textContent = '';
+        data.job_id = booking.job_id;
+        bookingApi.rotateRequestId();
         // Success
         lastBookingData = { ...data };
         latestSlipMessage = buildSlipMessage(lastBookingData);
@@ -1424,13 +1283,18 @@
         hideWarning();
         await loadCalendar();
         showSlipMessage(latestSlipMessage);
-        showBookingSuccess(jobId, false);
+        showBookingSuccess(booking.job_id, false);
+        if (!booking.imagesOk) showWarning(t('imageAttachFailed'));
         
       } catch (error) {
-        if (error.i18nKey) showLocalizedError(error.i18nKey, {}, true);
-        else showDiagnosticError(error.message);
+        if (error && error.kind === 'rejected' && String(error.code).startsWith('KMO_')) bookingApi.rotateRequestId();
+        if (error && ['KMO_APPOINT_PAST', 'KMO_APPOINT_CLOSED_WEEKDAY', 'KMO_APPOINT_HOLIDAY', 'KMO_DAY_FULL'].includes(error.code)) await loadCalendar();
+        const key = (error && Object.prototype.hasOwnProperty.call(I18N.th, error.code) && error.code) || (error && error.kind === 'network' ? 'networkError' : 'unknownError');
+        showLocalizedError(key, {}, true);
       } finally {
+        submitInFlight = false;
         submitBtn.disabled = false;
+        submitBtn.disabled = !calendarReady;
         submitBtn.textContent = t('submitIdle');
       }
     });
@@ -1474,6 +1338,8 @@
       renderNotice();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    function showError(message) { showDiagnosticError(message); }
 
     function showLocalizedError(key, params = {}, withPrefix = false) {
       currentNotice = { type: 'error', key, params, withPrefix };
@@ -1622,39 +1488,23 @@
       renderPreviews();
     }
 
-    async function uploadImages(jobId) {
-      if (selectedFiles.length === 0) return [];
-      const urls = [];
+    async function uploadBookingImage(file, jobId, index) {
       const progress = document.getElementById('uploadProgress');
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
-        uploadProgressState = { current: i + 1, total: selectedFiles.length };
-        progress.textContent = t('uploadProgress', uploadProgressState);
-        const ext = getFileExtension(file.name);
-        const fileName = `${jobId}/${Date.now()}-${i}.${ext}`;
-        const res = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/booking-images/${fileName}`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'Content-Type': file.type,
-              'x-upsert': 'true'
-            },
-            body: file
-          }
-        );
-        if (res.ok) {
-          urls.push(`${SUPABASE_URL}/storage/v1/object/public/booking-images/${fileName}`);
-        } else {
-          const errText = await res.text();
-          throw new Error(`อัปโหลดรูป ${file.name} ไม่สำเร็จ: ${errText}`);
-        }
+      const ext = getFileExtension(file.name);
+      const fileName = `${jobId}/${Date.now()}-${index}.${ext}`;
+      uploadProgressState = { current: index + 1, total: selectedFiles.length };
+      progress.textContent = t('uploadProgress', uploadProgressState);
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/booking-images/${fileName}`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': file.type, 'x-upsert': 'true' },
+        body: file
+      });
+      if (!res.ok) throw new Error('image upload failed');
+      if (index + 1 === selectedFiles.length) {
+        uploadProgressState = null;
+        progress.textContent = '';
       }
-      uploadProgressState = null;
-      progress.textContent = '';
-      return urls;
+      return `${SUPABASE_URL}/storage/v1/object/public/booking-images/${fileName}`;
     }
   </script>
 </body>
