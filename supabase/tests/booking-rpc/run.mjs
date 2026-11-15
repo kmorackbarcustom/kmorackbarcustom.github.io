@@ -211,6 +211,37 @@ async function runConcurrency(today) {
   return { start, roundsOK };
 }
 
+// Deterministic proofs (no reliance on scheduling luck): session A holds its transaction open
+// (implicit tx of a multi-statement -c, pg_sleep before commit) while session B arrives.
+const holdOpen = (statement, seconds = 2) => asyncPsql(`${statement} SELECT pg_sleep(${seconds});`);
+const delay = ms => new Promise(r => setTimeout(r, ms));
+async function runLockProofs(today) {
+  await clearFixtures();
+  const day = plus(findDow(today, 1), 63);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('LOCK-1','${day}','${plus(day, 3)}'),('LOCK-2','${day}','${plus(day, 3)}');`);
+  const a = holdOpen(call(day, plus(day, 3), uuid(8001)));
+  await delay(700);
+  const b = await asyncPsql(call(day, plus(day, 3), uuid(8002)));
+  const aRes = await a;
+  const active = sql(`SELECT count(*) FROM public.bookings WHERE appointment_date='${day}';`);
+  record('lock proof: B waits for uncommitted A and sees the full day', aRes.code === 0 && checkExpectedError(b, 'KMO_DAY_FULL') && active === '3',
+    `A=${aRes.code}, B full=${checkExpectedError(b, 'KMO_DAY_FULL')}, rows=${active}`);
+
+  await clearFixtures();
+  const dayA = plus(findDow(today, 1), 70);
+  const dayB = plus(dayA, 7);
+  const req = uuid(8003);
+  const first = holdOpen(call(dayA, plus(dayA, 3), req));
+  await delay(700);
+  const second = await asyncPsql(call(dayB, plus(dayB, 3), req));
+  await first;
+  const replay = parseJsonOutput(second.stdout);
+  const rowsB = sql(`SELECT count(*) FROM public.bookings WHERE appointment_date='${dayB}';`);
+  const reqRows = sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${req}';`);
+  record('idempotency proof: same request_id on two days concurrently replays, no duplicate row',
+    second.code === 0 && replay?.replay === true && rowsB === '0' && reqRows === '1', `B replay=${replay?.replay}, dayB rows=${rowsB}, request rows=${reqRows}`);
+}
+
 async function runDateRules(today) {
   await clearFixtures();
   const validPickup = plus(today, 3);
@@ -337,6 +368,12 @@ async function runSecurity(today) {
   let spoofObj; try { spoofObj = JSON.parse(spoof.stdout); } catch { }
   const stored = sql(`SELECT customer_name||':'||queue_status||':'||production_status||':'||deposit_paid||':'||line_uid||':'||model||':'||estimated_total||':'||source_page||':'||coalesce(job_id,'') FROM public.bookings WHERE id=${spoofObj?.booking_id ?? -1};`);
   record('anon booking.html payload stores allowed fields and ignores protected keys', spoof.code === 0 && stored === `${suspicious}:ยืนยัน:รอเริ่มงาน:false:line-synthetic:Model X:1234:booking.html:${spoofObj?.job_id}`, stored);
+  for (const bad of ['NaN', '-1']) {
+    const r = await asyncPsql(call(day, plus(day, 3), randomUUID(), { estimated_total: bad }));
+    record(`estimated_total ${bad} rejected`, checkExpectedError(r, 'KMO_BAD_REQUEST'));
+  }
+  const trigFnExec = sql(`SELECT has_function_privilege('anon','public.holidays_notify_conflicts()','EXECUTE') OR has_function_privilege('anon','public.bookings_status_sync()','EXECUTE');`);
+  record('trigger functions not executable by anon', trigFnExec === 'f', `anon execute=${trigFnExec}`);
   const forbiddenRead = await asyncPsql('SET ROLE anon; SELECT * FROM public.booking_requests;');
   const forbiddenWrite = await asyncPsql(`SET ROLE anon; INSERT INTO public.booking_job_counters(prefix,ym,last_seq) VALUES ('KOT','9912',1);`);
   record('anon cannot read/write private idempotency tables', forbiddenRead.code !== 0 && forbiddenWrite.code !== 0, `read=${forbiddenRead.code}, write=${forbiddenWrite.code}`);
@@ -374,6 +411,7 @@ try {
   const today = sql('SELECT public.kmo_today();');
   console.log(`KMO_TODAY ${today}`);
   await runConcurrency(today);
+  await runLockProofs(today);
   await runDateRules(today);
   await runIdempotencyAndIds(today);
   await runStatusAndHoliday(today);

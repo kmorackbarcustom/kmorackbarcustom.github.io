@@ -25,3 +25,6 @@ CREATE TABLE public.customers(
 );
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA net TO anon, authenticated, service_role;
+-- Mirror Supabase default privileges so REVOKEs in the migration are actually exercised.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
