@@ -270,8 +270,11 @@ async function runDateRules(today) {
   if (sameDayOk) {
     const sameDay = await asyncPsql(call(today, plus(today, 2), uuid(5009)));
     record('D3 appointment today accepted', sameDay.code === 0, sameDay.code === 0 ? sameDay.stdout : sameDay.stderr);
-  } else record('D3 appointment today', false, 'UNVERIFIED: Bangkok today is Tuesday, conflicting with weekly closure rule');
+  } else console.log('SKIP D3 appointment today: Bangkok today is the weekly closed day');
 
+  const monTue = plus(monday, 14);
+  record('D3 Monday to Tuesday counts one workday', checkExpectedError(await asyncPsql(call(monTue, plus(monTue, 1), uuid(5013))), 'KMO_MIN_WORKDAYS'));
+  record('D3 infinity date rejected as KMO_BAD_REQUEST', checkExpectedError(await asyncPsql(call('infinity', plus(today, 9), uuid(5014))), 'KMO_BAD_REQUEST'));
   const thu = findDow(plus(today, 1), 4);
   const fri = plus(thu, 1);
   const thuFri = await asyncPsql(call(thu, fri, uuid(5010)));
@@ -307,6 +310,17 @@ async function runIdempotencyAndIds(today) {
   sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('KLI-${ym}-0100','${date}','${plus(date,3)}');`);
   const next = sql("SELECT public.kmo_next_job_id('line');");
   record('job ID continues from existing max and Bangkok month', next === `KLI-${ym}-0101`, `expected KLI-${ym}-0101, got ${next}`);
+  // Thai-month boundary: freeze now() inside the function copy (rolled back) and assert YYMM.
+  const frozen = path.join(dataDir, 'frozen-now.sql');
+  const at = ts => `BEGIN;
+SET LOCAL TIME ZONE 'UTC';
+SELECT replace(pg_get_functiondef('public.kmo_next_job_id(text)'::regprocedure),'now()','''${ts}''::timestamptz') \\gexec
+SELECT 'YM=' || substr(public.kmo_next_job_id('line'),5,4);
+ROLLBACK;
+`;
+  await writeFile(frozen, ['2026-10-31 16:59:00+00', '2026-10-31 17:00:00+00', '2026-12-31 17:00:00+00'].map(at).join(''));
+  const yms = [...tool(psql, psqlArgs(['-q', '-At', '-f', frozen])).out.matchAll(/YM=(\d{4})/g)].map(m => m[1]).join(',');
+  record('job ID month follows Bangkok time across UTC boundaries', yms === '2610,2611,2701', `got ${yms}`);
   const platformMap = [['facebook','KFB'],['line','KLI'],['tiktok','KTK'],['instagram','KIG'],['หน้าร้าน','KWN'],['เพื่อนแนะนำ','KRF'],['other','KOT']];
   const mapped = platformMap.map(([platform, prefix]) => sql(`SELECT public.kmo_next_job_id(${sqlText(platform)});`).startsWith(`${prefix}-${ym}-`));
   record('job ID platform prefixes', mapped.every(Boolean), `${mapped.filter(Boolean).length}/7 mapped`);
@@ -368,12 +382,12 @@ async function runSecurity(today) {
   let spoofObj; try { spoofObj = JSON.parse(spoof.stdout); } catch { }
   const stored = sql(`SELECT customer_name||':'||queue_status||':'||production_status||':'||deposit_paid||':'||line_uid||':'||model||':'||estimated_total||':'||source_page||':'||coalesce(job_id,'') FROM public.bookings WHERE id=${spoofObj?.booking_id ?? -1};`);
   record('anon booking.html payload stores allowed fields and ignores protected keys', spoof.code === 0 && stored === `${suspicious}:ยืนยัน:รอเริ่มงาน:false:line-synthetic:Model X:1234:booking.html:${spoofObj?.job_id}`, stored);
-  for (const bad of ['NaN', '-1']) {
+  for (const bad of ['NaN', '-1', 'Infinity']) {
     const r = await asyncPsql(call(day, plus(day, 3), randomUUID(), { estimated_total: bad }));
     record(`estimated_total ${bad} rejected`, checkExpectedError(r, 'KMO_BAD_REQUEST'));
   }
-  const trigFnExec = sql(`SELECT has_function_privilege('anon','public.holidays_notify_conflicts()','EXECUTE') OR has_function_privilege('anon','public.bookings_status_sync()','EXECUTE');`);
-  record('trigger functions not executable by anon', trigFnExec === 'f', `anon execute=${trigFnExec}`);
+  const trigFnExec = sql(`SELECT has_function_privilege('anon','public.holidays_notify_conflicts()','EXECUTE') OR has_function_privilege('anon','public.bookings_status_sync()','EXECUTE') OR has_function_privilege('anon','public.kmo_next_job_id(text)','EXECUTE');`);
+  record('internal functions (trigger fns, kmo_next_job_id) not executable by anon', trigFnExec === 'f', `anon execute=${trigFnExec}`);
   const forbiddenRead = await asyncPsql('SET ROLE anon; SELECT * FROM public.booking_requests;');
   const forbiddenWrite = await asyncPsql(`SET ROLE anon; INSERT INTO public.booking_job_counters(prefix,ym,last_seq) VALUES ('KOT','9912',1);`);
   record('anon cannot read/write private idempotency tables', forbiddenRead.code !== 0 && forbiddenWrite.code !== 0, `read=${forbiddenRead.code}, write=${forbiddenWrite.code}`);
