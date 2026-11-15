@@ -1,11 +1,24 @@
 import { requiredEnv } from "./database.ts";
 import { createHttpClient } from "./vendor/http-client/index.ts";
+import { createFetchTransport } from "./vendor/http-client/adapters/fetch-transport.ts";
 import { HttpError } from "./vendor/http-client/core/error.ts";
 import type { LineMessage } from "./vendor/line-oa-ai-module/core/types.ts";
 import { classifyLineSendResult } from "./line-delivery.ts";
 import { GenericHmacVerifier } from "./vendor/webhook-receiver/providers/generic-hmac/index.ts";
 
 const LINE_API_BASE = "https://api.line.me/v2/bot";
+const lineSendClient = createHttpClient({
+  defaultTimeoutMs: 8000,
+  transport: {
+    async send(request) {
+      const response = await createFetchTransport().send(request);
+      if (response.body instanceof ReadableStream) {
+        void response.body.cancel().catch(() => undefined);
+      }
+      return { ...response, body: null };
+    },
+  },
+});
 
 export async function verifyLineSignature(
   rawBody: string,
@@ -175,18 +188,19 @@ export type LineApiDeliveryResult = {
 async function callLineApi(
   path: string,
   body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<LineApiDeliveryResult> {
   try {
-    const response = await createHttpClient({ defaultTimeoutMs: 8000 }).request(
-      {
-        url: `${LINE_API_BASE}${path}`,
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${requiredEnv("LINE_CHANNEL_ACCESS_TOKEN")}`,
-        },
-        body,
+    const response = await lineSendClient.request<null>({
+      url: `${LINE_API_BASE}${path}`,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requiredEnv("LINE_CHANNEL_ACCESS_TOKEN")}`,
       },
-    );
+      body,
+      responseType: "raw",
+      signal,
+    });
     return { outcome: "accepted", statusCode: response.status };
   } catch (error) {
     const statusCode = error instanceof HttpError ? error.status : undefined;
@@ -207,10 +221,14 @@ async function callLineApi(
 export const replyMessageWithOutcome = (
   replyToken: string,
   messages: LineMessage[],
-) => callLineApi("/message/reply", { replyToken, messages });
+  signal?: AbortSignal,
+) => callLineApi("/message/reply", { replyToken, messages }, signal);
 
-export const pushMessageWithOutcome = (to: string, messages: LineMessage[]) =>
-  callLineApi("/message/push", { to, messages });
+export const pushMessageWithOutcome = (
+  to: string,
+  messages: LineMessage[],
+  signal?: AbortSignal,
+) => callLineApi("/message/push", { to, messages }, signal);
 
 export const replyMessage = async (
   replyToken: string,

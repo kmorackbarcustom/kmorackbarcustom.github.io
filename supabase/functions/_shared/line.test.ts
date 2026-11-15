@@ -6,6 +6,7 @@ import {
   detectImageMimeType,
   downloadLineImageContent,
   LineContentError,
+  pushMessageWithOutcome,
 } from "./line.ts";
 
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
@@ -51,12 +52,14 @@ Deno.test("detectImageMimeType accepts JPEG PNG WebP and rejects arbitrary data"
 
 Deno.test("downloadLineImageContent returns exact bytes and magic-detected MIME", async () => {
   const result = await downloadLineImageContent("abc/123", {
-    fetchImpl: (async (url: string | URL | Request) => {
+    fetchImpl: ((url: string | URL | Request) => {
       assertEquals(String(url).includes("abc%2F123"), true);
-      return new Response(png, {
-        status: 200,
-        headers: { "content-type": "text/plain" },
-      });
+      return Promise.resolve(
+        new Response(png, {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      );
     }) as typeof fetch,
   });
   assertEquals(result.mimeType, "image/png");
@@ -67,8 +70,8 @@ Deno.test("downloadLineImageContent rejects non-2xx", async () => {
   await assertRejects(
     () =>
       downloadLineImageContent("x", {
-        fetchImpl: (async () =>
-          new Response("no", { status: 404 })) as typeof fetch,
+        fetchImpl: (() =>
+          Promise.resolve(new Response("no", { status: 404 }))) as typeof fetch,
       }),
     LineContentError,
     "404",
@@ -88,7 +91,7 @@ Deno.test("downloadLineImageContent rejects declared oversize before reading", a
     () =>
       downloadLineImageContent("x", {
         maxBytes: 4,
-        fetchImpl: (async () => response) as typeof fetch,
+        fetchImpl: (() => Promise.resolve(response)) as typeof fetch,
       }),
     LineContentError,
     "exceeds",
@@ -107,8 +110,8 @@ Deno.test("downloadLineImageContent enforces streamed byte cap", async () => {
     () =>
       downloadLineImageContent("x", {
         maxBytes: 4,
-        fetchImpl: (async () =>
-          new Response(body, { status: 200 })) as typeof fetch,
+        fetchImpl: (() =>
+          Promise.resolve(new Response(body, { status: 200 }))) as typeof fetch,
       }),
     LineContentError,
     "exceeds",
@@ -118,10 +121,12 @@ Deno.test("downloadLineImageContent rejects unsupported binary", async () => {
   await assertRejects(
     () =>
       downloadLineImageContent("x", {
-        fetchImpl: (async () =>
-          new Response(new Uint8Array([1, 2, 3, 4]), {
-            status: 200,
-          })) as typeof fetch,
+        fetchImpl: (() =>
+          Promise.resolve(
+            new Response(new Uint8Array([1, 2, 3, 4]), {
+              status: 200,
+            }),
+          )) as typeof fetch,
       }),
     LineContentError,
     "not JPEG, PNG, or WebP",
@@ -143,4 +148,46 @@ Deno.test("downloadLineImageContent times out", async () => {
     LineContentError,
     "timed out",
   );
+});
+
+Deno.test("LINE send cancels the unused response body", async () => {
+  const originalFetch = globalThis.fetch;
+  let responseStatus = 200;
+  let bodyCancelled = false;
+  globalThis.fetch = ((input, init) => {
+    assertEquals(String(input), "https://api.line.me/v2/bot/message/push");
+    assertEquals(init?.method, "POST");
+    return Promise.resolve(
+      new Response(
+        new ReadableStream({
+          cancel() {
+            bodyCancelled = true;
+          },
+        }),
+        { status: responseStatus },
+      ),
+    );
+  }) as typeof fetch;
+  try {
+    assertEquals(
+      await pushMessageWithOutcome("synthetic-line-user", [{
+        type: "text",
+        text: "synthetic test",
+      }]),
+      { outcome: "accepted", statusCode: 200 },
+    );
+    assertEquals(bodyCancelled, true);
+    responseStatus = 400;
+    bodyCancelled = false;
+    assertEquals(
+      await pushMessageWithOutcome("synthetic-line-user", [{
+        type: "text",
+        text: "synthetic test",
+      }]),
+      { outcome: "rejected", statusCode: 400, error: "HTTP_CLIENT_ERROR" },
+    );
+    assertEquals(bodyCancelled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

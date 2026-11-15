@@ -1,10 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { CALLBACK_STATUS_MAP, addDays, dateOnlyInBangkok, diffDays, isStopStatus, TIME_ZONE } from "../_shared/constants.ts";
-import { createServiceClient, getSettings, jsonResponse } from "../_shared/database.ts";
+import {
+  addDays,
+  CALLBACK_STATUS_MAP,
+  dateOnlyInBangkok,
+  diffDays,
+  isStopStatus,
+  TIME_ZONE,
+} from "../_shared/constants.ts";
+import {
+  createServiceClient,
+  getSettings,
+  jsonResponse,
+} from "../_shared/database.ts";
 import { SupabaseAuditStore } from "../_shared/audit-log-store.ts";
-import { escapeHtml, formatDateThai, formatDateTimeThai, formatItems } from "../_shared/formatters.ts";
-import { fallbackFridayReply, generateFridayReply, hasGeminiKey } from "../_shared/gemini.ts";
-import { answerCallbackQuery, editMessageReplyMarkup, sendTelegramMessage } from "../_shared/telegram.ts";
+import {
+  escapeHtml,
+  formatDateThai,
+  formatDateTimeThai,
+  formatItems,
+} from "../_shared/formatters.ts";
+import {
+  fallbackFridayReply,
+  generateFridayReply,
+  hasGeminiKey,
+} from "../_shared/gemini.ts";
+import {
+  answerCallbackQuery,
+  editMessageReplyMarkup,
+  sendTelegramMessage,
+} from "../_shared/telegram.ts";
+import { authorizeTelegramWebhook } from "../_shared/telegram-webhook-auth.ts";
 import { createAuditLog } from "../_shared/vendor/audit-log/core/index.ts";
 
 type TelegramUpdate = {
@@ -123,14 +148,20 @@ const THAI_MONTHS: Record<string, number> = {
   "ธค": 11,
 };
 
-function parseCallbackData(data: string): { recordType: "booking" | "order"; recordId: string; newStatus: string } | null {
+function parseCallbackData(
+  data: string,
+):
+  | { recordType: "booking" | "order"; recordId: string; newStatus: string }
+  | null {
   const [action, recordType, recordId, ...statusParts] = data.split(":");
   if (action !== "update" || !recordId || statusParts.length === 0) return null;
   if (recordType !== "booking" && recordType !== "order") return null;
   return { recordType, recordId, newStatus: statusParts.join(":") };
 }
 
-function callbackLookup(parsed: { recordType: "booking" | "order"; recordId: string }) {
+function callbackLookup(
+  parsed: { recordType: "booking" | "order"; recordId: string },
+) {
   if (parsed.recordId.startsWith("id=")) {
     return { column: "id", value: parsed.recordId.slice(3), explicitId: true };
   }
@@ -148,10 +179,17 @@ async function updateRecordStatus(
   newStatus: string,
 ): Promise<{ ok: true; label: string } | { ok: false; reason: string }> {
   const table = parsed.recordType === "booking" ? "bookings" : "orders";
-  const statusColumn = parsed.recordType === "booking" ? "production_status" : "status";
-  const selectColumns = parsed.recordType === "booking" ? "id,job_id" : "id,order_id";
+  const statusColumn = parsed.recordType === "booking"
+    ? "production_status"
+    : "status";
+  const selectColumns = parsed.recordType === "booking"
+    ? "id,job_id"
+    : "id,order_id";
   const lookup = callbackLookup(parsed);
-  const patch = { [statusColumn]: newStatus, updated_at: new Date().toISOString() };
+  const patch = {
+    [statusColumn]: newStatus,
+    updated_at: new Date().toISOString(),
+  };
 
   const { data, error } = await supabase
     .from(table)
@@ -163,11 +201,16 @@ async function updateRecordStatus(
 
   if (data) {
     const row = data as Record<string, unknown>;
-    return { ok: true, label: String(row.job_id ?? row.order_id ?? row.id ?? parsed.recordId) };
+    return {
+      ok: true,
+      label: String(row.job_id ?? row.order_id ?? row.id ?? parsed.recordId),
+    };
   }
 
   if (lookup.explicitId) {
-    const fallbackColumn = parsed.recordType === "booking" ? "job_id" : "order_id";
+    const fallbackColumn = parsed.recordType === "booking"
+      ? "job_id"
+      : "order_id";
     const { data: fallbackData, error: fallbackError } = await supabase
       .from(table)
       .update(patch)
@@ -177,14 +220,19 @@ async function updateRecordStatus(
     if (fallbackError) throw fallbackError;
     if (fallbackData) {
       const row = fallbackData as Record<string, unknown>;
-      return { ok: true, label: String(row.job_id ?? row.order_id ?? row.id ?? parsed.recordId) };
+      return {
+        ok: true,
+        label: String(row.job_id ?? row.order_id ?? row.id ?? parsed.recordId),
+      };
     }
   }
 
   return { ok: false, reason: `ไม่พบงาน ${parsed.recordId}` };
 }
 
-function shouldFridayRespond(message: NonNullable<TelegramUpdate["message"]>): boolean {
+function shouldFridayRespond(
+  message: NonNullable<TelegramUpdate["message"]>,
+): boolean {
   const text = message.text ?? "";
   const normalized = text.toLowerCase();
   const repliedToBot = Boolean(message.reply_to_message?.from?.is_bot);
@@ -199,11 +247,18 @@ function detectDataQuery(text: string): ParsedDataQuery | null {
   const today = dateOnlyInBangkok();
   const normalized = text.replace(/\s+/g, " ").trim().toLowerCase();
   const target = parseTargetDate(text);
-  const asksAvailability = normalized.includes("ว่าง") || normalized.includes("จองได้") || normalized.includes("ช่องว่าง");
-  const asksOverdue = normalized.includes("ค้าง") || normalized.includes("เลยกำหนด") || normalized.includes("เกินกำหนด");
-  const asksOrder = normalized.includes("order") || normalized.includes("ออเดอร์") || normalized.includes("ส่ง");
-  const asksBooking = normalized.includes("คิว") || normalized.includes("นัด") || normalized.includes("ลูกค้า") || normalized.includes("งาน") || normalized.includes("booking") || normalized.includes("จอง");
-  const asksFutureWindow = normalized.includes("ล่วงหน้า") || normalized.includes("พรุ่งนี้") || normalized.includes("มะรืน") || normalized.includes("สัปดาห์หน้า") || normalized.includes("อีก");
+  const asksAvailability = normalized.includes("ว่าง") ||
+    normalized.includes("จองได้") || normalized.includes("ช่องว่าง");
+  const asksOverdue = normalized.includes("ค้าง") ||
+    normalized.includes("เลยกำหนด") || normalized.includes("เกินกำหนด");
+  const asksOrder = normalized.includes("order") ||
+    normalized.includes("ออเดอร์") || normalized.includes("ส่ง");
+  const asksBooking = normalized.includes("คิว") || normalized.includes("นัด") ||
+    normalized.includes("ลูกค้า") || normalized.includes("งาน") ||
+    normalized.includes("booking") || normalized.includes("จอง");
+  const asksFutureWindow = normalized.includes("ล่วงหน้า") ||
+    normalized.includes("พรุ่งนี้") || normalized.includes("มะรืน") ||
+    normalized.includes("สัปดาห์หน้า") || normalized.includes("อีก");
   const isFutureTarget = Boolean(target && target.date > today);
 
   if (asksAvailability) {
@@ -216,11 +271,21 @@ function detectDataQuery(text: string): ParsedDataQuery | null {
   }
 
   if (asksOverdue && asksOrder) {
-    return { type: "overdue_orders", targetDate: today, windowDays: 1, label: "งานค้างส่ง" };
+    return {
+      type: "overdue_orders",
+      targetDate: today,
+      windowDays: 1,
+      label: "งานค้างส่ง",
+    };
   }
 
   if (asksOverdue) {
-    return { type: "overdue_work", targetDate: today, windowDays: 1, label: "งานค้างรวม" };
+    return {
+      type: "overdue_work",
+      targetDate: today,
+      windowDays: 1,
+      label: "งานค้างรวม",
+    };
   }
 
   if (target) {
@@ -260,11 +325,21 @@ function detectDataQuery(text: string): ParsedDataQuery | null {
   }
 
   if (asksOrder) {
-    return { type: "today_due_orders", targetDate: today, windowDays: 1, label: "วันนี้" };
+    return {
+      type: "today_due_orders",
+      targetDate: today,
+      windowDays: 1,
+      label: "วันนี้",
+    };
   }
 
   if (asksBooking || normalized.includes("วันนี้")) {
-    return { type: "today_bookings", targetDate: today, windowDays: 1, label: "วันนี้" };
+    return {
+      type: "today_bookings",
+      targetDate: today,
+      windowDays: 1,
+      label: "วันนี้",
+    };
   }
 
   return null;
@@ -284,15 +359,31 @@ function classifyIntent(text: string): FridayIntent {
     "เปลี่ยนเวลา",
     "rotate",
   ];
-  const feedbackWords = ["งง", "อ่านยาก", "ไม่ชอบ", "ชอบ", "ยาว", "สั้น", "feedback", "ฟีดแบ็ก"];
+  const feedbackWords = [
+    "งง",
+    "อ่านยาก",
+    "ไม่ชอบ",
+    "ชอบ",
+    "ยาว",
+    "สั้น",
+    "feedback",
+    "ฟีดแบ็ก",
+  ];
 
-  if (commandWords.some((word) => normalized.includes(word))) return "system_command";
+  if (commandWords.some((word) => normalized.includes(word))) {
+    return "system_command";
+  }
   if (detectDataQuery(text)) return "data_query";
-  if (feedbackWords.some((word) => normalized.includes(word))) return "feedback";
+  if (feedbackWords.some((word) => normalized.includes(word))) {
+    return "feedback";
+  }
   return "chat";
 }
 
-function isOwnerMessage(userId: number | undefined, ownerId: string | undefined): boolean {
+function isOwnerMessage(
+  userId: number | undefined,
+  ownerId: string | undefined,
+): boolean {
   return Boolean(userId && ownerId && String(userId) === ownerId.trim());
 }
 
@@ -307,18 +398,30 @@ function bangkokWeekdayIndex(dateString: string): number {
   }).format(new Date(`${dateString}T00:00:00+07:00`));
 
   switch (weekday) {
-    case "Sun": return 0;
-    case "Mon": return 1;
-    case "Tue": return 2;
-    case "Wed": return 3;
-    case "Thu": return 4;
-    case "Fri": return 5;
-    case "Sat": return 6;
-    default: return 0;
+    case "Sun":
+      return 0;
+    case "Mon":
+      return 1;
+    case "Tue":
+      return 2;
+    case "Wed":
+      return 3;
+    case "Thu":
+      return 4;
+    case "Fri":
+      return 5;
+    case "Sat":
+      return 6;
+    default:
+      return 0;
   }
 }
 
-function nextWeekdayDate(fromDate: string, targetIndex: number, forceNextWeek = false): string {
+function nextWeekdayDate(
+  fromDate: string,
+  targetIndex: number,
+  forceNextWeek = false,
+): string {
   const currentIndex = bangkokWeekdayIndex(fromDate);
   let delta = (targetIndex - currentIndex + 7) % 7;
   if (delta === 0 && forceNextWeek) delta = 7;
@@ -375,7 +478,9 @@ function parseTargetDate(text: string): { date: string; label: string } | null {
     }
   }
 
-  const slashDateMatch = normalized.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
+  const slashDateMatch = normalized.match(
+    /(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/,
+  );
   if (slashDateMatch) {
     const day = Number(slashDateMatch[1]);
     const month = Number(slashDateMatch[2]) - 1;
@@ -403,7 +508,8 @@ function parseTargetDate(text: string): { date: string; label: string } | null {
 
   for (const weekday of THAI_WEEKDAYS) {
     if (normalized.includes(weekday.key)) {
-      const forceNextWeek = normalized.includes("หน้า") || normalized.includes("ถัดไป");
+      const forceNextWeek = normalized.includes("หน้า") ||
+        normalized.includes("ถัดไป");
       const date = nextWeekdayDate(today, weekday.index, forceNextWeek);
       return { date, label: `วัน${weekday.key}` };
     }
@@ -413,7 +519,20 @@ function parseTargetDate(text: string): { date: string; label: string } | null {
 }
 
 function thaiMonthName(monthIndex: number): string {
-  const names = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const names = [
+    "ม.ค.",
+    "ก.พ.",
+    "มี.ค.",
+    "เม.ย.",
+    "พ.ค.",
+    "มิ.ย.",
+    "ก.ค.",
+    "ส.ค.",
+    "ก.ย.",
+    "ต.ค.",
+    "พ.ย.",
+    "ธ.ค.",
+  ];
   return names[monthIndex] ?? "";
 }
 
@@ -425,14 +544,22 @@ function formatThaiWeekday(dateString: string): string {
 }
 
 function bookingCoversDay(booking: BookingInfo, day: string): boolean {
-  if (!booking.appointment_date || isStopStatus(booking.production_status)) return false;
+  if (!booking.appointment_date || isStopStatus(booking.production_status)) {
+    return false;
+  }
   if (day < booking.appointment_date) return false;
   if (!booking.pickup_date) return day === booking.appointment_date;
   return day < booking.pickup_date;
 }
 
-function countActiveBookingsForDay(bookings: BookingInfo[], day: string): number {
-  return bookings.reduce((count, booking) => count + (bookingCoversDay(booking, day) ? 1 : 0), 0);
+function countActiveBookingsForDay(
+  bookings: BookingInfo[],
+  day: string,
+): number {
+  return bookings.reduce(
+    (count, booking) => count + (bookingCoversDay(booking, day) ? 1 : 0),
+    0,
+  );
 }
 
 function formatCapacitySummary(count: number): string {
@@ -444,7 +571,9 @@ function formatCapacitySummary(count: number): string {
 
 function bookingDayLine(day: string, count: number, highlight = false): string {
   const prefix = highlight ? "▶" : "•";
-  return `${prefix} ${formatDateThai(day)} (${formatThaiWeekday(day)}) - ${count} งาน / ${formatCapacitySummary(count)}`;
+  return `${prefix} ${formatDateThai(day)} (${
+    formatThaiWeekday(day)
+  }) - ${count} งาน / ${formatCapacitySummary(count)}`;
 }
 
 function orderDayLine(day: string, count: number): string {
@@ -457,12 +586,16 @@ async function loadActiveBookingsUpTo(
 ): Promise<BookingInfo[]> {
   const { data, error } = await supabase
     .from("bookings")
-    .select("customer_name,brand,model,product,appointment_date,pickup_date,production_status")
+    .select(
+      "customer_name,brand,model,product,appointment_date,pickup_date,production_status",
+    )
     .lte("appointment_date", endDate)
     .limit(1000);
   if (error) throw error;
 
-  return ((data ?? []) as BookingInfo[]).filter((booking) => booking.appointment_date && !isStopStatus(booking.production_status));
+  return ((data ?? []) as BookingInfo[]).filter((booking) =>
+    booking.appointment_date && !isStopStatus(booking.production_status)
+  );
 }
 
 async function loadActiveOrdersBetween(
@@ -478,7 +611,9 @@ async function loadActiveOrdersBetween(
     .limit(1000);
   if (error) throw error;
 
-  return ((data ?? []) as OrderInfo[]).filter((order) => order.due_date && !isStopStatus(order.status));
+  return ((data ?? []) as OrderInfo[]).filter((order) =>
+    order.due_date && !isStopStatus(order.status)
+  );
 }
 
 async function buildBookingWindowReply(
@@ -489,7 +624,10 @@ async function buildBookingWindowReply(
 ): Promise<string> {
   const endDate = addDays(startDate, windowDays - 1);
   const bookings = await loadActiveBookingsUpTo(supabase, endDate);
-  const days = Array.from({ length: windowDays }, (_, index) => addDays(startDate, index));
+  const days = Array.from(
+    { length: windowDays },
+    (_, index) => addDays(startDate, index),
+  );
   const targetCount = countActiveBookingsForDay(bookings, startDate);
 
   const lines = days.map((day, index) => {
@@ -498,8 +636,12 @@ async function buildBookingWindowReply(
   });
 
   return [
-    `🔧 คิวหน้าร้าน ${label} (${formatDateThai(startDate)} ถึง ${formatDateThai(endDate)})`,
-    `▶ วันหลัก: ${formatDateThai(startDate)} มี ${targetCount} งาน / ${formatCapacitySummary(targetCount)}`,
+    `🔧 คิวหน้าร้าน ${label} (${formatDateThai(startDate)} ถึง ${
+      formatDateThai(endDate)
+    })`,
+    `▶ วันหลัก: ${formatDateThai(startDate)} มี ${targetCount} งาน / ${
+      formatCapacitySummary(targetCount)
+    }`,
     ...lines,
   ].join("\n");
 }
@@ -512,7 +654,10 @@ async function buildOrderWindowReply(
 ): Promise<string> {
   const endDate = addDays(startDate, windowDays - 1);
   const orders = await loadActiveOrdersBetween(supabase, startDate, endDate);
-  const days = Array.from({ length: windowDays }, (_, index) => addDays(startDate, index));
+  const days = Array.from(
+    { length: windowDays },
+    (_, index) => addDays(startDate, index),
+  );
   const ordersByDay = new Map<string, OrderInfo[]>();
 
   for (const day of days) {
@@ -532,12 +677,16 @@ async function buildOrderWindowReply(
       : "• ไม่มี";
     return [
       orderDayLine(day, dayOrders.length),
-      summary.startsWith("• ไม่มี") ? summary : `  ${summary.replaceAll("\n", "\n  ")}`,
+      summary.startsWith("• ไม่มี")
+        ? summary
+        : `  ${summary.replaceAll("\n", "\n  ")}`,
     ];
   });
 
   return [
-    `📋 ออเดอร์ช่วง ${label} (${formatDateThai(startDate)} ถึง ${formatDateThai(endDate)})`,
+    `📋 ออเดอร์ช่วง ${label} (${formatDateThai(startDate)} ถึง ${
+      formatDateThai(endDate)
+    })`,
     ...lines,
   ].join("\n");
 }
@@ -548,9 +697,14 @@ async function buildNearestAvailableReply(
   windowDays: number,
   label: string,
 ): Promise<string> {
-  const endDate = addDays(startDate, Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS) - 1);
+  const endDate = addDays(
+    startDate,
+    Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS) - 1,
+  );
   const bookings = await loadActiveBookingsUpTo(supabase, endDate);
-  const days = Array.from({ length: Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS) }, (_, index) => addDays(startDate, index));
+  const days = Array.from({
+    length: Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS),
+  }, (_, index) => addDays(startDate, index));
   const availability = days.map((day) => {
     const count = countActiveBookingsForDay(bookings, day);
     return {
@@ -561,28 +715,40 @@ async function buildNearestAvailableReply(
     };
   });
 
-  const nearest = availability.find((slot) => slot.weekday !== 2 && slot.remaining > 0);
+  const nearest = availability.find((slot) =>
+    slot.weekday !== 2 && slot.remaining > 0
+  );
   const firstAvailableDays = availability
     .filter((slot) => slot.weekday !== 2 && slot.remaining > 0)
     .slice(0, 4);
-  const header = label === "วันว่างใกล้สุด"
-    ? `📍 วันว่างใกล้สุด: ${formatDateThai(nearest.day)} (${formatThaiWeekday(nearest.day)})`
-    : `📍 ${label} → วันว่างใกล้สุด: ${formatDateThai(nearest.day)} (${formatThaiWeekday(nearest.day)})`;
-
   if (!nearest) {
     return [
       `📍 ${label} (${formatDateThai(startDate)} เป็นต้นไป)`,
-      `ไม่เจอวันว่างใน ${Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS)} วันข้างหน้า`,
+      `ไม่เจอวันว่างใน ${
+        Math.max(windowDays, NEAREST_AVAILABLE_LOOKAHEAD_DAYS)
+      } วันข้างหน้า`,
       "ลองขยายช่วงค้นหาหรือเช็กคิวที่ปล่อยแล้วอีกที",
     ].join("\n");
   }
+
+  const header = label === "วันว่างใกล้สุด"
+    ? `📍 วันว่างใกล้สุด: ${formatDateThai(nearest.day)} (${
+      formatThaiWeekday(nearest.day)
+    })`
+    : `📍 ${label} → วันว่างใกล้สุด: ${formatDateThai(nearest.day)} (${
+      formatThaiWeekday(nearest.day)
+    })`;
 
   return [
     header,
     `เหลือ ${nearest.remaining} คิว`,
     "",
     `ดูต่อได้อีก:`,
-    ...firstAvailableDays.map((slot) => `• ${formatDateThai(slot.day)} (${formatThaiWeekday(slot.day)}) - เหลือ ${slot.remaining} คิว`),
+    ...firstAvailableDays.map((slot) =>
+      `• ${formatDateThai(slot.day)} (${
+        formatThaiWeekday(slot.day)
+      }) - เหลือ ${slot.remaining} คิว`
+    ),
   ].join("\n");
 }
 
@@ -606,7 +772,9 @@ function orderInfoLine(order: OrderInfo, suffix = ""): string {
 
 function cappedLines(lines: string[], total: number): string {
   const visible = lines.slice(0, 8);
-  const extra = total > visible.length ? [`• ...อีก ${total - visible.length} งาน`] : [];
+  const extra = total > visible.length
+    ? [`• ...อีก ${total - visible.length} งาน`]
+    : [];
   return [...visible, ...extra].join("\n") || "• ไม่มี";
 }
 
@@ -621,10 +789,20 @@ async function buildDataQueryReply(
       .filter((booking) => bookingCoversDay(booking, today));
     return [
       `วันนี้มีคิวหน้าร้าน ${bookings.length} งาน (${formatDateThai(today)})`,
-      `▶ วันนี้: ${bookings.length} งาน / ${formatCapacitySummary(bookings.length)}`,
-      cappedLines(bookings.map((booking) =>
-        bookingInfoLine(booking, `- นัดเข้า ${formatDateThai(booking.appointment_date)} / รับรถ ${formatDateThai(booking.pickup_date)} / ${booking.production_status ?? "-"}`)
-      ), bookings.length),
+      `▶ วันนี้: ${bookings.length} งาน / ${
+        formatCapacitySummary(bookings.length)
+      }`,
+      cappedLines(
+        bookings.map((booking) =>
+          bookingInfoLine(
+            booking,
+            `- นัดเข้า ${formatDateThai(booking.appointment_date)} / รับรถ ${
+              formatDateThai(booking.pickup_date)
+            } / ${booking.production_status ?? "-"}`,
+          )
+        ),
+        bookings.length,
+      ),
     ].join("\n");
   }
 
@@ -636,23 +814,43 @@ async function buildDataQueryReply(
       .limit(50);
     if (error) throw error;
 
-    const orders = ((data ?? []) as OrderInfo[]).filter((order) => !isStopStatus(order.status));
+    const orders = ((data ?? []) as OrderInfo[]).filter((order) =>
+      !isStopStatus(order.status)
+    );
     return [
       `ออเดอร์ที่ต้องส่งวันนี้มี ${orders.length} งาน (${formatDateThai(today)})`,
-      cappedLines(orders.map((order) => orderInfoLine(order, `- ${order.status ?? "-"}`)), orders.length),
+      cappedLines(
+        orders.map((order) => orderInfoLine(order, `- ${order.status ?? "-"}`)),
+        orders.length,
+      ),
     ].join("\n");
   }
 
   if (query.type === "booking_window") {
-    return buildBookingWindowReply(supabase, query.targetDate, query.windowDays, query.label);
+    return buildBookingWindowReply(
+      supabase,
+      query.targetDate,
+      query.windowDays,
+      query.label,
+    );
   }
 
   if (query.type === "order_window") {
-    return buildOrderWindowReply(supabase, query.targetDate, query.windowDays, query.label);
+    return buildOrderWindowReply(
+      supabase,
+      query.targetDate,
+      query.windowDays,
+      query.label,
+    );
   }
 
   if (query.type === "nearest_available") {
-    return buildNearestAvailableReply(supabase, query.targetDate, query.windowDays, query.label);
+    return buildNearestAvailableReply(
+      supabase,
+      query.targetDate,
+      query.windowDays,
+      query.label,
+    );
   }
 
   const { data: ordersRaw, error: ordersError } = await supabase
@@ -668,41 +866,73 @@ async function buildDataQueryReply(
   if (query.type === "overdue_orders") {
     return [
       `ออเดอร์ค้างส่งมี ${overdueOrders.length} งาน`,
-      cappedLines(overdueOrders.map((order) =>
-        orderInfoLine(order, `- เกิน ${diffDays(order.due_date ?? today)} วัน / ${order.status ?? "-"}`)
-      ), overdueOrders.length),
+      cappedLines(
+        overdueOrders.map((order) =>
+          orderInfoLine(
+            order,
+            `- เกิน ${diffDays(order.due_date ?? today)} วัน / ${
+              order.status ?? "-"
+            }`,
+          )
+        ),
+        overdueOrders.length,
+      ),
     ].join("\n");
   }
 
   const { data: bookingsRaw, error: bookingsError } = await supabase
     .from("bookings")
-    .select("customer_name,brand,model,product,appointment_date,pickup_date,production_status")
+    .select(
+      "customer_name,brand,model,product,appointment_date,pickup_date,production_status",
+    )
     .lt("appointment_date", today)
     .limit(100);
   if (bookingsError) throw bookingsError;
 
   const overdueBookings = ((bookingsRaw ?? []) as BookingInfo[])
-    .filter((booking) => booking.appointment_date && !isStopStatus(booking.production_status));
+    .filter((booking) =>
+      booking.appointment_date && !isStopStatus(booking.production_status)
+    );
 
   return [
     `งานค้างรวมมี ${overdueBookings.length + overdueOrders.length} งาน`,
     "",
     `งานหน้าร้านค้าง ${overdueBookings.length} งาน`,
-    cappedLines(overdueBookings.map((booking) =>
-      bookingInfoLine(booking, `- ค้าง ${diffDays(booking.appointment_date ?? today)} วัน / ${booking.production_status ?? "-"}`)
-    ), overdueBookings.length),
+    cappedLines(
+      overdueBookings.map((booking) =>
+        bookingInfoLine(
+          booking,
+          `- ค้าง ${diffDays(booking.appointment_date ?? today)} วัน / ${
+            booking.production_status ?? "-"
+          }`,
+        )
+      ),
+      overdueBookings.length,
+    ),
     "",
     `ออเดอร์ค้างส่ง ${overdueOrders.length} งาน`,
-    cappedLines(overdueOrders.map((order) =>
-      orderInfoLine(order, `- เกิน ${diffDays(order.due_date ?? today)} วัน / ${order.status ?? "-"}`)
-    ), overdueOrders.length),
+    cappedLines(
+      overdueOrders.map((order) =>
+        orderInfoLine(
+          order,
+          `- เกิน ${diffDays(order.due_date ?? today)} วัน / ${
+            order.status ?? "-"
+          }`,
+        )
+      ),
+      overdueOrders.length,
+    ),
   ].join("\n");
 }
 
-async function handleFridayMessage(update: TelegramUpdate): Promise<Response | null> {
+async function handleFridayMessage(
+  update: TelegramUpdate,
+): Promise<Response | null> {
   const message = update.message;
   if (!message?.text || message.from?.is_bot) return null;
-  if (!shouldFridayRespond(message)) return jsonResponse({ ok: true, ignored: true, reason: "not_for_friday" });
+  if (!shouldFridayRespond(message)) {
+    return jsonResponse({ ok: true, ignored: true, reason: "not_for_friday" });
+  }
 
   const supabase = createServiceClient();
   const settings = await getSettings(supabase);
@@ -712,7 +942,10 @@ async function handleFridayMessage(update: TelegramUpdate): Promise<Response | n
   }
 
   const intent = classifyIntent(message.text);
-  const isOwner = isOwnerMessage(message.from?.id, settings.friday_owner_telegram_user_id);
+  const isOwner = isOwnerMessage(
+    message.from?.id,
+    settings.friday_owner_telegram_user_id,
+  );
   const forcePolite = isPoliteUser(message.from?.username);
   const aiEnabled = settings.friday_ai_enabled === "true";
   const dataQueryType = detectDataQuery(message.text);
@@ -760,7 +993,12 @@ async function handleFridayMessage(update: TelegramUpdate): Promise<Response | n
   });
 
   await sendTelegramMessage(String(message.chat.id), escapeHtml(reply));
-  return jsonResponse({ ok: true, handled: "friday_message", intent, is_owner: isOwner });
+  return jsonResponse({
+    ok: true,
+    handled: "friday_message",
+    intent,
+    is_owner: isOwner,
+  });
 }
 
 // Staff reply to customers directly through LINE Official Account Manager, which triggers no
@@ -777,44 +1015,83 @@ async function handlePauseCommand(
 ): Promise<void> {
   const { data: matches, error } = await supabase
     .from("customers")
-    .select("id, name, paused_until")
+    .select("id, name, paused_until, human_takeover")
     .not("line_uid", "is", null)
     .ilike("name", `%${nameQuery}%`)
     .limit(6);
 
   if (error) {
-    await sendTelegramMessage(String(chatId), `⚠️ ค้นหาลูกค้าไม่สำเร็จ: ${escapeHtml(error.message)}`);
+    await sendTelegramMessage(
+      String(chatId),
+      `⚠️ ค้นหาลูกค้าไม่สำเร็จ: ${escapeHtml(error.message)}`,
+    );
     return;
   }
   if (!matches || matches.length === 0) {
-    await sendTelegramMessage(String(chatId), `❌ ไม่พบลูกค้าที่ชื่อมี "${escapeHtml(nameQuery)}"`);
+    await sendTelegramMessage(
+      String(chatId),
+      `❌ ไม่พบลูกค้าที่ชื่อมี "${escapeHtml(nameQuery)}"`,
+    );
     return;
   }
   if (matches.length > 1) {
     const names = matches.map((m) => `- ${escapeHtml(m.name)}`).join("\n");
-    await sendTelegramMessage(String(chatId), `เจอหลายรายการ พิมพ์ชื่อให้เจาะจงกว่านี้:\n${names}`);
+    await sendTelegramMessage(
+      String(chatId),
+      `เจอหลายรายการ พิมพ์ชื่อให้เจาะจงกว่านี้:\n${names}`,
+    );
     return;
   }
 
   const customer = matches[0];
-  const pausedUntil = action === "pause" ? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() : null;
-  const { error: updateError } = await supabase.from("customers").update({ paused_until: pausedUntil }).eq("id", customer.id);
+  const pausedUntil = action === "pause"
+    ? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+    : null;
+  const { error: updateError } = await supabase.from("customers").update({
+    paused_until: pausedUntil,
+  }).eq("id", customer.id);
   if (updateError) {
-    await sendTelegramMessage(String(chatId), `⚠️ อัปเดตสถานะ AI ไม่สำเร็จ: ${escapeHtml(updateError.message)}`);
+    await sendTelegramMessage(
+      String(chatId),
+      `⚠️ อัปเดตสถานะ AI ไม่สำเร็จ: ${escapeHtml(updateError.message)}`,
+    );
     return;
   }
 
   const auditResult = await audit.record({
-    actor: { type: "staff", ...(actor.username || actor.firstName ? { id: actor.username ?? actor.firstName } : {}) },
-    action: action === "pause" ? "customer.ai_paused" : "customer.ai_resumed",
+    actor: {
+      type: "staff",
+      ...(actor.username || actor.firstName
+        ? { id: actor.username ?? actor.firstName }
+        : {}),
+    },
+    action: action === "pause"
+      ? "customer.ai_paused"
+      : customer.human_takeover
+      ? "customer.ai_pause_cleared"
+      : "customer.ai_resumed",
     entity: { type: "customer", id: customer.id },
     after: { pausedUntil },
     metadata: { channel: "telegram", nameQuery },
   });
-  if (!auditResult.success) console.error("[telegram-webhook] audit record failed", auditResult.error);
+  if (!auditResult.success) {
+    console.error("[telegram-webhook] audit record failed", auditResult.error);
+  }
 
   const reply = pausedUntil
-    ? `🔇 หยุด AI ตอบ ${escapeHtml(customer.name)} แล้ว 2 ชม. (ถึง ${formatDateTimeThai(new Date(pausedUntil))}) — พิมพ์ /pause ${escapeHtml(nameQuery)} ซ้ำเพื่อขยายเวลา หรือ /resume ${escapeHtml(nameQuery)} เพื่อเปิดกลับก่อนกำหนด`
+    ? `🔇 หยุด AI ตอบ ${escapeHtml(customer.name)} แล้ว 2 ชม. (ถึง ${
+      formatDateTimeThai(new Date(pausedUntil))
+    }) — พิมพ์ /pause ${escapeHtml(nameQuery)} ซ้ำเพื่อขยายเวลา หรือ /resume ${
+      escapeHtml(nameQuery)
+    } เพื่อเปิดกลับก่อนกำหนด${
+      customer.human_takeover
+        ? "\nหมายเหตุ: แอดมินยังรับช่วงอยู่ ต้องกดคืนให้ AI ใน Inbox Dashboard"
+        : ""
+    }`
+    : customer.human_takeover
+    ? `🔇 ยกเลิกเวลาพักของ ${
+      escapeHtml(customer.name)
+    } แล้ว แต่แอดมินยังรับช่วงอยู่ — กดคืนให้ AI ใน Inbox Dashboard`
     : `🔊 เปิด AI ตอบ ${escapeHtml(customer.name)} กลับมาแล้ว`;
   await sendTelegramMessage(String(chatId), reply);
 }
@@ -829,20 +1106,41 @@ serve(async (req) => {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
+    // Telegram signs every delivery with the secret_token set via setWebhook.
+    // Authenticate before touching the body; the expected value stays in memory only.
+    const authenticated = await authorizeTelegramWebhook(
+      req,
+      Deno.env.get("TELEGRAM_WEBHOOK_SECRET"),
+    );
+    if (!authenticated) {
+      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    }
+
     const update = await req.json() as TelegramUpdate;
     // Friday chat replies disabled 2026-07-03 — OpenClaw handles chat in the group now.
     // handleFridayMessage() left intact below in case this needs to flip back on.
 
     const pauseMatch = update.message?.text?.match(/^\/(pause|resume)\s+(.+)/i);
     if (pauseMatch && update.message) {
-      const [, action, nameQuery] = pauseMatch;
+      const message = update.message;
       const supabase = createServiceClient();
+      const settings = await getSettings(supabase);
+      if (
+        message.from?.is_bot || !settings.telegram_group_chat_id ||
+        String(message.chat.id) !== settings.telegram_group_chat_id
+      ) {
+        return jsonResponse({ ok: true, ignored: true });
+      }
+      const [, action, nameQuery] = pauseMatch;
       const audit = createAuditLog({ store: new SupabaseAuditStore(supabase) });
       await handlePauseCommand(
         supabase,
         audit,
-        { firstName: update.message.from?.first_name, username: update.message.from?.username },
-        update.message.chat.id,
+        {
+          firstName: message.from?.first_name,
+          username: message.from?.username,
+        },
+        message.chat.id,
         action.toLowerCase() as "pause" | "resume",
         nameQuery.trim(),
       );
@@ -863,8 +1161,13 @@ serve(async (req) => {
 
     const supabase = createServiceClient();
     const newStatus = CALLBACK_STATUS_MAP[parsed.newStatus] ?? parsed.newStatus;
-    const followupRecordId = parsed.recordId.startsWith("id=") ? parsed.recordId.slice(3) : parsed.recordId;
-    console.log(`[${functionName}] Callback received`, { ...parsed, newStatus });
+    const followupRecordId = parsed.recordId.startsWith("id=")
+      ? parsed.recordId.slice(3)
+      : parsed.recordId;
+    console.log(`[${functionName}] Callback received`, {
+      ...parsed,
+      newStatus,
+    });
 
     const updateResult = await updateRecordStatus(supabase, parsed, newStatus);
     if (!updateResult.ok) {
@@ -878,8 +1181,16 @@ serve(async (req) => {
           `⏰ ${formatDateTimeThai()}`,
         ].join("\n"),
       );
-      console.warn(`[${functionName}] Record not found`, { ...parsed, newStatus });
-      return jsonResponse({ ok: false, reason: "record_not_found", ...parsed, newStatus });
+      console.warn(`[${functionName}] Record not found`, {
+        ...parsed,
+        newStatus,
+      });
+      return jsonResponse({
+        ok: false,
+        reason: "record_not_found",
+        ...parsed,
+        newStatus,
+      });
     }
 
     await supabase
@@ -895,25 +1206,43 @@ serve(async (req) => {
       .is("response_received_at", null);
 
     await answerCallbackQuery(callback.id, "✅ อัปเดตสถานะเรียบร้อย");
-    await editMessageReplyMarkup(callback.message.chat.id, callback.message.message_id);
+    await editMessageReplyMarkup(
+      callback.message.chat.id,
+      callback.message.message_id,
+    );
 
-    const actor = callback.from?.first_name || callback.from?.username || "Telegram user";
+    const actor = callback.from?.first_name || callback.from?.username ||
+      "Telegram user";
     await sendTelegramMessage(
       String(callback.message.chat.id),
       [
-        `✅ อัปเดต ${escapeHtml(updateResult.label)} เป็น "${escapeHtml(newStatus)}" เรียบร้อย`,
+        `✅ อัปเดต ${escapeHtml(updateResult.label)} เป็น "${
+          escapeHtml(newStatus)
+        }" เรียบร้อย`,
         `👷 โดย: ${escapeHtml(actor)}`,
         `⏰ ${formatDateTimeThai()}`,
       ].join("\n"),
     );
 
-    console.log(`[${functionName}] Updated`, { ...parsed, label: updateResult.label, newStatus });
-    return jsonResponse({ ok: true, ...parsed, label: updateResult.label, newStatus });
+    console.log(`[${functionName}] Updated`, {
+      ...parsed,
+      label: updateResult.label,
+      newStatus,
+    });
+    return jsonResponse({
+      ok: true,
+      ...parsed,
+      label: updateResult.label,
+      newStatus,
+    });
   } catch (error) {
     console.error(`[${functionName}] Error:`, error);
     const message = error instanceof Error ? error.message : String(error);
     if (callbackForError?.id) {
-      await answerCallbackQuery(callbackForError.id, "อัปเดตไม่สำเร็จ ลองใหม่หรือแจ้งแอดมิน");
+      await answerCallbackQuery(
+        callbackForError.id,
+        "อัปเดตไม่สำเร็จ ลองใหม่หรือแจ้งแอดมิน",
+      );
     }
     return jsonResponse({ ok: false, error: message });
   }

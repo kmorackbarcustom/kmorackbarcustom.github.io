@@ -3,7 +3,9 @@
 **Project Owner:** Gutumrod (คุณฟรี)
 **Execution:** Claude Code, working directly in `kmorackbarcustom.github.io`
 **Created:** 2026-08-28
-**Last Updated:** 2026-10-21 — exact-tag model evaluation and LINE reliability follow-up status
+**Last Updated:** 2026-11-14 — local LINE Inbox Dashboard implementation; production status below remains the 2026-10-21 snapshot
+
+> The separate Inbox Dashboard is implemented locally and remains uncommitted. Its migration is unapplied and no Edge Function is deployed. Current scope, verification, and release limits are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ---
 

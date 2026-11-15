@@ -27,7 +27,7 @@
     }
 
     main {
-      width: min(700px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 56px;
     }
@@ -54,7 +54,7 @@
       margin-bottom: 6px;
     }
 
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       min-height: 42px;
       border: 1px solid var(--border);
@@ -92,6 +92,30 @@
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
+    }
+
+    .inbox-layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.85fr) minmax(400px, 1.5fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .reply-panel { position: sticky; top: 16px; }
+
+    .list-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(150px, 0.45fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
     }
 
     .button-row {
@@ -135,7 +159,7 @@
     .result-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
       padding: 10px;
       border: 1px solid var(--border);
@@ -148,6 +172,11 @@
       border-color: var(--accent);
     }
 
+    .result-row:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     .result-row.selected {
       border-color: var(--accent);
       background: #201d0a;
@@ -157,6 +186,11 @@
       font-size: 12px;
       color: var(--danger);
     }
+
+    .mode-badge { white-space: nowrap; }
+    .mode-badge.human { color: var(--accent); }
+    .mode-badge.ai { color: var(--success); }
+    .activity { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 
     .chat-thread {
       max-height: 420px;
@@ -196,12 +230,29 @@
       background: #241d0a;
       border: 1px solid var(--accent);
     }
+
+    .chat-image {
+      display: block;
+      max-width: min(360px, 100%);
+      max-height: 360px;
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 760px) {
+      main { width: min(100% - 20px, 600px); padding-top: 18px; }
+      .inbox-layout { grid-template-columns: minmax(0, 1fr); }
+      .reply-panel { position: static; }
+      .list-controls { grid-template-columns: minmax(0, 1fr); }
+      .panel { padding: 14px; }
+      .chat-bubble { max-width: 94%; }
+    }
   </style>
 </head>
 <body>
   <main>
     <h1>KMO Staff LINE Reply</h1>
-    <p class="muted">ค้นหาลูกค้า ส่งข้อความตอบผ่าน LINE โดยตรง — ระบบจะหยุด AI ตอบลูกค้าคนนั้นให้อัตโนมัติ 2 ชม.</p>
+    <p class="muted">ข้อความจาก LINE OA, AI และทีมงานอยู่ในกล่องเดียวกัน · โหมดทีมงานจะค้างจนกดคืนให้ AI</p>
 
     <section class="panel">
       <div class="toolbar">
@@ -215,39 +266,54 @@
       <input id="staffPasscode" type="password" autocomplete="current-password" placeholder="กรอกรหัสร้านก่อนใช้งาน">
     </section>
 
+    <div class="inbox-layout">
     <section class="panel">
       <div class="toolbar">
-        <h2>รายชื่อลูกค้า (LINE)</h2>
+        <h2>กล่องข้อความ</h2>
         <button type="button" id="reloadBtn" class="secondary-btn">โหลดใหม่</button>
       </div>
-      <input id="searchQuery" placeholder="พิมพ์เพื่อกรองรายชื่อ" autocomplete="off">
+      <div class="list-controls">
+        <input id="searchQuery" placeholder="ค้นหาชื่อ LINE หรือเบอร์โทร" autocomplete="off" maxlength="100">
+        <select id="modeFilter" aria-label="กรองสถานะการตอบ">
+          <option value="all">ทุกสถานะ</option>
+          <option value="ai">AI ดูแล</option>
+          <option value="human">คนรับช่วง</option>
+        </select>
+      </div>
       <div id="searchStatus" class="status" hidden></div>
       <div id="searchResults"></div>
+      <div class="pagination">
+        <button type="button" id="prevPageBtn" class="secondary-btn" disabled>ก่อนหน้า</button>
+        <span id="pageStatus" class="muted" aria-live="polite"></span>
+        <button type="button" id="nextPageBtn" class="secondary-btn" disabled>ถัดไป</button>
+      </div>
     </section>
 
-    <section class="panel" id="replyPanel" hidden>
+    <section class="panel reply-panel" id="replyPanel" hidden>
       <h2>ส่งข้อความถึง <span id="selectedName"></span></h2>
       <p class="muted" id="selectedPauseNote"></p>
       <div class="toolbar">
         <h2 style="font-size: 15px;">บทสนทนา</h2>
         <button type="button" id="reloadHistoryBtn" class="secondary-btn">โหลดแชทใหม่</button>
       </div>
+      <button type="button" id="olderMessagesBtn" class="secondary-btn" hidden>โหลดข้อความเก่า</button>
       <div id="chatStatus" class="status" hidden></div>
       <div id="chatThread" class="chat-thread"></div>
-      <textarea id="replyMessage" placeholder="พิมพ์ข้อความตอบลูกค้า"></textarea>
+      <textarea id="replyMessage" placeholder="พิมพ์ข้อความตอบลูกค้า" maxlength="1000"></textarea>
       <div class="button-row" style="margin-top: 10px;">
-        <button type="button" id="sendBtn">ส่งข้อความ</button>
-        <button type="button" id="resumeBtn" class="secondary-btn">เปิด AI กลับ (ไม่ส่งข้อความ)</button>
+        <button type="button" id="sendBtn" disabled>ส่งข้อความ</button>
+        <button type="button" id="takeoverBtn" class="secondary-btn">รับช่วง</button>
+        <button type="button" id="resumeBtn" class="secondary-btn" hidden>คืนให้ AI</button>
       </div>
       <div id="replyStatus" class="status" hidden></div>
     </section>
+    </div>
   </main>
 
   <script>
     const SUPA_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
     const FUNCTION_URL = `${SUPA_URL}/functions/v1/staff-reply`;
     const SUPA_KEY = 'sb_publishable_8sBSio03fAXOoBK3inSnSQ_gTXsEVGT';
-    const PASSCODE_KEY = 'kmo_line_reply_staff_key';
 
     const passcodeInput = document.getElementById('staffPasscode');
     const searchQuery = document.getElementById('searchQuery');
@@ -259,29 +325,93 @@
     const replyMessage = document.getElementById('replyMessage');
     const replyStatus = document.getElementById('replyStatus');
     const sendBtn = document.getElementById('sendBtn');
+    const takeoverBtn = document.getElementById('takeoverBtn');
     const resumeBtn = document.getElementById('resumeBtn');
     const chatStatus = document.getElementById('chatStatus');
     const chatThread = document.getElementById('chatThread');
     const reloadHistoryBtn = document.getElementById('reloadHistoryBtn');
+    const olderMessagesBtn = document.getElementById('olderMessagesBtn');
+    const modeFilter = document.getElementById('modeFilter');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageStatus = document.getElementById('pageStatus');
 
     const ROLE_LABEL = { customer: 'ลูกค้า', ai: 'AI', staff: 'พนักงาน' };
+    let selectedCustomer = null;
+    let historyMessages = [];
+    let historyOffset = 0;
+    let historySeq = 0;
+    let imageObjectUrls = [];
+    let pageOffset = 0;
+    let customerListSeq = 0;
+    let hasMoreCustomers = false;
+    let listTimer;
+    let replyRequest = null;
 
-    async function loadHistory() {
+    function mergeLoadedHistory(messages) {
+      const seenIds = new Set();
+      const persisted = messages.filter((message) => {
+        if (message.deliveryStatus === 'legacy' || seenIds.has(String(message.id))) return false;
+        seenIds.add(String(message.id));
+        return true;
+      });
+      const eventKeys = new Set(persisted.flatMap((message) =>
+        message.eventId ? [`${message.role}:${message.eventId}`] : []
+      ));
+      const matchedIds = new Set();
+      const legacy = messages.filter((message) => {
+        if (message.deliveryStatus !== 'legacy' || seenIds.has(String(message.id))) return false;
+        seenIds.add(String(message.id));
+        return true;
+      })
+        .filter((message) => {
+          const eventIds = Array.isArray(message.eventIds) ? message.eventIds : [];
+          if (eventIds.some((id) => eventKeys.has(`${message.role}:${id}`))) return false;
+          if (eventIds.length || typeof message.content !== 'string') return true;
+          const timestamp = Date.parse(message.timestamp);
+          const matches = persisted.filter((candidate) =>
+            !matchedIds.has(candidate.id) && candidate.role === message.role &&
+            candidate.content === message.content &&
+            Math.abs(Date.parse(candidate.timestamp) - timestamp) <= 2000
+          );
+          if (matches.length !== 1) return true;
+          matchedIds.add(matches[0].id);
+          return false;
+        });
+      return [...persisted, ...legacy].sort((a, b) =>
+        Date.parse(a.timestamp) - Date.parse(b.timestamp) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
+      );
+    }
+
+    async function loadHistory(offset = 0) {
       if (!selectedCustomer) return;
+      const customerId = selectedCustomer.id;
+      const sequence = ++historySeq;
       const staffKey = requireStaffKey(chatStatus);
       if (!staffKey) return;
 
       setStatus(chatStatus, 'กำลังโหลดแชท...', '');
       try {
-        const { messages } = await callFunction('history', { customerId: selectedCustomer.id }, staffKey);
-        renderChatThread(messages);
+        const result = await callFunction('history', { customerId, offset }, staffKey);
+        if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
+        historyMessages = mergeLoadedHistory(offset === 0
+          ? result.messages
+          : [...result.messages, ...historyMessages]);
+        historyOffset = result.nextOffset;
+        olderMessagesBtn.hidden = !result.hasMore;
+        renderChatThread(historyMessages, offset === 0);
         chatStatus.hidden = true;
       } catch (error) {
+        if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
         setStatus(chatStatus, `โหลดแชทไม่สำเร็จ: ${error.message}`, 'error');
       }
     }
 
-    function renderChatThread(messages) {
+    function renderChatThread(messages, scrollToBottom = true) {
+      const oldHeight = chatThread.scrollHeight;
+      const oldTop = chatThread.scrollTop;
+      imageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+      imageObjectUrls = [];
       chatThread.replaceChildren();
       if (!messages || messages.length === 0) {
         const empty = document.createElement('p');
@@ -296,36 +426,67 @@
         const meta = document.createElement('div');
         meta.className = 'chat-meta';
         meta.textContent = `${ROLE_LABEL[msg.role] || msg.role} · ${new Date(msg.timestamp).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
-        const content = document.createElement('div');
-        content.textContent = msg.content;
         bubble.appendChild(meta);
-        bubble.appendChild(content);
+        if (msg.messageType === 'image') {
+          const imageButton = document.createElement('button');
+          imageButton.type = 'button';
+          imageButton.className = 'secondary-btn';
+          imageButton.textContent = 'โหลดรูป';
+          imageButton.addEventListener('click', async () => {
+            const staffKey = requireStaffKey(chatStatus);
+            if (!staffKey || !selectedCustomer) return;
+            imageButton.disabled = true;
+            try {
+              const blob = await callFunction('image', { customerId: selectedCustomer.id, messageRecordId: msg.id }, staffKey, true);
+              const url = URL.createObjectURL(blob);
+              if (!bubble.isConnected) {
+                URL.revokeObjectURL(url);
+                return;
+              }
+              imageObjectUrls.push(url);
+              const image = document.createElement('img');
+              image.className = 'chat-image';
+              image.alt = 'รูปลูกค้าจาก LINE';
+              image.src = url;
+              imageButton.replaceWith(image);
+            } catch (error) {
+              imageButton.disabled = false;
+              imageButton.textContent = 'โหลดรูปอีกครั้ง';
+              setStatus(chatStatus, `โหลดรูปไม่สำเร็จ: ${error.message}`, 'error');
+            }
+          });
+          bubble.appendChild(imageButton);
+        } else {
+          const content = document.createElement('div');
+          content.textContent = msg.content || '';
+          bubble.appendChild(content);
+        }
+        if (msg.deliveryStatus === 'pending' || msg.deliveryStatus === 'uncertain' || msg.deliveryStatus === 'rejected' || msg.deliveryStatus === 'suppressed') {
+          const deliveryNote = document.createElement('small');
+          deliveryNote.className = 'activity';
+          deliveryNote.textContent = msg.deliveryStatus === 'pending'
+            ? 'กำลังส่งหรือกำลังตรวจสอบสถานะ'
+            : msg.deliveryStatus === 'uncertain'
+            ? 'ผลการส่งยังไม่ชัดเจน'
+            : msg.deliveryStatus === 'rejected' ? 'ส่งไม่สำเร็จ' : 'ไม่ได้ส่ง';
+          bubble.appendChild(deliveryNote);
+        }
         chatThread.appendChild(bubble);
       }
-      chatThread.scrollTop = chatThread.scrollHeight;
+      chatThread.scrollTop = scrollToBottom ? chatThread.scrollHeight : oldTop + chatThread.scrollHeight - oldHeight;
     }
 
-    reloadHistoryBtn.addEventListener('click', loadHistory);
-
-    let selectedCustomer = null;
-    let allCustomers = [];
-
-    passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
+    reloadHistoryBtn.addEventListener('click', () => loadHistory(0));
+    olderMessagesBtn.addEventListener('click', () => loadHistory(historyOffset));
 
     document.getElementById('clearPasscodeBtn').addEventListener('click', () => {
-      sessionStorage.removeItem(PASSCODE_KEY);
-      localStorage.removeItem(PASSCODE_KEY);
       passcodeInput.value = '';
       setStatus(searchStatus, 'ล้าง passcode แล้ว', 'success');
     });
 
     passcodeInput.addEventListener('change', () => {
       const value = passcodeInput.value.trim();
-      if (value) {
-        sessionStorage.setItem(PASSCODE_KEY, value);
-        localStorage.setItem(PASSCODE_KEY, value);
-        loadCustomers();
-      }
+      if (value) loadCustomers(0);
     });
 
     function requireStaffKey(statusEl) {
@@ -338,7 +499,7 @@
       return staffKey;
     }
 
-    async function callFunction(action, payload, staffKey) {
+    async function callFunction(action, payload, staffKey, asBlob = false) {
       const res = await fetch(`${FUNCTION_URL}/${action}`, {
         method: 'POST',
         headers: {
@@ -349,27 +510,63 @@
         },
         body: JSON.stringify(payload),
       });
-      const json = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        sessionStorage.removeItem(PASSCODE_KEY);
-        localStorage.removeItem(PASSCODE_KEY);
+        passcodeInput.value = '';
         throw new Error('รหัสพนักงานไม่ถูกต้อง');
       }
-      if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
+      if (res.status === 429) {
+        passcodeInput.value = '';
+        throw new Error('ลองรหัสผิดหลายครั้ง ระบบพักการเข้าสู่ระบบ 15 นาที');
+      }
+      if (asBlob) {
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          const error = new Error(json.error || `HTTP ${res.status}`);
+          error.code = json.error;
+          error.delivery = json.delivery;
+          error.statusSaved = json.statusSaved;
+          throw error;
+        }
+        return await res.blob();
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) {
+        const error = new Error(json.error || `HTTP ${res.status}`);
+        error.code = json.error;
+        error.delivery = json.delivery;
+        error.statusSaved = json.statusSaved;
+        throw error;
+      }
       return json;
     }
 
-    async function loadCustomers() {
+    async function loadCustomers(offset = 0) {
+      const sequence = ++customerListSeq;
       const staffKey = requireStaffKey(searchStatus);
       if (!staffKey) return;
 
       setStatus(searchStatus, 'กำลังโหลด...', '');
       try {
-        const { matches } = await callFunction('list', {}, staffKey);
-        allCustomers = matches;
-        setStatus(searchStatus, `โหลดรายชื่อแล้ว ${matches.length} คน`, 'success');
-        applyFilter();
+        const result = await callFunction('list', {
+          search: searchQuery.value.trim(),
+          status: modeFilter.value,
+          offset,
+        }, staffKey);
+        if (sequence !== customerListSeq) return;
+        pageOffset = offset;
+        hasMoreCustomers = result.hasMore;
+        pageStatus.textContent = `หน้า ${Math.floor(offset / 50) + 1}`;
+        prevPageBtn.disabled = offset === 0;
+        nextPageBtn.disabled = !hasMoreCustomers;
+        renderResults(result.matches || []);
+        const refreshed = (result.matches || []).find((customer) => customer.id === selectedCustomer?.id);
+        if (refreshed) {
+          selectedCustomer = refreshed;
+          updateCustomerMode();
+        }
+        setStatus(searchStatus, `แสดง ${result.matches.length} รายการ${hasMoreCustomers ? ' · มีหน้าถัดไป' : ''}`, 'success');
       } catch (error) {
+        if (sequence !== customerListSeq) return;
         setStatus(searchStatus, `โหลดไม่สำเร็จ: ${error.message}`, 'error');
       }
     }
@@ -382,17 +579,17 @@
       return name || line || '-';
     }
 
-    function applyFilter() {
-      const q = searchQuery.value.trim().toLowerCase();
-      const filtered = q
-        ? allCustomers.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.line_display_name || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
-        : allCustomers;
-      renderResults(filtered);
-    }
-
-    searchQuery.addEventListener('input', applyFilter);
-    document.getElementById('reloadBtn').addEventListener('click', loadCustomers);
-    if (passcodeInput.value.trim()) loadCustomers();
+    searchQuery.addEventListener('input', () => {
+      customerListSeq++;
+      clearTimeout(listTimer);
+      listTimer = setTimeout(() => loadCustomers(0), 250);
+    });
+    modeFilter.addEventListener('change', () => loadCustomers(0));
+    document.getElementById('reloadBtn').addEventListener('click', () => loadCustomers(0));
+    prevPageBtn.addEventListener('click', () => loadCustomers(Math.max(0, pageOffset - 50)));
+    nextPageBtn.addEventListener('click', () => {
+      if (hasMoreCustomers) loadCustomers(pageOffset + 50);
+    });
 
     function renderResults(matches) {
       searchResults.replaceChildren();
@@ -405,64 +602,182 @@
       }
       for (const customer of matches) {
         const row = document.createElement('div');
-        row.className = 'result-row';
-        const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
+        const selected = selectedCustomer?.id === customer.id;
+        row.className = `result-row${selected ? ' selected' : ''}`;
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('aria-pressed', String(selected));
 
+        const details = document.createElement('div');
         const label = document.createElement('div');
         label.textContent = `${customerDisplayName(customer)} ${customer.phone ? `(${customer.phone})` : ''}`;
+        details.appendChild(label);
+        const activity = document.createElement('small');
+        activity.className = 'activity';
+        activity.textContent = customer.last_activity_at
+          ? new Date(customer.last_activity_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
+          : 'ยังไม่มีข้อความ';
+        details.appendChild(activity);
 
-        row.appendChild(label);
-        if (isPaused) {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.textContent = `⏸ หยุดถึง ${new Date(customer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
-          row.appendChild(badge);
-        }
+        row.appendChild(details);
+        const badge = document.createElement('span');
+        const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
+        badge.className = `mode-badge${customer.human_takeover ? ' human' : ' ai'}`;
+        badge.textContent = customer.human_takeover
+          ? 'คนรับช่วง'
+          : isPaused ? 'AI พักชั่วคราว' : 'AI ดูแล';
+        row.appendChild(badge);
 
-        row.addEventListener('click', () => selectCustomer(customer, row));
+        const select = () => selectCustomer(customer, row);
+        row.addEventListener('click', select);
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            select();
+          }
+        });
         searchResults.appendChild(row);
       }
     }
 
     function selectCustomer(customer, row) {
       selectedCustomer = customer;
-      [...searchResults.children].forEach((el) => el.classList.remove('selected'));
+      historyMessages = [];
+      historyOffset = 0;
+      renderChatThread([]);
+      [...searchResults.children].forEach((el) => {
+        el.classList.remove('selected');
+        el.setAttribute('aria-pressed', 'false');
+      });
       row.classList.add('selected');
+      row.setAttribute('aria-pressed', 'true');
 
       selectedName.textContent = customerDisplayName(customer);
-      const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
-      selectedPauseNote.textContent = isPaused
-        ? `AI หยุดตอบคนนี้อยู่ถึง ${new Date(customer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`
-        : 'AI กำลังตอบคนนี้ตามปกติ';
-
+      updateCustomerMode();
       replyMessage.value = '';
+      replyRequest = null;
       replyStatus.hidden = true;
       replyPanel.hidden = false;
-      replyMessage.focus();
-      loadHistory();
+      replyMessage.focus({ preventScroll: true });
+      olderMessagesBtn.hidden = true;
+      loadHistory(0);
+    }
+
+    function updateCustomerMode() {
+      if (!selectedCustomer) return;
+      const isHuman = Boolean(selectedCustomer.human_takeover);
+      const isPaused = selectedCustomer.paused_until && new Date(selectedCustomer.paused_until).getTime() > Date.now();
+      selectedPauseNote.textContent = isHuman
+        ? 'แอดมินรับช่วงอยู่ — AI จะไม่ตอบจนกดคืนให้ AI'
+        : isPaused
+        ? `AI พักชั่วคราวถึง ${new Date(selectedCustomer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`
+        : 'AI ดูแลบทสนทนานี้';
+      sendBtn.disabled = !isHuman;
+      takeoverBtn.hidden = isHuman;
+      resumeBtn.hidden = !isHuman;
     }
 
     sendBtn.addEventListener('click', async () => {
       const staffKey = requireStaffKey(replyStatus);
       if (!staffKey || !selectedCustomer) return;
+      const customerId = selectedCustomer.id;
+      if (!selectedCustomer.human_takeover) {
+        setStatus(replyStatus, 'กดรับช่วงก่อนส่งข้อความ', 'error');
+        return;
+      }
       const message = replyMessage.value.trim();
       if (!message) {
         setStatus(replyStatus, 'พิมพ์ข้อความก่อนส่ง', 'error');
         return;
       }
 
+      if (!replyRequest || replyRequest.message !== message) {
+        replyRequest = { id: crypto.randomUUID(), message };
+      }
+      const requestId = replyRequest.id;
       sendBtn.disabled = true;
+      takeoverBtn.disabled = true;
       resumeBtn.disabled = true;
       setStatus(replyStatus, 'กำลังส่ง...', '');
       try {
-        const result = await callFunction('send', { customerId: selectedCustomer.id, message }, staffKey);
-        setStatus(replyStatus, `ส่งแล้ว — หยุด AI ถึง ${new Date(result.pausedUntil).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`, 'success');
-        replyMessage.value = '';
-        loadHistory();
+        const result = await callFunction('send', { customerId, message, requestId }, staffKey);
+        if (selectedCustomer?.id !== customerId || replyRequest?.id !== requestId) {
+          await loadCustomers(0);
+          return;
+        }
+        setStatus(replyStatus, result.statusSaved === false
+          ? 'ส่งข้อความแล้ว แต่บันทึกสถานะส่งไม่สำเร็จ'
+          : 'ส่งข้อความแล้ว และโหมดคนยังทำงานอยู่', result.statusSaved === false ? 'error' : 'success');
+        if (replyMessage.value.trim() === message) replyMessage.value = '';
+        replyRequest = null;
+        await loadHistory(0);
+        await loadCustomers(0);
       } catch (error) {
-        setStatus(replyStatus, `ส่งไม่สำเร็จ: ${error.message}`, 'error');
+        if (selectedCustomer?.id !== customerId || replyRequest?.id !== requestId) {
+          await loadCustomers(0);
+          return;
+        }
+        if (error.code === 'reply_sent_audit_failed') {
+          if (replyMessage.value.trim() === message) replyMessage.value = '';
+          replyRequest = null;
+          await loadHistory(0);
+          await loadCustomers(0);
+          setStatus(replyStatus, error.statusSaved === false
+            ? 'ส่งข้อความแล้ว แต่บันทึกสถานะส่งและ audit ไม่สำเร็จ'
+            : 'ส่งข้อความแล้ว แต่บันทึก audit ไม่สำเร็จ', 'error');
+        } else if (
+          error.code === 'line_push_uncertain' ||
+          (error.code === 'reply_audit_failed' && error.delivery === 'uncertain')
+        ) {
+          // LINE never confirmed this push. The cached request ID is the idempotency key: the
+          // server keeps that row as "uncertain" and answers every replay with
+          // line_push_uncertain, so staff could never retry the same text. Drop the key (keep the
+          // typed message) and refresh the thread so staff can verify delivery first.
+          replyRequest = null;
+          setStatus(replyStatus, 'ส่งไม่แน่ชัด: LINE ไม่ยืนยันผลการส่ง ตรวจสอบในแชทด้านบนหรือแอป LINE ก่อน ระบบล้างรหัสคำขอเดิมแล้ว กดส่งซ้ำเพื่อสร้างรหัสใหม่ (ข้อความเดิมยังอยู่ในช่องพิมพ์)', 'error');
+          await loadHistory(0);
+          await loadCustomers(0);
+          return;
+        } else {
+          if (error.code === 'line_push_rejected') replyRequest = null;
+          const note = error.delivery === 'uncertain'
+            ? ' ตรวจ LINE ก่อนลองส่งข้อความใหม่'
+            : '';
+          setStatus(replyStatus, `ส่งไม่สำเร็จ: ${error.message}.${note}`, 'error');
+        }
       } finally {
-        sendBtn.disabled = false;
+        updateCustomerMode();
+        takeoverBtn.disabled = false;
+        resumeBtn.disabled = false;
+      }
+    });
+
+    takeoverBtn.addEventListener('click', async () => {
+      const staffKey = requireStaffKey(replyStatus);
+      if (!staffKey || !selectedCustomer) return;
+      const customerId = selectedCustomer.id;
+      takeoverBtn.disabled = true;
+      resumeBtn.disabled = true;
+      setStatus(replyStatus, 'กำลังรับช่วง...', '');
+      try {
+        await callFunction('takeover', { customerId }, staffKey);
+        if (selectedCustomer?.id !== customerId) {
+          await loadCustomers(0);
+          return;
+        }
+        selectedCustomer.human_takeover = true;
+        updateCustomerMode();
+        setStatus(replyStatus, 'รับช่วงแล้ว — AI จะไม่ตอบจนกดคืนให้ AI', 'success');
+        await loadCustomers(0);
+      } catch (error) {
+        if (selectedCustomer?.id !== customerId) {
+          await loadCustomers(0);
+          return;
+        }
+        setStatus(replyStatus, `รับช่วงไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        updateCustomerMode();
+        takeoverBtn.disabled = false;
         resumeBtn.disabled = false;
       }
     });
@@ -470,18 +785,34 @@
     resumeBtn.addEventListener('click', async () => {
       const staffKey = requireStaffKey(replyStatus);
       if (!staffKey || !selectedCustomer) return;
-
+      const customerId = selectedCustomer.id;
       sendBtn.disabled = true;
+      takeoverBtn.disabled = true;
       resumeBtn.disabled = true;
-      setStatus(replyStatus, 'กำลังเปิด AI กลับ...', '');
+      setStatus(replyStatus, 'กำลังคืนบทสนทนาให้ AI...', '');
       try {
-        await callFunction('resume', { customerId: selectedCustomer.id }, staffKey);
-        setStatus(replyStatus, 'เปิด AI ตอบคนนี้กลับมาแล้ว', 'success');
-        selectedPauseNote.textContent = 'AI กำลังตอบคนนี้ตามปกติ';
+        const result = await callFunction('resume', { customerId }, staffKey);
+        if (selectedCustomer?.id !== customerId) {
+          await loadCustomers(0);
+          return;
+        }
+        selectedCustomer.human_takeover = false;
+        selectedCustomer.paused_until = result.pausedUntil;
+        replyRequest = null;
+        updateCustomerMode();
+        setStatus(replyStatus, result.pausedUntil && new Date(result.pausedUntil).getTime() > Date.now()
+          ? 'คืนให้ AI แล้ว แต่เวลาพักจาก Telegram ยังมีผลอยู่'
+          : 'คืนบทสนทนาให้ AI แล้ว', 'success');
+        await loadCustomers(0);
       } catch (error) {
-        setStatus(replyStatus, `เปิดกลับไม่สำเร็จ: ${error.message}`, 'error');
+        if (selectedCustomer?.id !== customerId) {
+          await loadCustomers(0);
+          return;
+        }
+        setStatus(replyStatus, `คืนให้ AI ไม่สำเร็จ: ${error.message}`, 'error');
       } finally {
-        sendBtn.disabled = false;
+        updateCustomerMode();
+        takeoverBtn.disabled = false;
         resumeBtn.disabled = false;
       }
     });

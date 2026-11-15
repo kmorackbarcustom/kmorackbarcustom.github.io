@@ -30,7 +30,21 @@ import { PostgresSessionStore } from "../_shared/line-session-store.ts";
 import { StateManager } from "../_shared/vendor/line-oa-ai-module/core/state-manager.ts";
 import { PromptBasedAiAdapter } from "../_shared/vendor/line-oa-ai-module/adapters/ai-engine.ts";
 import { LineOaWebhookHandler } from "../_shared/vendor/line-oa-ai-module/index.ts";
+import type {
+  ChatMessageHistory,
+  ConversationState,
+  SessionStore,
+  UserSession,
+} from "../_shared/vendor/line-oa-ai-module/core/types.ts";
 import { upsertLineCustomer } from "../_shared/customer-context.ts";
+import {
+  aiReplyAllowed,
+  claimLineDelivery,
+  type DeliveryClaim,
+  recordCustomerInboxMessage,
+  releaseLineDelivery,
+  startLineDeliveryHeartbeat,
+} from "../_shared/line-inbox.ts";
 import {
   LINE_AGENT_TOOLS,
   makeLineAgentRunner,
@@ -48,6 +62,159 @@ import {
 } from "../_shared/line-image-flow.ts";
 import { processRescheduleMessage } from "../_shared/reschedule-state.ts";
 import { guardGroundedOutput } from "../_shared/output-grounding.ts";
+
+async function getLineCustomerState(
+  supabase: ReturnType<typeof createServiceClient>,
+  lineUid: string,
+) {
+  let result = await supabase.from("customers")
+    .select("id, line_uid, paused_until, human_takeover")
+    .eq("line_uid", lineUid)
+    .maybeSingle();
+  if (result.error) throw new Error("customer_mode_read_failed");
+  if (!result.data) {
+    const profile = await getProfile(lineUid).catch(() => null);
+    await upsertLineCustomer(supabase, lineUid, profile?.displayName);
+    result = await supabase.from("customers")
+      .select("id, line_uid, paused_until, human_takeover")
+      .eq("line_uid", lineUid)
+      .maybeSingle();
+  }
+  if (result.error || !result.data) {
+    throw new Error("customer_mode_unavailable");
+  }
+  return result.data;
+}
+
+function lineEventTimestamp(timestamp?: number): string {
+  return Number.isFinite(timestamp) && Number(timestamp) > 0
+    ? new Date(Number(timestamp)).toISOString()
+    : new Date().toISOString();
+}
+
+function errorCode(error: unknown): string {
+  if (error && typeof error === "object") {
+    const value = error as { code?: unknown; name?: unknown };
+    if (typeof value.code === "string") return value.code;
+    if (typeof value.name === "string") return value.name;
+  }
+  return "unknown";
+}
+
+/**
+ * The vendored text handler appends the user turn, the assistant turn and the state/context that
+ * turn produced (webhook-handler.ts steps 2/4/6) *before* this function ever claims the delivery
+ * lease. That recorded an answer the customer may never have received: a suppressed or busy turn
+ * stayed in the session as if it had been delivered, and the next AI turn either believed the
+ * question was already answered or, for a reschedule turn, resumed a question nobody was shown.
+ *
+ * This store holds every text-turn write in memory and applies it only once LINE confirms the
+ * send (commit()); every other exit drops it. The user turn passes straight through - the customer
+ * really did send it - and `setWebhookEventIds()` doubles as the per-event reset, so a held turn
+ * can never leak into the next event of the same invocation.
+ */
+class DeliveryGatedSessionStore implements SessionStore {
+  private pendingState: ConversationState | null = null;
+  private pendingContext: Record<string, unknown> | null = null;
+  private pendingAssistant: Array<{
+    message: ChatMessageHistory;
+    maxHistory: number;
+  }> = [];
+
+  constructor(private readonly store: PostgresSessionStore) {}
+
+  setWebhookEventIds(eventIds: string[]): void {
+    this.pendingState = null;
+    this.pendingContext = null;
+    this.pendingAssistant = [];
+    this.store.setWebhookEventIds(eventIds);
+  }
+
+  get(userId: string): Promise<UserSession | null> {
+    return this.store.get(userId);
+  }
+
+  set(_userId: string, session: UserSession, _ttlMs?: number): Promise<void> {
+    this.pendingState = session.state;
+    this.pendingContext = session.contextData ?? {};
+    return Promise.resolve();
+  }
+
+  delete(userId: string): Promise<void> {
+    return this.store.delete(userId);
+  }
+
+  appendHistoryAtomic(
+    userId: string,
+    message: ChatMessageHistory,
+    maxHistory: number,
+  ): Promise<UserSession> {
+    if (message.role !== "assistant") {
+      return this.store.appendHistoryAtomic(userId, message, maxHistory);
+    }
+    this.pendingAssistant.push({ message, maxHistory });
+    return this.store.get(userId).then((session) =>
+      session ?? {
+        userId,
+        state: "IDLE",
+        contextData: {},
+        history: [],
+        lastInteraction: Date.now(),
+      }
+    );
+  }
+
+  /**
+   * LINE accepted the send: only now does this turn become part of the conversation. State and
+   * context are applied against a fresh read first, because `set` writes the whole row including
+   * history - running it after the assistant append would drop the appended turn.
+   */
+  async commit(userId: string): Promise<void> {
+    const pendingState = this.pendingState;
+    const pendingContext = this.pendingContext;
+    const pendingAssistant = this.pendingAssistant;
+    this.pendingState = null;
+    this.pendingContext = null;
+    this.pendingAssistant = [];
+    if (pendingState !== null || pendingContext !== null) {
+      const current = await this.store.get(userId);
+      if (current) {
+        await this.store.set(userId, {
+          ...current,
+          state: pendingState ?? current.state,
+          contextData: { ...current.contextData, ...(pendingContext ?? {}) },
+          lastInteraction: Date.now(),
+        });
+      }
+    }
+    for (const entry of pendingAssistant) {
+      await this.store.appendHistoryAtomic(
+        userId,
+        entry.message,
+        entry.maxHistory,
+      );
+    }
+  }
+}
+
+// A pending AI inbox row means "generated, not sent". When the delivery lease could not be taken
+// (busy/error/not claimable) the row must say so, otherwise reconciliation reads a never-attempted
+// send as an uncertain one.
+async function suppressAiInboxMessage(
+  supabase: ReturnType<typeof createServiceClient>,
+  eventId: string,
+): Promise<void> {
+  const { error } = await supabase.from("line_inbox_messages")
+    .update({ delivery_status: "suppressed" })
+    .eq("event_id", eventId)
+    .eq("role", "ai");
+  if (error) {
+    console.error("[line-webhook] AI inbox suppression failed", {
+      eventId,
+      errorCode: errorCode(error),
+    });
+  }
+}
 
 async function notifyStaffOfUnansweredQuestion(
   supabase: ReturnType<typeof createServiceClient>,
@@ -160,7 +327,9 @@ async function generateAgentText(
         userMessage,
       );
     } catch (notifyError) {
-      console.error("[line-ai] staff notify failed", notifyError);
+      console.error("[line-ai] staff notify failed", {
+        errorCode: errorCode(notifyError),
+      });
     }
   };
 
@@ -186,7 +355,6 @@ async function generateAgentText(
     });
     if (guarded.blocked) {
       console.warn("[line-ai] output grounding blocked unsupported claim", {
-        userId,
         reason: guarded.reason,
       });
     }
@@ -198,7 +366,9 @@ async function generateAgentText(
     });
     return guarded.text;
   } catch (error) {
-    console.error("[line-ai] generation failed, sending fallback reply", error);
+    console.error("[line-ai] generation failed, sending fallback reply", {
+      errorCode: errorCode(error),
+    });
     const fallback =
       "ขอโทษครับ ระบบขัดข้องชั่วคราว รบกวนลองพิมพ์ใหม่อีกครั้ง หรือรอทีมงานติดต่อกลับครับ";
     await notifyIfNeeded(fallback);
@@ -220,7 +390,7 @@ serve(async (req) => {
     let settings: Record<string, string> | null = null;
     let faqs: ShopFaq[] | null = null;
     let aiHandler: LineOaWebhookHandler | null = null;
-    let textSessionStore: PostgresSessionStore | null = null;
+    let textSessionStore: DeliveryGatedSessionStore | null = null;
 
     for (const event of events) {
       if (event.type === "follow") {
@@ -247,171 +417,270 @@ serve(async (req) => {
         // staff work-update groups the OA was added to) - skip entirely, no reply,
         // no customers upsert. Groups aren't customers and shouldn't get AI replies.
         if (event.source?.type !== "user") continue;
+        const userId = event.source.userId;
+        const eventId = lineEventKey(event);
+        if (!eventId) throw new Error("text_event_id_missing");
+        const claim = await claimLineWebhookEvent(
+          supabase,
+          eventId,
+          "message:text",
+        );
+        if (!claim.claimed) continue;
+
+        let customer;
+        try {
+          customer = await getLineCustomerState(supabase, userId);
+          const record = await recordCustomerInboxMessage(supabase, {
+            customerId: customer.id,
+            eventId,
+            lineMessageId: event.message.id ?? eventId,
+            messageType: "text",
+            content: event.message.text,
+            createdAt: lineEventTimestamp(event.timestamp),
+          });
+          if (record === "duplicate-message") {
+            await writeLineWebhookEventState(
+              supabase,
+              [eventId],
+              "completed",
+              "not_attempted",
+              "duplicate_message",
+            );
+            continue;
+          }
+        } catch (error) {
+          await writeLineWebhookEventState(
+            supabase,
+            [eventId],
+            "failed_retryable",
+            "not_attempted",
+            "inbox_record_failed",
+          ).catch(() => undefined);
+          throw error;
+        }
 
         settings ??= await getSettings(supabase);
         const rollout = settings.line_ai_rollout ?? "off";
-        const isOwner = event.source?.userId === settings.line_ai_owner_uid;
-
-        const { data: pauseRow } = await supabase
-          .from("customers")
-          .select("paused_until")
-          .eq("line_uid", event.source?.userId)
-          .maybeSingle();
-
-        // Existing followers who never re-triggered a "follow" event (only new
-        // followers get upserted above) had no customers row at all, so staff
-        // could never find/pause them by name. Backfill on their first message.
-        if (!pauseRow) {
-          const profile = await getProfile(event.source?.userId);
-          await upsertLineCustomer(
+        const isOwner = userId === settings.line_ai_owner_uid;
+        if (
+          !aiReplyAllowed(customer, null) ||
+          !(rollout === "all" || (rollout === "owner_only" && isOwner))
+        ) {
+          await writeLineWebhookEventState(
             supabase,
-            event.source?.userId,
-            profile?.displayName,
+            [eventId],
+            "completed",
+            "not_attempted",
           );
+          continue;
         }
 
-        const isPaused = pauseRow?.paused_until &&
-          new Date(pauseRow.paused_until).getTime() > Date.now();
-
-        if (
-          !isPaused &&
-          (rollout === "all" || (rollout === "owner_only" && isOwner))
-        ) {
-          if (faqs === null) {
-            const { data, error } = await supabase.from("shop_faqs").select(
-              "question, answer",
-            ).order("sort_order");
-            if (error) {
-              console.error("[line-webhook] shop_faqs lookup failed", error);
-            }
-            faqs = data ?? [];
-          }
-          const eventId = lineEventKey(event);
-          if (!eventId) {
-            console.error(
-              "[line-webhook] text event has no stable event or message ID",
-            );
-            throw new Error(
-              "LINE text event is missing webhookEventId and message.id",
-            );
-          }
-          const claim = await claimLineWebhookEvent(
-            supabase,
-            eventId,
-            "message:text",
-          );
-          if (!claim.claimed) {
-            console.log("[line-webhook] duplicate text event skipped", {
-              eventId,
-              status: claim.status,
-              deliveryStatus: claim.deliveryStatus,
+        if (faqs === null) {
+          const { data, error } = await supabase.from("shop_faqs").select(
+            "question, answer",
+          ).order("sort_order");
+          if (error) {
+            console.error("[line-webhook] shop_faqs lookup failed", {
+              errorCode: errorCode(error),
             });
-            continue;
           }
+          faqs = data ?? [];
+        }
 
-          if (!textSessionStore) {
-            textSessionStore = new PostgresSessionStore(
+        if (!textSessionStore) {
+          textSessionStore = new DeliveryGatedSessionStore(
+            new PostgresSessionStore(
               supabase,
               (Number(settings?.session_ttl_hours) || 6) * 60 * 60 * 1000,
-            );
-          }
-          textSessionStore.setWebhookEventIds([eventId]);
-          aiHandler ??= new LineOaWebhookHandler(
-            {
-              channelAccessToken: Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") ??
-                "",
-              channelSecret: Deno.env.get("LINE_CHANNEL_SECRET") ?? "",
-            },
-            {
-              stateStore: textSessionStore,
-              autoReply: false,
-              aiAdapter: new PromptBasedAiAdapter(
-                async ({ userMessage, session, history }) => {
-                  const reschedule = processRescheduleMessage(
-                    session.contextData,
-                    userMessage,
-                  );
-                  if (reschedule) {
-                    if (reschedule.completed) {
-                      const chatId = settings?.telegram_group_chat_id;
-                      if (chatId) {
-                        try {
-                          await notifyStaffOfRescheduleRequest(
-                            supabase,
-                            chatId,
-                            session.userId,
-                            reschedule.completed.originalDate,
-                            reschedule.completed.requestedDate,
-                          );
-                        } catch (notifyError) {
-                          console.error(
-                            "[line-ai] reschedule staff notify failed",
-                            notifyError,
-                          );
-                        }
+            ),
+          );
+        }
+        const gatedSessionStore = textSessionStore;
+        gatedSessionStore.setWebhookEventIds([eventId]);
+        aiHandler ??= new LineOaWebhookHandler(
+          {
+            channelAccessToken: Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") ??
+              "",
+            channelSecret: Deno.env.get("LINE_CHANNEL_SECRET") ?? "",
+          },
+          {
+            stateStore: gatedSessionStore,
+            autoReply: false,
+            aiAdapter: new PromptBasedAiAdapter(
+              async ({ userMessage, session, history }) => {
+                const reschedule = processRescheduleMessage(
+                  session.contextData,
+                  userMessage,
+                );
+                if (reschedule) {
+                  if (reschedule.completed) {
+                    const chatId = settings?.telegram_group_chat_id;
+                    if (chatId) {
+                      try {
+                        await notifyStaffOfRescheduleRequest(
+                          supabase,
+                          chatId,
+                          session.userId,
+                          reschedule.completed.originalDate,
+                          reschedule.completed.requestedDate,
+                        );
+                      } catch (notifyError) {
+                        console.error(
+                          "[line-ai] reschedule staff notify failed",
+                          notifyError,
+                        );
                       }
                     }
-                    const guarded = guardGroundedOutput(reschedule.reply, {
-                      userMessage,
-                      structuredDates: {
-                        original_date: reschedule.completed?.originalDate ??
-                          reschedule.extractedData.original_date,
-                        requested_date: reschedule.completed?.requestedDate ??
-                          reschedule.extractedData.requested_date,
-                      },
-                    });
-                    return { ...reschedule, reply: guarded.text };
                   }
-                  return {
-                    reply: await generateAgentText(
-                      supabase,
-                      settings ?? {},
-                      faqs ?? [],
-                      session.userId,
-                      userMessage,
-                      history,
-                    ),
-                  };
-                },
-                LINE_AI_SAFETY_RULES,
-              ),
-              businessAdapter: {
-                async onIntent(intent, data, session) {
-                  console.log("[line-ai] intent detected", {
-                    intent,
-                    data,
-                    userId: session.userId,
+                  const guarded = guardGroundedOutput(reschedule.reply, {
+                    userMessage,
+                    structuredDates: {
+                      original_date: reschedule.completed?.originalDate ??
+                        reschedule.extractedData.original_date,
+                      requested_date: reschedule.completed?.requestedDate ??
+                        reschedule.extractedData.requested_date,
+                    },
                   });
-                },
+                  return { ...reschedule, reply: guarded.text };
+                }
+                return {
+                  reply: await generateAgentText(
+                    supabase,
+                    settings ?? {},
+                    faqs ?? [],
+                    session.userId,
+                    userMessage,
+                    history,
+                  ),
+                };
+              },
+              LINE_AI_SAFETY_RULES,
+            ),
+            businessAdapter: {
+              onIntent(intent) {
+                console.log("[line-ai] intent detected", {
+                  intent,
+                });
+                return Promise.resolve();
               },
             },
+          },
+        );
+        const result = await aiHandler.processSingleEvent(event);
+        if (!result.success) {
+          await writeLineWebhookEventState(
+            supabase,
+            [eventId],
+            "failed_retryable",
+            "not_attempted",
+            "event_processing_failed",
           );
-          const result = await aiHandler.processSingleEvent(event);
-          if (!result.success) {
+          throw new Error(
+            result.error ?? "LINE text event processing failed",
+          );
+        }
+        if (result.replyMessages?.length && event.source?.userId) {
+          const aiText = result.replyMessages
+            .flatMap((message) =>
+              "text" in message && typeof message.text === "string"
+                ? [message.text]
+                : []
+            )
+            .join("\n");
+          if (aiText) {
+            const { error: inboxError } = await supabase.from(
+              "line_inbox_messages",
+            ).upsert({
+              customer_id: customer.id,
+              event_id: eventId,
+              role: "ai",
+              message_type: "text",
+              content: aiText,
+              delivery_status: "pending",
+            }, { onConflict: "event_id,role" });
+            if (inboxError) {
+              // Nothing was sent: the row that says "generated, not sent" never landed, so the
+              // event must stay retryable instead of processing forever.
+              console.error("[line-webhook] AI inbox record failed", {
+                eventId,
+                errorCode: errorCode(inboxError),
+              });
+              await writeLineWebhookEventState(
+                supabase,
+                [eventId],
+                "failed_retryable",
+                "not_attempted",
+                "inbox_record_failed",
+              ).catch(() => undefined);
+              throw new Error("ai_message_record_failed");
+            }
+          }
+
+          let deliveryClaim: DeliveryClaim;
+          try {
+            deliveryClaim = await claimLineDelivery(
+              supabase,
+              customer.id,
+              eventId,
+              "ai",
+            );
+          } catch (error) {
             await writeLineWebhookEventState(
               supabase,
               [eventId],
               "failed_retryable",
               "not_attempted",
-              "event_processing_failed",
-            );
-            throw new Error(
-              result.error ?? "LINE text event processing failed",
-            );
+              "delivery_gate_failed",
+            ).catch(() => undefined);
+            if (aiText) await suppressAiInboxMessage(supabase, eventId);
+            throw error;
           }
-          if (result.replyMessages?.length && event.source?.userId) {
-            const delivery = await sendReplyOrPushFallback({
+          if (deliveryClaim.status !== "claimed") {
+            // The reply was generated but no send was attempted, so its inbox row cannot stay
+            // `pending` - reconciliation would read it as an uncertain delivery.
+            await suppressAiInboxMessage(supabase, eventId);
+            if (deliveryClaim.status === "busy") {
+              await writeLineWebhookEventState(
+                supabase,
+                [eventId],
+                "failed_retryable",
+                "not_attempted",
+                "delivery_busy",
+              );
+              throw new Error("ai_delivery_busy");
+            }
+            await writeLineWebhookEventState(
+              supabase,
+              [eventId],
+              "completed",
+              "not_attempted",
+              deliveryClaim.status,
+            );
+            gatedSessionStore.setWebhookEventIds([]);
+            continue;
+          }
+
+          const heartbeat = startLineDeliveryHeartbeat(
+            supabase,
+            customer.id,
+            deliveryClaim.claimToken,
+          );
+          let delivery;
+          try {
+            delivery = await sendReplyOrPushFallback({
               eventIds: [eventId],
               replyToken: event.replyToken,
               sendReply: async (replyToken) =>
                 await replyMessageWithOutcome(
                   replyToken,
                   result.replyMessages!,
+                  heartbeat.signal,
                 ),
               sendPush: async () =>
                 await pushMessageWithOutcome(
-                  event.source.userId!,
+                  event.source!.userId!,
                   result.replyMessages!,
+                  heartbeat.signal,
                 ),
               writeState: (ids, status, deliveryStatus, errorCode) =>
                 writeLineWebhookEventState(
@@ -422,25 +691,65 @@ serve(async (req) => {
                   errorCode,
                 ),
             });
-            if (
-              delivery.outcome === "uncertain" ||
-              delivery.outcome === "rejected"
-            ) {
-              console.warn("[line-webhook] text delivery needs follow-up", {
-                eventId,
-                outcome: delivery.outcome,
-              });
-            }
-          } else {
-            await writeLineWebhookEventState(
+          } finally {
+            heartbeat.stop();
+            await releaseLineDelivery(
               supabase,
-              [eventId],
-              "completed",
-              "not_attempted",
+              customer.id,
+              deliveryClaim.claimToken!,
+            ).catch(
+              (error) => {
+                console.error("[line-webhook] delivery lock release failed", {
+                  errorCode: errorCode(error),
+                });
+              },
             );
           }
-          textSessionStore.setWebhookEventIds([]);
+          if (aiText) {
+            const { error: updateError } = await supabase.from(
+              "line_inbox_messages",
+            )
+              .update({
+                delivery_status: delivery.outcome === "not_attempted"
+                  ? "suppressed"
+                  : delivery.outcome,
+              })
+              .eq("event_id", eventId)
+              .eq("role", "ai");
+            if (updateError) {
+              console.error("[line-webhook] AI inbox status update failed", {
+                errorCode: errorCode(updateError),
+              });
+            }
+          }
+          // Only a send LINE actually accepted promotes the held turn into the conversation; a
+          // rejected/uncertain/not_attempted turn stays out of the history the next AI turn reads.
+          if (delivery.replied || delivery.pushed) {
+            await gatedSessionStore.commit(userId).catch((commitError) => {
+              console.error(
+                "[line-webhook] delivered turn history commit failed",
+                { eventId, errorCode: errorCode(commitError) },
+              );
+            });
+          }
+          if (
+            delivery.outcome === "uncertain" ||
+            delivery.outcome === "rejected"
+          ) {
+            console.warn("[line-webhook] text delivery needs follow-up", {
+              eventId,
+              outcome: delivery.outcome,
+            });
+          }
+        } else {
+          await writeLineWebhookEventState(
+            supabase,
+            [eventId],
+            "completed",
+            "not_attempted",
+          );
         }
+        gatedSessionStore.setWebhookEventIds([]);
         continue;
       }
 
@@ -448,52 +757,66 @@ serve(async (req) => {
         if (event.source?.type !== "user") continue;
         const userId = event.source?.userId;
         if (!userId) continue;
-
-        settings ??= await getSettings(supabase);
-        const mainRollout = settings.line_ai_rollout ?? "off";
-        const imageRollout = settings.line_ai_image_rollout ?? "off";
-        const isOwner = userId === settings.line_ai_owner_uid;
-        const { data: pauseRow } = await supabase
-          .from("customers")
-          .select("paused_until")
-          .eq("line_uid", userId)
-          .maybeSingle();
-        if (!pauseRow) {
-          const profile = await getProfile(userId);
-          await upsertLineCustomer(supabase, userId, profile?.displayName);
-        }
-        const isPaused = Boolean(
-          pauseRow?.paused_until &&
-            new Date(pauseRow.paused_until).getTime() > Date.now(),
-        );
-        if (
-          !shouldHandleImage({
-            sourceType: event.source?.type,
-            mainRollout,
-            imageRollout,
-            isOwner,
-            isPaused,
-          })
-        ) continue;
-
         const eventId = lineEventKey(event);
-        if (!eventId) {
-          console.error("[line-image] event has no stable event or message ID");
-          throw new Error(
-            "LINE image event is missing webhookEventId and message.id",
-          );
+        if (!eventId || !event.message.id) {
+          throw new Error("image_event_id_missing");
         }
         const claim = await claimLineWebhookEvent(
           supabase,
           eventId,
           "message:image",
         );
-        if (!claim.claimed) {
-          console.log("[line-image] duplicate image event skipped", {
+        if (!claim.claimed) continue;
+
+        let customer;
+        try {
+          customer = await getLineCustomerState(supabase, userId);
+          const record = await recordCustomerInboxMessage(supabase, {
+            customerId: customer.id,
             eventId,
-            status: claim.status,
-            deliveryStatus: claim.deliveryStatus,
+            lineMessageId: event.message.id,
+            messageType: "image",
+            createdAt: lineEventTimestamp(event.timestamp),
           });
+          if (record === "duplicate-message") {
+            await writeLineWebhookEventState(
+              supabase,
+              [eventId],
+              "completed",
+              "not_attempted",
+              "duplicate_message",
+            );
+            continue;
+          }
+        } catch (error) {
+          await writeLineWebhookEventState(
+            supabase,
+            [eventId],
+            "failed_retryable",
+            "not_attempted",
+            "inbox_record_failed",
+          ).catch(() => undefined);
+          throw error;
+        }
+
+        settings ??= await getSettings(supabase);
+        const mainRollout = settings.line_ai_rollout ?? "off";
+        const imageRollout = settings.line_ai_image_rollout ?? "off";
+        const isOwner = userId === settings.line_ai_owner_uid;
+        const imageAllowed = shouldHandleImage({
+          sourceType: event.source?.type,
+          mainRollout,
+          imageRollout,
+          isOwner,
+          isPaused: !aiReplyAllowed(customer, null),
+        });
+        if (!imageAllowed) {
+          await writeLineWebhookEventState(
+            supabase,
+            [eventId],
+            "completed",
+            "not_attempted",
+          );
           continue;
         }
 
@@ -502,7 +825,9 @@ serve(async (req) => {
             "question, answer",
           ).order("sort_order");
           if (error) {
-            console.error("[line-webhook] shop_faqs lookup failed", error);
+            console.error("[line-webhook] shop_faqs lookup failed", {
+              errorCode: errorCode(error),
+            });
           }
           faqs = data ?? [];
         }
@@ -526,7 +851,9 @@ serve(async (req) => {
           },
         );
         if (appendError || !appended) {
-          console.error("[line-image] batch append failed", appendError);
+          console.error("[line-image] batch append failed", {
+            errorCode: errorCode(appendError),
+          });
           await writeLineWebhookEventState(
             supabase,
             [eventId],
@@ -560,7 +887,9 @@ serve(async (req) => {
           },
         );
         if (claimError) {
-          console.error("[line-image] batch claim failed", claimError);
+          console.error("[line-image] batch claim failed", {
+            errorCode: errorCode(claimError),
+          });
           throw claimError;
         }
         type QueuedImageItem = {
@@ -574,7 +903,9 @@ serve(async (req) => {
         const queuedItems = (claimedItems ?? []) as QueuedImageItem[];
         const claimedEventIds = queuedItems
           .map((it) => it.webhook_event_id)
-          .filter((id): id is string => typeof id === "string" && id.length > 0);
+          .filter((id): id is string =>
+            typeof id === "string" && id.length > 0
+          );
         if (queuedItems.length === 0) {
           // Superseded: a newer image arrived while we were waiting, so that later invocation
           // owns the whole batch (including this image) instead of us. No vision/LLM cost paid.
@@ -601,69 +932,183 @@ serve(async (req) => {
           sessionStore,
           ttlMs,
         );
-        const result = await processImageBatchConversation({
-          sessions: stateManager,
-          downloadImage: async (messageId) => {
-            if (
-              !isSupportedLineImageProvider(providerByMessageId.get(messageId))
-            ) {
-              const error = new Error(
-                "external image provider is not supported",
-              ) as Error & { code?: string };
-              error.code = "external_provider";
-              throw error;
-            }
-            return await downloadLineImageContent(messageId);
-          },
-          analyzeImage: async (image) =>
-            await analyzeImageWithGemma({
-              bytes: image.bytes,
-              mimeType: image.mimeType,
-            }),
-          formatObservation: formatVisionObservation,
-          generateReply: async ({ userMessage, history }) =>
-            await generateAgentText(
+        const deliveryEventId = claimedEventIds[0] ?? eventId;
+        const deliveryState: {
+          claim: DeliveryClaim | null;
+          heartbeat: ReturnType<typeof startLineDeliveryHeartbeat> | null;
+        } = { claim: null, heartbeat: null };
+        let deliveryLocked = false;
+        let result;
+        try {
+          result = await processImageBatchConversation({
+            sessions: stateManager,
+            downloadImage: async (messageId) => {
+              if (
+                !isSupportedLineImageProvider(
+                  providerByMessageId.get(messageId),
+                )
+              ) {
+                const error = new Error(
+                  "external image provider is not supported",
+                ) as Error & { code?: string };
+                error.code = "external_provider";
+                throw error;
+              }
+              return await downloadLineImageContent(messageId);
+            },
+            analyzeImage: async (image) =>
+              await analyzeImageWithGemma({
+                bytes: image.bytes,
+                mimeType: image.mimeType,
+              }),
+            formatObservation: formatVisionObservation,
+            generateReply: async ({ userMessage, history }) => {
+              const text = await generateAgentText(
+                supabase,
+                settings ?? {},
+                faqs ?? [],
+                userId,
+                userMessage,
+                history,
+              );
+              const { error } = await supabase.from("line_inbox_messages")
+                .upsert({
+                  customer_id: customer.id,
+                  event_id: deliveryEventId,
+                  role: "ai",
+                  message_type: "text",
+                  content: text,
+                  delivery_status: "pending",
+                }, { onConflict: "event_id,role" });
+              if (error) throw new Error("ai_message_record_failed");
+              return text;
+            },
+            authorizeDelivery: async () => {
+              try {
+                deliveryState.claim = await claimLineDelivery(
+                  supabase,
+                  customer.id,
+                  deliveryEventId,
+                  "ai",
+                );
+              } catch {
+                deliveryState.claim = { status: "error", claimToken: null };
+                return false;
+              }
+              if (deliveryState.claim.status === "claimed") {
+                deliveryLocked = true;
+                deliveryState.heartbeat = startLineDeliveryHeartbeat(
+                  supabase,
+                  customer.id,
+                  deliveryState.claim.claimToken,
+                );
+              } else {
+                deliveryLocked = false;
+              }
+              return deliveryLocked;
+            },
+            sendReply: async (replyToken, text) =>
+              await replyMessageWithOutcome(replyToken, [{
+                type: "text",
+                text,
+              }], deliveryState.heartbeat?.signal),
+            sendPush: async (to, text) =>
+              await pushMessageWithOutcome(
+                to,
+                [{ type: "text", text }],
+                deliveryState.heartbeat?.signal,
+              ),
+            writeEventState: (ids, status, deliveryStatus, errorCode) =>
+              writeLineWebhookEventState(
+                supabase,
+                ids,
+                status,
+                deliveryStatus,
+                errorCode,
+              ),
+            notifyPaymentProof: async (messageId) => {
+              const chatId = settings?.telegram_group_chat_id;
+              if (!chatId) return;
+              await notifyStaffOfPaymentProof(
+                supabase,
+                chatId,
+                userId,
+                messageId,
+              );
+            },
+            notifyImageFailure: async (messageId) => {
+              const chatId = settings?.telegram_group_chat_id;
+              if (!chatId) return;
+              await notifyStaffOfUnansweredQuestion(
+                supabase,
+                chatId,
+                userId,
+                `ลูกค้าส่งรูป (messageId: ${messageId}) แต่ระบบอ่านรูปไม่สำเร็จ`,
+              );
+            },
+            log: (name, data) => console.log(`[line-image] ${name}`, data),
+          }, { userId, items: batchItems });
+        } finally {
+          if (deliveryLocked) {
+            deliveryState.heartbeat?.stop();
+            await releaseLineDelivery(
               supabase,
-              settings ?? {},
-              faqs ?? [],
-              userId,
-              userMessage,
-              history,
-            ),
-          sendReply: async (replyToken, text) =>
-            await replyMessageWithOutcome(replyToken, [{ type: "text", text }]),
-          sendPush: async (to, text) =>
-            await pushMessageWithOutcome(to, [{ type: "text", text }]),
-          writeEventState: (ids, status, deliveryStatus, errorCode) =>
-            writeLineWebhookEventState(
-              supabase,
-              ids,
-              status,
-              deliveryStatus,
-              errorCode,
-            ),
-          notifyPaymentProof: async (messageId) => {
-            const chatId = settings?.telegram_group_chat_id;
-            if (!chatId) return;
-            await notifyStaffOfPaymentProof(
-              supabase,
-              chatId,
-              userId,
-              messageId,
-            );
-          },
-          notifyImageFailure: async (messageId) => {
-            const chatId = settings?.telegram_group_chat_id;
-            if (!chatId) return;
-            await notifyStaffOfUnansweredQuestion(
-              supabase,
-              chatId,
-              userId,
-              `ลูกค้าส่งรูป (messageId: ${messageId}) แต่ระบบอ่านรูปไม่สำเร็จ`,
-            );
-          },
-          log: (name, data) => console.log(`[line-image] ${name}`, data),
-        }, { userId, items: batchItems });
+              customer.id,
+              deliveryState.claim!.claimToken!,
+            )
+              .catch((error) => {
+                console.error("[line-image] delivery lock release failed", {
+                  errorCode: errorCode(error),
+                });
+              });
+          }
+        }
+        const deliveryClaim = deliveryState.claim;
+        if (
+          deliveryClaim?.status === "busy" || deliveryClaim?.status === "error"
+        ) {
+          // Reply was generated and its inbox row is still `pending`, but authorizeDelivery
+          // refused before any send - say so before the retry path reads it as uncertain.
+          await suppressAiInboxMessage(supabase, deliveryEventId);
+          await writeLineWebhookEventState(
+            supabase,
+            claimedEventIds,
+            "failed_retryable",
+            "not_attempted",
+            "delivery_gate_unavailable",
+          );
+          if (deliveryClaim.status === "busy") {
+            throw new Error("ai_delivery_busy");
+          }
+          throw new Error("ai_delivery_gate_failed");
+        }
+        if (deliveryClaim?.status !== "claimed") {
+          await suppressAiInboxMessage(supabase, deliveryEventId);
+          await writeLineWebhookEventState(
+            supabase,
+            claimedEventIds,
+            "completed",
+            "not_attempted",
+            deliveryClaim?.status ?? "delivery_not_claimed",
+          );
+          continue;
+        }
+        const { error: inboxError } = await supabase.from("line_inbox_messages")
+          .upsert({
+            customer_id: customer.id,
+            event_id: deliveryEventId,
+            role: "ai",
+            message_type: "text",
+            content: result.reply,
+            delivery_status: result.deliveryOutcome === "not_attempted"
+              ? "suppressed"
+              : result.deliveryOutcome,
+          }, { onConflict: "event_id,role" });
+        if (inboxError) {
+          console.error("[line-image] AI inbox status update failed", {
+            errorCode: errorCode(inboxError),
+          });
+        }
         if (
           result.deliveryOutcome === "uncertain" ||
           result.deliveryOutcome === "rejected"
@@ -680,7 +1125,9 @@ serve(async (req) => {
 
     return jsonResponse({ ok: true, handled: events.length });
   } catch (error) {
-    console.error("[line-webhook] Error:", error);
-    return jsonResponse({ error: String(error) }, 500);
+    console.error("[line-webhook] request failed", {
+      errorCode: errorCode(error),
+    });
+    return jsonResponse({ error: "webhook_failed" }, 500);
   }
 });

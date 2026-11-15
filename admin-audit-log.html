@@ -162,12 +162,23 @@
     const SUPA_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
     const FUNCTION_URL = `${SUPA_URL}/functions/v1/staff-reply`;
     const SUPA_KEY = 'sb_publishable_8sBSio03fAXOoBK3inSnSQ_gTXsEVGT';
-    const PASSCODE_KEY = 'kmo_audit_log_staff_key';
 
     const ACTION_LABELS = {
       'customer.reply_sent': 'ส่งข้อความ',
+      'customer.reply_uncertain': 'ส่งไม่ชัดเจน',
+      'customer.reply_failed': 'ส่งไม่สำเร็จ',
+      'customer.human_takeover': 'แอดมินรับช่วง',
       'customer.ai_paused': 'หยุด AI',
       'customer.ai_resumed': 'เปิด AI กลับ',
+      'customer.ai_pause_cleared': 'ยกเลิกเวลาพัก AI',
+    };
+
+    const DELIVERY_LABEL = {
+      accepted: 'LINE รับแล้ว',
+      uncertain: 'LINE ไม่ยืนยันผล',
+      rejected: 'LINE ปฏิเสธ',
+      pending: 'กำลังส่ง',
+      suppressed: 'ไม่ได้ส่ง',
     };
 
     const passcodeInput = document.getElementById('staffPasscode');
@@ -177,22 +188,14 @@
 
     let allRecords = [];
 
-    passcodeInput.value = sessionStorage.getItem(PASSCODE_KEY) || localStorage.getItem(PASSCODE_KEY) || '';
-
     document.getElementById('clearPasscodeBtn').addEventListener('click', () => {
-      sessionStorage.removeItem(PASSCODE_KEY);
-      localStorage.removeItem(PASSCODE_KEY);
       passcodeInput.value = '';
       setStatus('ล้าง passcode แล้ว', 'success');
     });
 
     passcodeInput.addEventListener('change', () => {
       const value = passcodeInput.value.trim();
-      if (value) {
-        sessionStorage.setItem(PASSCODE_KEY, value);
-        localStorage.setItem(PASSCODE_KEY, value);
-        loadHistory();
-      }
+      if (value) loadHistory();
     });
 
     function requireStaffKey() {
@@ -222,18 +225,28 @@
           body: JSON.stringify({}),
         });
         if (res.status === 401) {
-          sessionStorage.removeItem(PASSCODE_KEY);
-          localStorage.removeItem(PASSCODE_KEY);
+          passcodeInput.value = '';
           throw new Error('รหัสพนักงานไม่ถูกต้อง');
         }
-        const json = await res.json();
+        if (res.status === 429) {
+          // The server blocks this IP for 15 minutes after repeated bad passcodes; drop the
+          // cached key so staff cannot keep hammering the same rejected passcode.
+          passcodeInput.value = '';
+          const cooldown = new Error('ลองรหัสผิดหลายครั้ง ระบบพักการเข้าสู่ระบบ 15 นาที');
+          cooldown.cooldown = true;
+          throw cooldown;
+        }
+        const json = await res.json().catch(() => ({}));
         if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
 
         allRecords = json.records ?? [];
         setStatus(`โหลดแล้ว ${allRecords.length} รายการ`, 'success');
         applyFilter();
       } catch (error) {
-        setStatus(`โหลดไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(
+          error.cooldown ? error.message : `โหลดไม่สำเร็จ: ${error.message}`,
+          'error',
+        );
       }
     }
 
@@ -248,10 +261,64 @@
       render(filtered);
     }
 
+    function formatThaiTime(value) {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return String(value);
+      return date.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+    }
+
+    // Audit writers only fill the fields they know about (some record `after`, some only
+    // `metadata`), so render whatever is present instead of hiding a real event behind "-".
+    function describeValue(value) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'string') return value.trim() ? value.slice(0, 160) : null;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (Array.isArray(value)) {
+        const items = value.map(describeValue).filter(Boolean);
+        return items.length ? items.join(', ') : null;
+      }
+      if (typeof value === 'object') {
+        const items = Object.entries(value)
+          .map(([key, item]) => {
+            const text = describeValue(item);
+            return text === null ? null : `${key}=${text}`;
+          })
+          .filter(Boolean);
+        return items.length ? items.join(' · ') : null;
+      }
+      return null;
+    }
+
     function detailOf(record) {
-      if (record.action === 'customer.reply_sent') return record.after?.message || '-';
-      if (record.after?.pausedUntil) return `ถึง ${new Date(record.after.pausedUntil).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
-      return '-';
+      const parts = [];
+      if (record.after?.message) parts.push(String(record.after.message));
+      if (record.after?.delivery) {
+        parts.push(`ผลส่ง: ${DELIVERY_LABEL[record.after.delivery] || record.after.delivery}`);
+      }
+      if (record.after?.deliveryStatusSaved === false) {
+        parts.push('บันทึกสถานะส่งไม่สำเร็จ');
+      }
+      if (record.after?.pausedUntil) {
+        parts.push(`พักถึง ${formatThaiTime(record.after.pausedUntil)}`);
+      } else if (
+        (record.action === 'customer.ai_pause_cleared' || record.action === 'customer.ai_resumed') &&
+        record.after && Object.hasOwn(record.after, 'pausedUntil')
+      ) {
+        parts.push('ล้างเวลาพักแล้ว');
+      }
+      if (parts.length === 0) {
+        const metadata = describeValue(record.metadata);
+        if (metadata) parts.push(metadata);
+      }
+      if (parts.length === 0) {
+        const after = describeValue(record.after);
+        if (after) parts.push(after);
+      }
+      if (parts.length === 0) {
+        const before = describeValue(record.before);
+        if (before) parts.push(`ก่อนหน้า: ${before}`);
+      }
+      return parts.length ? parts.join(' · ') : '-';
     }
 
     function render(records) {

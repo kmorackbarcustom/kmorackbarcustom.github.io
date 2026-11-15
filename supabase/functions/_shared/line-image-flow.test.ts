@@ -49,6 +49,18 @@ Deno.test("external image provider is fail-closed", () => {
   assertEquals(isSupportedLineImageProvider("external"), false);
 });
 
+Deno.test("image replies are suppressed when the server denies the AI delivery", async () => {
+  const t = makeDeps({ authorizeDelivery: () => Promise.resolve(false) });
+  const result = await processImageBatchConversation(t.deps, {
+    userId: "U1",
+    items: [{ messageId: "M1", replyToken: "R1" }],
+  });
+  assertEquals(result.deliveryOutcome, "not_attempted");
+  assertEquals(t.getSentReplyTokens(), []);
+  assertEquals(t.getPushed(), 0);
+  assertEquals(t.persisted.map((message) => message.role), ["user"]);
+});
+
 function makeDeps(overrides: Partial<ImageFlowDeps> = {}) {
   const persisted: Array<{ role: string; content: string; timestamp: number }> =
     [];
@@ -339,4 +351,62 @@ Deno.test("a crash after claiming still attempts a fallback reply on the last it
   assertEquals(result.reply, IMAGE_READ_FALLBACK);
   assertEquals(t.getSentReplyTokens(), ["R2"]);
   assertEquals(t.getNotified(), 1);
+});
+
+Deno.test("a post-send history failure is swallowed and never re-enters fallback handling", async () => {
+  let appendCount = 0;
+  let sendCount = 0;
+  let pushCount = 0;
+  const logged: string[] = [];
+  const t = makeDeps({
+    sessions: {
+      getSession: () => Promise.resolve({ history: [] }),
+      appendHistory: () => {
+        appendCount++;
+        return appendCount === 2
+          ? Promise.reject(new Error("history write failed"))
+          : Promise.resolve();
+      },
+    },
+    sendReply: () => {
+      sendCount++;
+      return Promise.resolve({ outcome: "accepted", statusCode: 200 });
+    },
+    sendPush: () => {
+      pushCount++;
+      return Promise.resolve({ outcome: "accepted", statusCode: 200 });
+    },
+    authorizeDelivery: () => Promise.resolve(true),
+    log: (event) => {
+      logged.push(event);
+    },
+  });
+
+  const result = await processImageBatchConversation(t.deps, {
+    userId: "U1",
+    items: [{ messageId: "M1", replyToken: "R1" }],
+  });
+
+  // LINE accepted the AI answer before the session write failed, so the caller must still see a
+  // successful AI reply: returning IMAGE_READ_FALLBACK here would push a second message, fire a
+  // false "image unreadable" staff alert, and overwrite the already-sent AI inbox row.
+  assertEquals(result.visionSuccess, true);
+  assertEquals(result.replied, true);
+  assertEquals(result.deliveryOutcome, "accepted");
+  assertEquals(result.reply, "ต้องเช็กรุ่นจากข้อมูลสินค้าก่อนครับ");
+  assertEquals(result.reply === IMAGE_READ_FALLBACK, false);
+  assertEquals(sendCount, 1);
+  assertEquals(pushCount, 0);
+  assertEquals(
+    t.getNotified(),
+    0,
+    "a delivered reply must not trigger an image-failure notification",
+  );
+  assertEquals(
+    appendCount,
+    2,
+    "assistant history write is attempted exactly once",
+  );
+  assert(logged.includes("post_send_history_failure"));
+  assertEquals(logged.includes("batch_failure"), false);
 });

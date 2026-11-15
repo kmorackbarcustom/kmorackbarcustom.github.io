@@ -488,6 +488,7 @@ function AdminDashboard() {
         stats.shopee > 0 && e("div", { style: { background: "#f9731418", border: "1px solid #f9731440", borderRadius: 8, padding: "5px 10px", fontSize: 11, color: "#f97316", fontWeight: 700 } },
           `🛒 Shopee ${stats.shopee} งาน`
         ),
+        e("a", { href: "admin-line-reply.html", style: { background: "#f9731418", border: "1px solid #f9731440", borderRadius: 8, padding: "6px 12px", fontSize: 11, color: "#f97316", fontWeight: 700, textDecoration: "none" } }, "Inbox LINE"),
         e("button", { onClick: loadOrders, disabled: loading, style: { background: "#151f2e", border: "1px solid #1e2d3d", borderRadius: 8, padding: "6px 12px", fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 6 } },
           e("span", { style: { display: "inline-block", animation: loading ? "spin 1s linear infinite" : "none" } }, "↻"),
           lastRefresh ? `อัปเดต ${lastRefresh.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}` : "โหลด"

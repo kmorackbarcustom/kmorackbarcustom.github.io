@@ -63,6 +63,7 @@ export type ImageFlowDeps = {
     userMessage: string;
     history: Array<{ role: string; content: string }>;
   }): Promise<string>;
+  authorizeDelivery?(): Promise<boolean>;
   sendReply(replyToken: string, text: string): Promise<LineSendResult>;
   sendPush(userId: string, text: string): Promise<LineSendResult>;
   writeEventState?: LineEventStateWriter;
@@ -112,6 +113,9 @@ async function sendWithFallback(
     deliveryOutcome: LineSendResult["outcome"] | "not_attempted";
   }
 > {
+  if (deps.authorizeDelivery && !await deps.authorizeDelivery()) {
+    return { replied: false, pushed: false, deliveryOutcome: "not_attempted" };
+  }
   const result = await sendReplyOrPushFallback({
     eventIds,
     replyToken,
@@ -143,6 +147,17 @@ export async function processImageBatchConversation(
   );
   const lastReplyToken = items[items.length - 1]?.replyToken;
   const lastTimestamp = items[items.length - 1]?.timestamp;
+  let deliveryAuthorized = false;
+  const flowDeps = deps.authorizeDelivery
+    ? {
+      ...deps,
+      authorizeDelivery: async () => {
+        if (deliveryAuthorized) return false;
+        deliveryAuthorized = await deps.authorizeDelivery!();
+        return deliveryAuthorized;
+      },
+    }
+    : deps;
 
   let synthetic: string | null = null;
   let userHistoryAppended = false;
@@ -205,18 +220,20 @@ export async function processImageBatchConversation(
         content: placeholder,
         timestamp: lastTimestamp ?? Date.now(),
       }).catch(() => undefined);
-      await deps.sessions.appendHistory(input.userId, {
-        role: "assistant",
-        content: IMAGE_READ_FALLBACK,
-        timestamp: Date.now(),
-      }).catch(() => undefined);
       const sent = await sendWithFallback(
-        deps,
+        flowDeps,
         input.userId,
         lastReplyToken,
         IMAGE_READ_FALLBACK,
         eventIds,
       );
+      if (sent.deliveryOutcome !== "not_attempted") {
+        await deps.sessions.appendHistory(input.userId, {
+          role: "assistant",
+          content: IMAGE_READ_FALLBACK,
+          timestamp: Date.now(),
+        }).catch(() => undefined);
+      }
       return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
     }
 
@@ -262,18 +279,30 @@ export async function processImageBatchConversation(
       userMessage: synthetic,
       history: priorHistory,
     });
-    await deps.sessions.appendHistory(input.userId, {
-      role: "assistant",
-      content: reply,
-      timestamp: Date.now(),
-    });
     const sent = await sendWithFallback(
-      deps,
+      flowDeps,
       input.userId,
       lastReplyToken,
       reply,
       eventIds,
     );
+    if (sent.deliveryOutcome !== "not_attempted") {
+      // LINE already accepted this answer. A session/history write failure here must stay local:
+      // letting it reach the outer catch would demote a delivered reply into the failure path,
+      // which pushes a second contradicting message, sends a false "image unreadable" staff alert,
+      // and makes the caller overwrite the already-sent AI inbox row with the fallback text.
+      await deps.sessions.appendHistory(input.userId, {
+        role: "assistant",
+        content: reply,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        deps.log?.("post_send_history_failure", {
+          itemCount: total,
+          deliveryOutcome: sent.deliveryOutcome,
+          errorClass: error instanceof Error ? error.name : typeof error,
+        });
+      });
+    }
     return { reply, visionSuccess: true, ...sent };
   } catch (error) {
     // Outer safety net: batching raised the blast radius of a mid-pipeline crash from "one image's
@@ -295,20 +324,22 @@ export async function processImageBatchConversation(
         timestamp: lastTimestamp ?? Date.now(),
       }).catch(() => undefined);
     }
-    await deps.sessions.appendHistory(input.userId, {
-      role: "assistant",
-      content: IMAGE_READ_FALLBACK,
-      timestamp: Date.now(),
-    }).catch(() => undefined);
     await deps.notifyImageFailure(items[items.length - 1].messageId, error)
       .catch(() => undefined);
     const sent = await sendWithFallback(
-      deps,
+      flowDeps,
       input.userId,
       lastReplyToken,
       IMAGE_READ_FALLBACK,
       eventIds,
     );
+    if (sent.deliveryOutcome !== "not_attempted") {
+      await deps.sessions.appendHistory(input.userId, {
+        role: "assistant",
+        content: IMAGE_READ_FALLBACK,
+        timestamp: Date.now(),
+      }).catch(() => undefined);
+    }
     return { reply: IMAGE_READ_FALLBACK, visionSuccess: false, ...sent };
   }
 }

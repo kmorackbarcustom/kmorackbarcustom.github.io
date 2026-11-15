@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.telegram-notify]
 verify_jwt = false
+
+[functions.staff-reply]
+verify_jwt = false

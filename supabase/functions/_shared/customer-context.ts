@@ -60,19 +60,21 @@ export async function upsertLineCustomer(
   if (insertError) {
     console.error(
       "[customer-context] line customer insert failed",
-      insertError,
+      { errorCode: insertError.code },
     );
   }
 
-  const { error: updateError } = await supabase
-    .from("customers")
-    .update({ line_display_name: lineName })
-    .eq("line_uid", lineUid);
-  if (updateError) {
-    console.error(
-      "[customer-context] line_display_name update failed",
-      updateError,
-    );
+  if (displayName?.trim()) {
+    const { error: updateError } = await supabase
+      .from("customers")
+      .update({ line_display_name: displayName.trim() })
+      .eq("line_uid", lineUid);
+    if (updateError) {
+      console.error(
+        "[customer-context] line_display_name update failed",
+        { errorCode: updateError.code },
+      );
+    }
   }
 }
 
