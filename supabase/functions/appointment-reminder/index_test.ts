@@ -40,10 +40,12 @@ Deno.test("appointment-reminder handler covers cancellations, dedupe, paging, re
   const nullStatuses = booking(3); nullStatuses.queue_status = null; nullStatuses.production_status = null;
   const active = booking(4);
   const otherDay = booking(5); otherDay.appointment_date = "2000-01-01";
-  resetFake({ bookings: [cancelledQueue, cancelledProduction, nullStatuses, active, otherDay] });
+  const doneProduction = booking(6); doneProduction.production_status = "เสร็จ";
+  const doneQueue = booking(7); doneQueue.queue_status = "เสร็จ";
+  resetFake({ bookings: [cancelledQueue, cancelledProduction, nullStatuses, active, otherDay, doneProduction, doneQueue] });
   let response = await handler(request());
   let json = await response.json();
-  assertEquals([json.skipped_cancelled, json.telegram_sent, json.line_sent], [2, 2, 2]);
+  assertEquals([json.skipped_cancelled, json.telegram_sent, json.line_sent], [4, 2, 2]);
   assertEquals(deliveryCalls().length, 4);
 
   mockFetch(); resetFake({ bookings: [booking(1)] });
