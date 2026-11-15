@@ -1,9 +1,9 @@
 # Project Context: KMO LINE Chat Agent Upgrade
 
-**Last Updated:** 2026-11-15 — LINE Inbox Dashboard deployed; live LINE acceptance remains pending
+**Last Updated:** 2026-11-15 — Owner confirmed one live LINE text roundtrip; dashboard acceptance remains partial
 **Current Phase:** Phases 1–4 are deployed. Phase 5 remains OPEN pending written live image evidence. The separate LINE Inbox Dashboard is committed at `00f72ddb` and published from `main`. Migration `20261114120000` is applied and recorded. `line-webhook` v52 and `staff-reply` v10 are ACTIVE with `verify_jwt=false`; `telegram-webhook` remains v35 because `TELEGRAM_WEBHOOK_SECRET` is not configured.
-**Progress:** Production has the inbox schema/RPCs, RLS, three `pg_cron` jobs, and the dashboard pages. The Owner will send the final LINE message test. No test message was sent by Codex.
-**Next Action:** Owner sends the agreed LINE test message and records the observed result. Configure `TELEGRAM_WEBHOOK_SECRET` through the secure project settings before deploying the newer Telegram webhook code. Phase 5 image-matrix evidence remains a separate open item.
+**Progress:** Production has the inbox schema/RPCs, RLS, three `pg_cron` jobs, and the dashboard pages. The Owner's screenshot confirms one real text message received an AI reply that requested vehicle/rack details. The screenshot does not show the admin Inbox row; Codex did not send the test message.
+**Next Action:** Confirm the test conversation appears in the admin Inbox and complete staff takeover/reply acceptance. Configure `TELEGRAM_WEBHOOK_SECRET` through the secure project settings before deploying the newer Telegram webhook code. Phase 5 image-matrix evidence remains a separate open item.
 
 ## 2026-11-15 Release Status — LINE Inbox Dashboard
 
@@ -13,7 +13,7 @@
 - **Deployments:** `line-webhook` v52 and `staff-reply` v10 are ACTIVE with `verify_jwt=false`. GitHub Pages build for commit `00f72ddbf1d8b98f02b6d6e84c97e7f396c4938a` completed; both admin pages returned HTTP 200 and contained the new retry, audit, and cooldown UI. `telegram-webhook` was not deployed because the required `TELEGRAM_WEBHOOK_SECRET` is absent; its production version remains v35.
 - **Local evidence:** 54 targeted Deno tests passed across webhook delivery, image flow, inbox/session/delivery helpers, LINE/auth helpers, and the migration behavior test. `deno check`, targeted `deno lint`, `deno fmt --check`, `git diff --check`, and inline-script syntax checks passed. The post-review regression verifies a failed AI inbox write remains retryable and a duplicate event reaches the next delivery gate. Gitleaks scanned the 23 staged task files in redacted mode and reported no leaks.
 - **Review record:** AGY found no remaining blockers in the dashboard/image/audit findings. OpenCode identified the text inbox-write retry bug; it was fixed, covered by a test, and re-reviewed as cleared. OpenCode noted the event-state update is best-effort if the database also rejects that update; in that case the existing 600-second stale-processing reclaim remains the fallback.
-- **Not verified:** no real LINE message was sent or received by Codex; final live LINE acceptance is intentionally left for the Owner. The newer Telegram webhook auth is not deployed until the secret is configured. No full-repository secret scan, pre-existing page RLS audit, live forwarded-IP behavior test, or live image-matrix evidence was done. LINE image content may become unavailable after an unspecified retention period: [Get content](https://developers.line.biz/en/reference/messaging-api/#get-content).
+- **Not verified:** one Owner screenshot confirms a real LINE text roundtrip, but does not show the admin Inbox row; staff takeover/reply and live image retrieval were not accepted. The newer Telegram webhook auth is not deployed until the secret is configured. No full-repository secret scan, pre-existing page RLS audit, live forwarded-IP behavior test, or live image-matrix evidence was done. LINE image content may become unavailable after an unspecified retention period: [Get content](https://developers.line.biz/en/reference/messaging-api/#get-content).
 
 ---
 

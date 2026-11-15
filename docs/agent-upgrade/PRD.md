@@ -5,7 +5,7 @@
 **Created:** 2026-08-28
 **Last Updated:** 2026-11-15 — LINE Inbox Dashboard and delivery safeguards deployed; live LINE acceptance pending
 
-> The separate Inbox Dashboard is deployed from `main`. Migration `20261114120000` is applied; `line-webhook` v52 and `staff-reply` v10 are active. Live LINE acceptance and the Phase 5 image evidence remain open. Current evidence and the Telegram secret gate are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+> The separate Inbox Dashboard is deployed from `main`. Migration `20261114120000` is applied; `line-webhook` v52 and `staff-reply` v10 are active. The Owner confirmed one live text roundtrip; admin Inbox persistence/staff operations and the Phase 5 image evidence remain open. Current evidence and the Telegram secret gate are recorded in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ---
 
@@ -139,5 +139,5 @@ FAQ/shop facts อยู่ใน system prompt ไม่ใช่ tool แย�
 
 ---
 
-**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed and text/image rollouts are `all` (live verified 2026-10-21), remains OPEN pending written live image matrix evidence. LINE Inbox Dashboard migration `20261114120000`, `line-webhook` v52, and `staff-reply` v10 are deployed. Owner live LINE acceptance is pending. Telegram webhook auth update is not deployed until `TELEGRAM_WEBHOOK_SECRET` is configured.
+**สถานะ:** Phase 1–4 CLOSED; Phase 5 deployed and text/image rollouts are `all` (live verified 2026-10-21), remains OPEN pending written live image matrix evidence. LINE Inbox Dashboard migration `20261114120000`, `line-webhook` v52, and `staff-reply` v10 are deployed. The Owner confirmed one live text roundtrip; admin Inbox persistence/staff operations remain unverified. Telegram webhook auth update is not deployed until `TELEGRAM_WEBHOOK_SECRET` is configured.
 **Priority:** High
