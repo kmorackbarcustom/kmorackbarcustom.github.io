@@ -137,7 +137,7 @@ BEGIN
     RAISE EXCEPTION 'KMO_MIN_WORKDAYS' USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || v_appointment::text));
+  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || to_char(v_appointment, 'YYYY-MM-DD')));
   SELECT b.* INTO v_existing
   FROM public.booking_requests r JOIN public.bookings b ON b.job_id = r.job_id
   WHERE r.request_id = p_request_id;
