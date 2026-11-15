@@ -13,7 +13,6 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REF = "xfhpwxjywqgqefbncumm";
-const TOKEN_NAME = "SUPABASE_ACCESS_TOKEN_KEEPALIVE";
 const TABLES = ["bookings", "holidays", "production_allocations", "orders"];
 // ตัวที่ระบุชื่อเองในบรีฟ T1 (13 ตัวของสคริปต์ต้นแบบ + RPC สั่งซื้อ/สถานะ + ตัวที่ trigger เรียก)
 const NAMED_FNS = [
@@ -32,17 +31,12 @@ const flag = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : und
 const WRITE = flag("--write");
 const BASE = resolve(flag("--baseline") ?? WRITE ?? join(ROOT, "supabase/baseline/live-20261115"));
 
-// ---------- token (โหลดเข้าโปรเซส ไม่พิมพ์) ----------
-function token() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN;
-  const f = join("D:/AI-Workspace", ".secrets", "keys.txt");
-  if (!existsSync(f)) return "";
-  for (const l of readFileSync(f, "utf8").split(/\r?\n/)) if (l.startsWith(`${TOKEN_NAME}=`)) return l.slice(TOKEN_NAME.length + 1).trim();
-  return "";
-}
-const TOK = token();
-const die = (code, msg) => { console.error(msg); process.exit(code); };
-if (!TOK) die(2, "ไม่มี token (เรียกสดไม่ได้)");
+// ---------- token: รับจาก env อย่างเดียว ไม่พิมพ์ ----------
+const TOK = process.env.SUPABASE_ACCESS_TOKEN ?? "";
+const MIN_BLOCKS = 10; // ถ้าดึงสดได้น้อยกว่านี้ = ผิดปกติ ไม่ใช่ "ตรง"
+// ไม่ใช้ process.exit() (Node 24 บน Windows พังรหัส 0xC0000409 ถ้าออกทันทีหลัง HTTPS) · ตั้ง exitCode แล้วโยน Stop ให้ main() จบเอง
+class Stop extends Error {}
+const die = (code, msg) => { console.error(msg); process.exitCode = code; throw new Stop(msg); };
 
 // ---------- รูปแบบค่าลับ ----------
 const SECRET_RES = [
@@ -68,6 +62,7 @@ async function q(query) {
       });
     } catch (e) { if (attempt === 2) die(2, `เรียกสดไม่สำเร็จ (${e.name})`); continue; }
     if (r.ok) { try { return JSON.parse(await r.text()); } catch { die(2, "สดตอบไม่ใช่ JSON"); } }
+    await r.text().catch(() => {}); // ปิด response ให้เรียบร้อย (ไม่อ่าน/ไม่พิมพ์ body)
     if (r.status === 401 || r.status === 403) die(2, `เรียกสดไม่สำเร็จ HTTP ${r.status} (ไม่ยิงซ้ำ)`);
     if (attempt === 2) die(2, `เรียกสดไม่สำเร็จ HTTP ${r.status}`);
     await new Promise(s => setTimeout(s, 5000));
@@ -148,7 +143,10 @@ function parseBaseline(dir) {
   return blocks;
 }
 
+async function main() {
+if (!TOK) die(2, "ไม่มี token ใน env SUPABASE_ACCESS_TOKEN (เรียกสดไม่ได้)");
 const live = await fetchLive();
+if (live.blocks.size < MIN_BLOCKS) die(2, `ดึงสดได้ ${live.blocks.size} บล็อก (< ${MIN_BLOCKS}) ผิดปกติ · ไม่เชื่อผล`);
 
 // ---------- โหมดเขียน baseline ----------
 if (WRITE) {
@@ -183,7 +181,7 @@ if (WRITE) {
 - \`cron-jobs.md\` ชื่อ+ตารางเวลา+active เท่านั้น (ไม่มี command)
 - \`manifest.json\` sha256 ของแต่ละบล็อกหลัง normalize (ตัดช่องว่างท้ายบรรทัด)
 
-เช็กว่าสดยังตรง baseline: \`node scripts/db-drift-check.mjs\` → 0 ตรง · 1 drift · 2 เรียกสดไม่ได้ · 3 พบค่าลับ (ต้องมี token ใน env \`SUPABASE_ACCESS_TOKEN\`)
+เช็กว่าสดยังตรง baseline: \`node scripts/db-drift-check.mjs\` → 0 ตรง · 1 drift · 2 เรียกสดไม่ได้ · 3 พบค่าลับ (ต้องมี token ใน env \`SUPABASE_ACCESS_TOKEN\` · สคริปต์รับ token จาก env อย่างเดียว ไม่อ่านไฟล์คีย์เอง · ถ้าต้องการให้โหลดจากที่เก็บคีย์ของเครื่อง ให้รันผ่านตัวครอบนอก repo ที่ตั้ง env ให้แล้วเรียกสคริปต์นี้ต่อ)
 
 ไม่ครอบคลุม: สิทธิ์ระดับคอลัมน์ · view · sequence · ตารางอื่น (เช่น customers) · cron command · edge function
 
@@ -192,14 +190,17 @@ ${live.outOfScope.map(s => `- \`${s}\``).join("\n") || "- (ไม่มี)"}
 `);
   console.log(`เขียน baseline แล้ว: ${BASE}`);
   console.log(`บล็อก ${keys.length} · ${Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(" ")} · นอกขอบเขต ${live.outOfScope.length}`);
-  process.exit(0);
+  return;
 }
 
 // ---------- โหมดเทียบ ----------
 const base = parseBaseline(BASE);
 const manPath = join(BASE, "manifest.json");
 if (!existsSync(manPath)) die(2, "baseline ไม่มี manifest.json");
-const manifest = JSON.parse(readFileSync(manPath, "utf8"));
+let manifest = null;
+try { manifest = JSON.parse(readFileSync(manPath, "utf8")); } catch { /* ตรวจรูปทรงด้านล่าง */ }
+if (!manifest || typeof manifest.blocks !== "object" || manifest.blocks === null || Array.isArray(manifest.blocks)
+  || Object.values(manifest.blocks).some(v => typeof v?.sha256 !== "string")) die(2, "baseline manifest.json เสีย (อ่านไม่ได้/รูปทรงผิด)");
 const lines = [];
 for (const k of [...new Set([...live.blocks.keys(), ...base.keys()])].sort()) {
   const l = live.blocks.get(k), b = base.get(k);
@@ -219,7 +220,10 @@ const liveSecret = [...live.blocks].filter(([, b]) => secretHits(b.body).length)
 
 if (oosNew.length) console.log(`ข้อมูล (ไม่นับเป็น drift) function ใหม่นอกขอบเขต: ${oosNew.join(", ")}`);
 if (liveSecret.length) console.log(`เตือน: พบรูปแบบค่าลับในนิยามสด (ไม่แสดงค่า): ${liveSecret.join(", ")}`);
-if (!lines.length && !integ.length) { console.log(`ตรง: ${live.blocks.size} บล็อก ผลต่าง 0 (baseline ${BASE})`); process.exit(0); }
+if (!lines.length && !integ.length) { console.log(`ตรง: ${live.blocks.size} บล็อก ผลต่าง 0 (baseline ${BASE})`); return; }
 if (lines.length) console.log(`DRIFT สด vs baseline (${lines.length}):\n  ${lines.join("\n  ")}`);
 if (integ.length) console.log(`BASELINE เสีย ไฟล์ vs manifest (${integ.length}):\n  ${integ.join("\n  ")}`);
-process.exit(1);
+process.exitCode = 1;
+}
+
+main().catch(e => { if (!(e instanceof Stop)) { console.error(`ผิดพลาดภายใน (${e?.name ?? "Error"})`); process.exitCode = 2; } });
