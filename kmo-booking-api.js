@@ -96,7 +96,7 @@
       const jobId = await request('generate_job_id', { p_platform: payload.source });
       const urls = [];
       for (let i = 0; i < files.length; i++) urls.push(await uploadFile(files[i], jobId, i));
-      const response = await fetchImpl(`${supabaseUrl}/rest/v1/bookings`, { method: 'POST', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload, job_id: jobId, images: urls }) });
+      const response = await fetchImpl(`${supabaseUrl}/rest/v1/bookings`, { method: 'POST', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ ...payload, queue_status: 'ยืนยัน', production_status: 'รอเริ่มงาน', job_id: jobId, ...(urls.length ? { images: urls } : {}) }) });
       if (!response.ok) throw Object.assign(new Error('legacy booking failed'), { status: response.status });
       return { job_id: jobId, replay: false, imagesOk: true };
     }

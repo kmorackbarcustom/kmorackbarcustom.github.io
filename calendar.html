@@ -538,12 +538,15 @@
     if (loadFailed) {
       const error = document.createElement('div');
       error.className = 'loading';
+      error.style.cssText = 'grid-column:1/-1;text-align:center;padding:16px 8px;';
       error.textContent = 'โหลดปฏิทิน/วันหยุดไม่ได้ ยังจองไม่ได้ตอนนี้';
       const retry = document.createElement('button');
       retry.type = 'button';
+      retry.style.cssText = 'display:block;margin:12px auto 0;padding:10px 24px;border:0;border-radius:10px;background:#fbbf24;color:#111;font-weight:700;cursor:pointer;';
       retry.textContent = 'ลองใหม่';
       retry.addEventListener('click', loadBookings);
-      container.append(error, retry);
+      error.appendChild(retry);
+      container.append(error);
       return;
     }
 

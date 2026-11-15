@@ -136,6 +136,21 @@ test('legacy fallback is restricted to exact 404 PGRST202 and can be disabled', 
   assert.equal(disabledCalls.length, 1);
 });
 
+test('legacy insert body keeps old statuses (table default is รอตรวจสอบ) and omits empty images', async () => {
+  let inserted;
+  const api = apiWith(async (target, options) => {
+    if (target.endsWith('/create_booking')) return json({ code: 'PGRST202' }, 404);
+    if (target.endsWith('/generate_job_id')) return json('KLI-LEGACY');
+    if (target.endsWith('/bookings')) { inserted = JSON.parse(options.body); return json(null); }
+    return json([]);
+  });
+  await api.submitBooking({ payload, requestId: 'id' });
+  assert.equal(inserted.queue_status, 'ยืนยัน');
+  assert.equal(inserted.production_status, 'รอเริ่มงาน');
+  assert.equal(inserted.job_id, 'KLI-LEGACY');
+  assert.equal('images' in inserted, false);
+});
+
 test('day usage fallback returns legacy rows and disabled flag fails closed', async () => {
   const fetchImpl = async target => target.endsWith('/get_booking_day_usage')
     ? json({ code: 'PGRST202' }, 404)
