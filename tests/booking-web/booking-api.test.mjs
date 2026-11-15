@@ -222,3 +222,14 @@ test('booking page rotates request id only after success or a rule rejection, an
   assert.match(page, /if \(booking\.replay\) showWarning\(t\('replayNotice'\)\)/);
   assert.equal((page.match(/replayNotice:/g) || []).length, 2);
 });
+
+test('getRequestId reads the id persisted in storage (survives page reload) and writes a new one when empty', () => {
+  const store = new Map([['kmo_booking_request_id', 'preset-id']]);
+  const fake = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  assert.equal(getRequestId(fake), 'preset-id');
+  store.delete('kmo_booking_request_id');
+  const fresh = getRequestId(fake);
+  assert.match(fresh, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(store.get('kmo_booking_request_id'), fresh);
+  assert.equal(getRequestId(fake), fresh);
+});
