@@ -16,6 +16,7 @@ const initdb = path.join(pgBin, 'initdb.exe');
 const passed = [];
 const failed = [];
 const raw = [];
+let phase = '';
 process.env.PGCLIENTENCODING = 'UTF8';
 
 function tool(file, args, { input, allowFailure = false, stdio } = {}) {
@@ -30,6 +31,7 @@ function psqlArgs(extra = []) { return ['-X', '-h', '127.0.0.1', '-p', port, '-U
 function sql(text) { return tool(psql, psqlArgs(['-At', '-c', text])).out; }
 function fileSql(file) { return tool(psql, psqlArgs(['-f', file])).out; }
 function record(name, ok, detail = '') {
+  name = `${phase}${name}`;
   (ok ? passed : failed).push({ name, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
 }
@@ -190,7 +192,44 @@ async function parallelBatch(date, count, startId) {
   const full = results.filter(r => checkExpectedError(r, 'KMO_DAY_FULL'));
   return { successes, full, results };
 }
-async function runConcurrency(today) {
+async function probeD2(today) {
+  await clearFixtures();
+  const date = findDow(today, 1);
+  const r = await parallelBatch(date, 20, 18000);
+  return r.successes.length === 3 && r.full.length === 17;
+}
+async function probeLock(today) {
+  await clearFixtures();
+  const day = plus(findDow(today, 1), 63);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('PLOCK-1','${day}','${plus(day,3)}'),('PLOCK-2','${day}','${plus(day,3)}');`);
+  const a = holdOpen(call(day, plus(day, 3), uuid(18001)));
+  await delay(700);
+  const b = await asyncPsql(call(day, plus(day, 3), uuid(18002)));
+  const ar = await a;
+  return ar.code === 0 && checkExpectedError(b, 'KMO_DAY_FULL');
+}
+async function probeDateStyle(today) {
+  await clearFixtures();
+  const day = plus(findDow(today, 1), 77);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('PDS-1','${day}','${plus(day,3)}'),('PDS-2','${day}','${plus(day,3)}');`);
+  const a = holdOpen(`SET DateStyle='ISO, YMD'; ${call(day, plus(day, 3), uuid(18003))}`);
+  await delay(700);
+  const b = await asyncPsql(`SET DateStyle='SQL, DMY'; ${call(day, plus(day, 3), uuid(18004))}`);
+  const ar = await a;
+  return ar.code === 0 && checkExpectedError(b, 'KMO_DAY_FULL');
+}
+async function probeTuesday(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 1), 2);
+  return checkExpectedError(await asyncPsql(call(day, plus(day,3), uuid(18005))), 'KMO_APPOINT_CLOSED_WEEKDAY');
+}
+async function probeCap(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 1), 1);
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('PCAP-1','${day}','${plus(day,3)}'),('PCAP-2','${day}','${plus(day,3)}'),('PCAP-3','${day}','${plus(day,3)}');`);
+  return checkExpectedError(await asyncPsql(call(day, plus(day,3), uuid(18006))), 'KMO_DAY_FULL');
+}
+async function runConcurrency(today, { final = false } = {}) {
   let start = findDow(today, 1); // Monday; all dates are fresh and valid.
   let roundsOK = true;
   for (let round = 0; round < 5; round++) {
@@ -225,7 +264,7 @@ async function runConcurrency(today) {
   const detector = tool(psql, psqlArgs(['-c', mutant]), { allowFailure: true });
   const caught = detector.status !== 0 && detector.out.includes('ASSERTION_FAILED') && detector.out.includes('call succeeded');
   record('intentional mutant rejected by D2 assertion', caught, `expected failing command exit=${detector.status}; assertion caught bad capacity predicate`);
-  await migrateTwice(path.join(repo, 'supabase/migrations/20261116090000_booking_rpc_hardening.sql'));
+  if (!final) await migrateTwice(path.join(repo, 'supabase/migrations/20261116090000_booking_rpc_hardening.sql'));
 
   // Distinct dates exercise the atomic prefix/month counters independently of the per-day lock.
   await clearFixtures();
@@ -522,6 +561,52 @@ ROLLBACK;`;
   // The good migration is idempotent; this final check ensures all mutant transactions rolled back.
   record('mutant transactions leave the working definitions intact', sql(`SELECT ${constraint} AND ((${functionMetaSql()}) = 1);`) === 't');
   await runBookingMutants(migration);
+  await runFinalBookingMutants(migration, sql('SELECT public.kmo_today();'));
+}
+
+async function runFinalBookingMutants(migration, today) {
+  const source = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
+  const fn = source.match(/CREATE OR REPLACE FUNCTION public\.create_booking\(p_payload jsonb, p_request_id uuid\)[\s\S]*?\$function\$;/)?.[0];
+  if (!fn) throw new Error('Cannot load final create_booking mutant source');
+  const expectedHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+  const probes = [
+    ['D2 detector on final function', () => probeD2(today)],
+    ['lock detector on final function', () => probeLock(today)],
+    ['DateStyle detector on final function', () => probeDateStyle(today)],
+    ['Tuesday detector on final function', () => probeTuesday(today)],
+    ['cap detector on final function', () => probeCap(today)],
+  ];
+  for (const [name, probe] of probes) {
+    await clearFixtures();
+    const ok = await probe();
+    record(name, ok);
+    if (!ok) throw new Error(`${name} failed on final create_booking; mutant results would be invalid`);
+  }
+  const mutants = [
+    ['M5 DateStyle-dependent lock key', "to_char(v_appointment, 'YYYY-MM-DD')", 'v_appointment::text', probeDateStyle],
+    ['M6 advisory lock removed', "  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || to_char(v_appointment, 'YYYY-MM-DD')));", '', probeLock],
+    ['M7 cap boundary changed', '>= public.kmo_booking_daily_cap()', '> public.kmo_booking_daily_cap()', probeCap],
+    ['M8 Tuesday rule disabled', 'IF extract(dow FROM v_appointment)::integer = ANY(public.kmo_closed_weekdays()) THEN', 'IF false THEN', probeTuesday],
+  ];
+  for (const [name, before, after, probe] of mutants) {
+    const definition = fn.replace(before, after);
+    if (definition === fn) throw new Error(`Could not construct final create_booking mutant ${name}`);
+    const file = path.join(dataDir, `mutant-final-${name.replaceAll(/[^a-z0-9]+/gi, '-')}.sql`);
+    await writeFile(file, `${definition}\n`);
+    let detected = false;
+    let detail = '';
+    try {
+      fileSql(file); // Commit the mutant so all concurrent sessions see it.
+      await clearFixtures();
+      detected = !(await probe(today));
+      detail = `expected detector result=false, actual=${!detected}`;
+    } finally {
+      fileSql(migration);
+      const restoredHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+      if (restoredHash !== expectedHash) throw new Error(`Failed to restore final create_booking after ${name}: ${restoredHash}`);
+    }
+    record(`mutant rejected: create_booking final ${name}`, detected, detail);
+  }
 }
 
 async function runBookingMutants(migration) {
@@ -666,6 +751,7 @@ try {
   await snapshotPostT3();
   sql("INSERT INTO public.booking_requests(request_id,job_id) VALUES ('00000000-0000-4000-8000-000000008000','ORPHAN-T3B-FIXTURE');");
   fileSql(followup);
+  const finalCreateBookingHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
   record('T3b migration removes pre-existing orphan before FK', sql("SELECT count(*) FROM public.booking_requests WHERE request_id='00000000-0000-4000-8000-000000008000';") === '0');
   await migrateTwice(followup);
   await clearFixtures();
@@ -677,6 +763,21 @@ try {
   record('T3b preserves generate_job_id signature/security/config/ACL', functionMetaMatches());
   await runF8(today);
   await runF9(today);
+  phase = '[final] ';
+  const verifyFinalCreateBooking = label => {
+    const hash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+    record(`T3b final create_booking hash ${label}`, hash === finalCreateBookingHash, `expected=${finalCreateBookingHash}, actual=${hash}`);
+  };
+  verifyFinalCreateBooking('before suite');
+  await clearFixtures();
+  await runConcurrency(today, { final: true });
+  await runLockProofs(today);
+  await runDateRules(today);
+  await runIdempotencyAndIds(today);
+  await runStatusAndHoliday(today);
+  await runSecurity(today);
+  verifyFinalCreateBooking('after suite');
+  phase = '';
   await runMutants(followup);
 
   await clearFixtures();
