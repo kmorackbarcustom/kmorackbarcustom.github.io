@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KMO Staff LINE Reply</title>
+  <title>กล่องแชท LINE สำหรับทีมงาน · KMO</title>
   <style>
     :root {
       --bg: #101214;
@@ -101,7 +101,20 @@
       align-items: start;
     }
 
-    .reply-panel { position: sticky; top: 16px; }
+    .reply-panel:not([hidden]) {
+      position: sticky;
+      top: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      scroll-margin-top: 16px;
+      height: calc(100vh - 32px);
+      height: calc(100dvh - 32px);
+    }
+
+    .reply-panel[hidden] { display: none; }
+    .reply-panel:not([hidden]) > :not(.chat-thread) { flex-shrink: 0; }
+    .mobile-back-btn { display: none; }
 
     .list-controls {
       display: grid;
@@ -193,12 +206,13 @@
     .activity { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 
     .chat-thread {
-      max-height: 420px;
+      flex: 1 1 auto;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 8px;
       padding: 4px 2px;
+      min-height: 120px;
     }
 
     .chat-bubble {
@@ -242,7 +256,15 @@
     @media (max-width: 760px) {
       main { width: min(100% - 20px, 600px); padding-top: 18px; }
       .inbox-layout { grid-template-columns: minmax(0, 1fr); }
-      .reply-panel { position: static; }
+      .inbox-layout.has-selection #customerListPanel { display: none; }
+      .inbox-layout.has-selection .reply-panel:not([hidden]) { grid-row: 1; }
+      .mobile-back-btn { display: inline-flex; }
+      .reply-panel:not([hidden]) {
+        position: static;
+        scroll-margin-top: 10px;
+        height: calc(100vh - 20px);
+        height: calc(100dvh - 20px);
+      }
       .list-controls { grid-template-columns: minmax(0, 1fr); }
       .panel { padding: 14px; }
       .chat-bubble { max-width: 94%; }
@@ -251,36 +273,36 @@
 </head>
 <body>
   <main>
-    <h1>KMO Staff LINE Reply</h1>
-    <p class="muted">ข้อความจาก LINE OA, AI และทีมงานอยู่ในกล่องเดียวกัน · โหมดทีมงานจะค้างจนกดคืนให้ AI</p>
+    <h1>กล่องแชท LINE สำหรับทีมงาน</h1>
+    <p class="muted">ข้อความจากลูกค้า ระบบตอบอัตโนมัติ และทีมงานอยู่ที่เดียวกัน · เมื่อทีมงานรับแชท ระบบตอบอัตโนมัติจะหยุดตอบจนกว่าจะกดให้ระบบตอบต่อ</p>
 
     <section class="panel">
       <div class="toolbar">
         <div>
-          <h2>Staff passcode</h2>
-          <p class="muted">รหัสเดียวกับหน้า admin อื่นๆ</p>
+          <h2>เข้าใช้งานทีมงาน</h2>
+          <p class="muted">ใช้รหัสเดียวกับหน้าจัดการอื่นของร้าน</p>
         </div>
-        <button type="button" id="clearPasscodeBtn" class="secondary-btn">ล้าง passcode</button>
+        <button type="button" id="clearPasscodeBtn" class="secondary-btn">ออกจากระบบ</button>
       </div>
-      <label for="staffPasscode">รหัสพนักงาน</label>
-      <input id="staffPasscode" type="password" autocomplete="off" placeholder="กรอกรหัสร้านก่อนใช้งาน">
+      <label for="staffPasscode">รหัสเข้าใช้งาน</label>
+      <input id="staffPasscode" type="password" autocomplete="off" placeholder="กรอกรหัสเข้าใช้งานร้าน">
     </section>
 
-    <div class="inbox-layout">
-    <section class="panel">
+    <div class="inbox-layout" id="inboxLayout">
+    <section class="panel" id="customerListPanel">
       <div class="toolbar">
-        <h2>กล่องข้อความ</h2>
-        <button type="button" id="reloadBtn" class="secondary-btn">โหลดใหม่</button>
+        <h2>รายการแชท</h2>
+        <button type="button" id="reloadBtn" class="secondary-btn">โหลดรายการใหม่</button>
       </div>
       <div class="list-controls">
-        <input id="searchQuery" placeholder="ค้นหาชื่อ LINE หรือเบอร์โทร" autocomplete="off" maxlength="100">
-        <select id="modeFilter" aria-label="กรองสถานะการตอบ">
-          <option value="all">ทุกสถานะ</option>
-          <option value="ai">AI ดูแล</option>
-          <option value="human">คนรับช่วง</option>
+        <input id="searchQuery" aria-label="ค้นหาชื่อ LINE หรือเบอร์โทร" placeholder="ค้นหาชื่อ LINE หรือเบอร์โทร" autocomplete="off" maxlength="100">
+        <select id="modeFilter" aria-label="กรองแชท">
+          <option value="all">ทุกแชท</option>
+          <option value="ai">ระบบตอบอัตโนมัติ</option>
+          <option value="human">ทีมงานตอบ</option>
         </select>
       </div>
-      <div id="searchStatus" class="status" hidden></div>
+      <div id="searchStatus" class="status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div id="searchResults"></div>
       <div class="pagination">
         <button type="button" id="prevPageBtn" class="secondary-btn" disabled>ก่อนหน้า</button>
@@ -290,22 +312,24 @@
     </section>
 
     <section class="panel reply-panel" id="replyPanel" hidden>
-      <h2>ส่งข้อความถึง <span id="selectedName"></span></h2>
+      <button type="button" id="backToListBtn" class="secondary-btn mobile-back-btn">‹ กลับไปรายการแชท</button>
+      <h2>แชทกับ <span id="selectedName"></span></h2>
       <p class="muted" id="selectedPauseNote"></p>
       <div class="toolbar">
-        <h2 style="font-size: 15px;">บทสนทนา</h2>
-        <button type="button" id="reloadHistoryBtn" class="secondary-btn">โหลดแชทใหม่</button>
+        <h2 style="font-size: 15px;">ประวัติแชท</h2>
+        <button type="button" id="reloadHistoryBtn" class="secondary-btn">โหลดประวัติใหม่</button>
       </div>
-      <button type="button" id="olderMessagesBtn" class="secondary-btn" hidden>โหลดข้อความเก่า</button>
-      <div id="chatStatus" class="status" hidden></div>
+      <button type="button" id="olderMessagesBtn" class="secondary-btn" hidden>โหลดข้อความก่อนหน้า</button>
+      <div id="chatStatus" class="status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div id="chatThread" class="chat-thread"></div>
-      <textarea id="replyMessage" placeholder="พิมพ์ข้อความตอบลูกค้า" maxlength="1000"></textarea>
+      <textarea id="replyMessage" aria-label="ข้อความตอบลูกค้า" aria-describedby="sendQuotaNote" placeholder="พิมพ์ข้อความตอบลูกค้า" maxlength="1000"></textarea>
+      <p id="sendQuotaNote" class="muted" style="margin: 8px 0 0; font-size: 12px;">การส่งจากหน้านี้นับเป็นโควตา LINE OA 1 ข้อความต่อผู้รับ เมื่อโควตาเต็ม บัญชีฟรีจะส่งไม่ออก ส่วนแพ็กเกจที่เปิดใช้ข้อความส่วนเกินอาจมีค่าใช้จ่าย</p>
       <div class="button-row" style="margin-top: 10px;">
         <button type="button" id="sendBtn" disabled>ส่งข้อความ</button>
-        <button type="button" id="takeoverBtn" class="secondary-btn">รับช่วง</button>
-        <button type="button" id="resumeBtn" class="secondary-btn" hidden>คืนให้ AI</button>
+        <button type="button" id="takeoverBtn" class="secondary-btn">รับช่วงตอบ</button>
+        <button type="button" id="resumeBtn" class="secondary-btn" hidden>ให้ระบบตอบต่อ</button>
       </div>
-      <div id="replyStatus" class="status" hidden></div>
+      <div id="replyStatus" class="status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     </section>
     </div>
   </main>
@@ -319,6 +343,9 @@
     const searchQuery = document.getElementById('searchQuery');
     const searchStatus = document.getElementById('searchStatus');
     const searchResults = document.getElementById('searchResults');
+    const inboxLayout = document.getElementById('inboxLayout');
+    const backToListBtn = document.getElementById('backToListBtn');
+    const customerListPanel = document.getElementById('customerListPanel');
     const replyPanel = document.getElementById('replyPanel');
     const selectedName = document.getElementById('selectedName');
     const selectedPauseNote = document.getElementById('selectedPauseNote');
@@ -336,7 +363,7 @@
     const nextPageBtn = document.getElementById('nextPageBtn');
     const pageStatus = document.getElementById('pageStatus');
 
-    const ROLE_LABEL = { customer: 'ลูกค้า', ai: 'AI', staff: 'พนักงาน' };
+    const ROLE_LABEL = { customer: 'ลูกค้า', ai: 'ระบบตอบอัตโนมัติ', staff: 'ทีมงาน' };
     const STAFF_SESSION_KEY = 'kmo-admin-inbox-session';
     let selectedCustomer = null;
     let historyMessages = [];
@@ -410,7 +437,7 @@
       const wasAtBottom = chatThread.scrollHeight - chatThread.clientHeight - chatThread.scrollTop < 48;
 
       activeHistoryLoads++;
-      if (!silent) setStatus(chatStatus, 'กำลังโหลดแชท...', '');
+      if (!silent) setStatus(chatStatus, 'กำลังโหลดประวัติแชท...', '');
       try {
         const result = await callFunction('history', { customerId, offset }, staffKey, false, signal);
         if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
@@ -434,7 +461,7 @@
       } catch (error) {
         if (sequence !== historySeq || selectedCustomer?.id !== customerId) return;
         if (silent && (error.code === 'staff_session_expired' || signal?.aborted)) return;
-        setStatus(chatStatus, `โหลดแชทไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(chatStatus, `โหลดประวัติไม่สำเร็จ: ${errorMessageForStaff(error)}`, 'error');
       } finally {
         activeHistoryLoads--;
       }
@@ -458,7 +485,7 @@
       if (!messages || messages.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'muted';
-        empty.textContent = 'ยังไม่มีประวัติแชท';
+        empty.textContent = 'ยังไม่มีข้อความในแชทนี้';
         chatThread.appendChild(empty);
         return;
       }
@@ -499,7 +526,7 @@
               } catch (error) {
                 imageButton.disabled = false;
                 imageButton.textContent = 'โหลดรูปอีกครั้ง';
-                setStatus(chatStatus, `โหลดรูปไม่สำเร็จ: ${error.message}`, 'error');
+                setStatus(chatStatus, `โหลดรูปไม่สำเร็จ: ${errorMessageForStaff(error)}`, 'error');
               }
             });
             bubble.appendChild(imageButton);
@@ -553,6 +580,7 @@
       chatStatus.hidden = true;
       replyStatus.hidden = true;
       replyPanel.hidden = true;
+      inboxLayout.classList.remove('has-selection');
       searchResults.replaceChildren();
       chatThread.replaceChildren();
       olderMessagesBtn.hidden = true;
@@ -578,7 +606,7 @@
     function requireStaffKey(statusEl) {
       const staffKey = passcodeInput.value.trim() || getStoredStaffSession();
       if (!staffKey) {
-        setStatus(statusEl, 'กรุณากรอก staff passcode ก่อน', 'error');
+        setStatus(statusEl, 'กรุณากรอกรหัสเข้าใช้งานก่อน', 'error');
         passcodeInput.focus();
         return null;
       }
@@ -614,13 +642,13 @@
           if (requestGeneration === authGeneration) {
             try { sessionStorage.removeItem(STAFF_SESSION_KEY); } catch { /* Storage may be disabled. */ }
           }
-          const error = new Error('session หมดอายุ กรุณาใส่ passcode ใหม่');
+          const error = new Error('สิทธิ์เข้าใช้งานหมดอายุ กรุณากรอกรหัสอีกครั้ง');
           error.code = 'staff_session_expired';
           throw error;
         }
         try { sessionStorage.removeItem(STAFF_SESSION_KEY); } catch { /* Storage may be disabled. */ }
         passcodeInput.value = '';
-        throw new Error('รหัสพนักงานไม่ถูกต้อง');
+        throw new Error('รหัสเข้าใช้งานไม่ถูกต้อง');
       }
       if (res.status === 429) {
         passcodeInput.value = '';
@@ -677,7 +705,7 @@
       } catch (error) {
         if (sequence !== customerListSeq) return;
         if (silent && signal?.aborted) return;
-        setStatus(searchStatus, `โหลดไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(searchStatus, `โหลดไม่สำเร็จ: ${errorMessageForStaff(error)}`, 'error');
       } finally {
         activeCustomerLoads--;
       }
@@ -776,16 +804,15 @@
         const isPaused = customer.paused_until && new Date(customer.paused_until).getTime() > Date.now();
         badge.className = `mode-badge${customer.human_takeover ? ' human' : ' ai'}`;
         badge.textContent = customer.human_takeover
-          ? 'คนรับช่วง'
-          : isPaused ? 'AI พักชั่วคราว' : 'AI ดูแล';
+          ? 'ทีมงานตอบ'
+          : isPaused ? 'พักตอบชั่วคราว' : 'ระบบตอบอัตโนมัติ';
         row.appendChild(badge);
 
-        const select = () => selectCustomer(customer, row);
-        row.addEventListener('click', select);
+        row.addEventListener('click', (event) => selectCustomer(customer, row, event.detail === 0));
         row.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            select();
+            selectCustomer(customer, row, true);
           }
         });
         searchResults.appendChild(row);
@@ -798,7 +825,7 @@
       }
     }
 
-    function selectCustomer(customer, row) {
+    function selectCustomer(customer, row, moveFocus = false) {
       selectedCustomer = customer;
       historyMessages = [];
       historyOffset = 0;
@@ -816,20 +843,43 @@
       replyRequest = null;
       replyStatus.hidden = true;
       replyPanel.hidden = false;
-      replyMessage.focus({ preventScroll: true });
+      const mobileLayout = window.matchMedia('(max-width: 760px)').matches;
+      if (mobileLayout) {
+        inboxLayout.classList.add('has-selection');
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        requestAnimationFrame(() => {
+          replyPanel.scrollIntoView({ behavior, block: 'start' });
+          if (moveFocus) replyMessage.focus({ preventScroll: true });
+        });
+      } else {
+        replyMessage.focus({ preventScroll: true });
+      }
       olderMessagesBtn.hidden = true;
       loadHistory(0);
     }
+
+    backToListBtn.addEventListener('click', () => {
+      historySeq++;
+      selectedCustomer = null;
+      inboxLayout.classList.remove('has-selection');
+      replyPanel.hidden = true;
+      [...searchResults.children].forEach((row) => {
+        row.classList.remove('selected');
+        row.setAttribute('aria-pressed', 'false');
+      });
+      searchResults.querySelector('[role="button"]')?.focus({ preventScroll: true });
+      customerListPanel.scrollIntoView({ block: 'start' });
+    });
 
     function updateCustomerMode() {
       if (!selectedCustomer) return;
       const isHuman = Boolean(selectedCustomer.human_takeover);
       const isPaused = selectedCustomer.paused_until && new Date(selectedCustomer.paused_until).getTime() > Date.now();
       selectedPauseNote.textContent = isHuman
-        ? 'แอดมินรับช่วงอยู่ — AI จะไม่ตอบจนกดคืนให้ AI'
+        ? 'ทีมงานรับช่วงอยู่ — ระบบตอบอัตโนมัติจะหยุดตอบจนกว่าจะกด “ให้ระบบตอบต่อ”'
         : isPaused
-        ? `AI พักชั่วคราวถึง ${new Date(selectedCustomer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`
-        : 'AI ดูแลบทสนทนานี้';
+        ? `ระบบตอบอัตโนมัติพักถึง ${new Date(selectedCustomer.paused_until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`
+        : 'ระบบตอบอัตโนมัติกำลังดูแลแชทนี้';
       sendBtn.disabled = !isHuman;
       takeoverBtn.hidden = isHuman;
       resumeBtn.hidden = !isHuman;
@@ -840,7 +890,7 @@
       if (!staffKey || !selectedCustomer) return;
       const customerId = selectedCustomer.id;
       if (!selectedCustomer.human_takeover) {
-        setStatus(replyStatus, 'กดรับช่วงก่อนส่งข้อความ', 'error');
+        setStatus(replyStatus, 'กด “รับช่วงตอบ” ก่อนส่งข้อความ', 'error');
         return;
       }
       const message = replyMessage.value.trim();
@@ -865,7 +915,7 @@
         }
         setStatus(replyStatus, result.statusSaved === false
           ? 'ส่งข้อความแล้ว แต่บันทึกสถานะส่งไม่สำเร็จ'
-          : 'ส่งข้อความแล้ว และโหมดคนยังทำงานอยู่', result.statusSaved === false ? 'error' : 'success');
+          : 'ส่งข้อความแล้ว — ทีมงานยังรับช่วงอยู่', result.statusSaved === false ? 'error' : 'success');
         if (replyMessage.value.trim() === message) replyMessage.value = '';
         replyRequest = null;
         await loadHistory(0);
@@ -881,8 +931,8 @@
           await loadHistory(0);
           await loadCustomers(0);
           setStatus(replyStatus, error.statusSaved === false
-            ? 'ส่งข้อความแล้ว แต่บันทึกสถานะส่งและ audit ไม่สำเร็จ'
-            : 'ส่งข้อความแล้ว แต่บันทึก audit ไม่สำเร็จ', 'error');
+            ? 'ส่งข้อความแล้ว แต่บันทึกสถานะส่งและประวัติการทำงานไม่สำเร็จ'
+            : 'ส่งข้อความแล้ว แต่บันทึกประวัติการทำงานไม่สำเร็จ', 'error');
         } else if (
           error.code === 'line_push_uncertain' ||
           (error.code === 'reply_audit_failed' && error.delivery === 'uncertain')
@@ -892,16 +942,16 @@
           // line_push_uncertain, so staff could never retry the same text. Drop the key (keep the
           // typed message) and refresh the thread so staff can verify delivery first.
           replyRequest = null;
-          setStatus(replyStatus, 'ส่งไม่แน่ชัด: LINE ไม่ยืนยันผลการส่ง ตรวจสอบในแชทด้านบนหรือแอป LINE ก่อน ระบบล้างรหัสคำขอเดิมแล้ว กดส่งซ้ำเพื่อสร้างรหัสใหม่ (ข้อความเดิมยังอยู่ในช่องพิมพ์)', 'error');
+          setStatus(replyStatus, 'ยังยืนยันไม่ได้ว่าข้อความถึงลูกค้าหรือไม่ ตรวจสอบในแชทนี้หรือแอป LINE ก่อน ถ้าจะลองใหม่ ให้กดส่งอีกครั้ง (ข้อความยังอยู่ในช่องพิมพ์)', 'error');
           await loadHistory(0);
           await loadCustomers(0);
           return;
         } else {
           if (error.code === 'line_push_rejected') replyRequest = null;
           const note = error.delivery === 'uncertain'
-            ? ' ตรวจ LINE ก่อนลองส่งข้อความใหม่'
+            ? ' เปิด LINE ตรวจสอบก่อนลองใหม่'
             : '';
-          setStatus(replyStatus, `ส่งไม่สำเร็จ: ${error.message}.${note}`, 'error');
+          setStatus(replyStatus, `ส่งไม่สำเร็จ: ${errorMessageForStaff(error)}${note}`, 'error');
         }
       } finally {
         updateCustomerMode();
@@ -916,7 +966,7 @@
       const customerId = selectedCustomer.id;
       takeoverBtn.disabled = true;
       resumeBtn.disabled = true;
-      setStatus(replyStatus, 'กำลังรับช่วง...', '');
+      setStatus(replyStatus, 'กำลังรับช่วงตอบ...', '');
       try {
         await callFunction('takeover', { customerId }, staffKey);
         if (selectedCustomer?.id !== customerId) {
@@ -925,14 +975,14 @@
         }
         selectedCustomer.human_takeover = true;
         updateCustomerMode();
-        setStatus(replyStatus, 'รับช่วงแล้ว — AI จะไม่ตอบจนกดคืนให้ AI', 'success');
+        setStatus(replyStatus, 'รับช่วงแล้ว — ระบบตอบอัตโนมัติจะหยุดตอบจนกว่าจะกด “ให้ระบบตอบต่อ”', 'success');
         await loadCustomers(0);
       } catch (error) {
         if (selectedCustomer?.id !== customerId) {
           await loadCustomers(0);
           return;
         }
-        setStatus(replyStatus, `รับช่วงไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(replyStatus, `รับช่วงไม่สำเร็จ: ${errorMessageForStaff(error)}`, 'error');
       } finally {
         updateCustomerMode();
         takeoverBtn.disabled = false;
@@ -947,7 +997,7 @@
       sendBtn.disabled = true;
       takeoverBtn.disabled = true;
       resumeBtn.disabled = true;
-      setStatus(replyStatus, 'กำลังคืนบทสนทนาให้ AI...', '');
+      setStatus(replyStatus, 'กำลังให้ระบบตอบต่อ...', '');
       try {
         const result = await callFunction('resume', { customerId }, staffKey);
         if (selectedCustomer?.id !== customerId) {
@@ -959,21 +1009,44 @@
         replyRequest = null;
         updateCustomerMode();
         setStatus(replyStatus, result.pausedUntil && new Date(result.pausedUntil).getTime() > Date.now()
-          ? 'คืนให้ AI แล้ว แต่เวลาพักจาก Telegram ยังมีผลอยู่'
-          : 'คืนบทสนทนาให้ AI แล้ว', 'success');
+          ? `เปิดระบบตอบอัตโนมัติแล้ว — จะเริ่มตอบหลัง ${new Date(result.pausedUntil).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`
+          : 'เปิดระบบตอบอัตโนมัติแล้ว', 'success');
         await loadCustomers(0);
       } catch (error) {
         if (selectedCustomer?.id !== customerId) {
           await loadCustomers(0);
           return;
         }
-        setStatus(replyStatus, `คืนให้ AI ไม่สำเร็จ: ${error.message}`, 'error');
+        setStatus(replyStatus, `เปิดระบบตอบอัตโนมัติไม่สำเร็จ: ${errorMessageForStaff(error)}`, 'error');
       } finally {
         updateCustomerMode();
         takeoverBtn.disabled = false;
         resumeBtn.disabled = false;
       }
     });
+
+    function errorMessageForStaff(error) {
+      const messages = {
+        customer_not_found: 'ไม่พบแชทลูกค้านี้',
+        delivery_in_progress: 'กำลังส่งข้อความก่อนหน้า กรุณารอสักครู่',
+        delivery_not_allowed: 'ยังส่งข้อความจากแชทนี้ไม่ได้',
+        image_not_found: 'ไม่พบรูปภาพนี้',
+        image_unavailable: 'โหลดรูปภาพไม่สำเร็จ',
+        line_push_rejected: 'LINE ส่งข้อความไม่สำเร็จ',
+        line_push_uncertain: 'ยังยืนยันผลการส่งไม่ได้ กรุณาตรวจสอบแชทก่อนลองใหม่',
+        message_too_long: 'ข้อความยาวเกินกำหนด',
+        request_id_conflict: 'คำขอส่งข้อความซ้ำ กรุณาโหลดประวัติใหม่',
+        staff_auth_unavailable: 'ระบบตรวจสอบรหัสเข้าใช้งานไม่พร้อม',
+        staff_session_expired: 'สิทธิ์เข้าใช้งานหมดอายุ กรุณากรอกรหัสอีกครั้ง',
+        takeover_required: 'กด “รับช่วงตอบ” ก่อนส่งข้อความ',
+        too_many_attempts: 'ลองรหัสผิดหลายครั้ง ระบบพักการเข้าสู่ระบบ 15 นาที',
+        unauthorized: 'รหัสเข้าใช้งานไม่ถูกต้อง',
+      };
+      if (error?.name === 'AbortError') return 'คำขอใช้เวลานานเกินไป กรุณาลองใหม่';
+      if (typeof error?.code === 'string' && Object.hasOwn(messages, error.code)) return messages[error.code];
+      if (typeof error?.message === 'string' && /[\u0E00-\u0E7F]/.test(error.message)) return error.message;
+      return 'ระบบขัดข้องชั่วคราว กรุณาลองใหม่';
+    }
 
     function setStatus(el, message, type) {
       el.hidden = false;
