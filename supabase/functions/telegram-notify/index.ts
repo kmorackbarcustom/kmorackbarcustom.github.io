@@ -91,11 +91,7 @@ function formatOrder(r: Record<string, unknown>): string {
 
 serve(async (req) => {
   try {
-    let payload: unknown;
-    try { payload = await req.json(); } catch { return new Response("invalid payload", { status: 400 }); }
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return new Response("invalid payload", { status: 400 });
-    }
+    const payload = await req.json();
     const { table, record, type } = payload as {
       table: string;
       record: Record<string, unknown>;

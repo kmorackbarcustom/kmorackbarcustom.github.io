@@ -1,3 +1,4 @@
+import "../_testing/env.ts";
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { handler, MAX_PAGES, retryLinePush, setRetryWait } from "./index.ts";
 import { booking, fakeState, resetFake } from "../_testing/fake-supabase.ts";
@@ -38,7 +39,8 @@ Deno.test("appointment-reminder handler covers cancellations, dedupe, paging, re
   const cancelledProduction = booking(2); cancelledProduction.production_status = "ยกเลิก";
   const nullStatuses = booking(3); nullStatuses.queue_status = null; nullStatuses.production_status = null;
   const active = booking(4);
-  resetFake({ bookings: [cancelledQueue, cancelledProduction, nullStatuses, active] });
+  const otherDay = booking(5); otherDay.appointment_date = "2000-01-01";
+  resetFake({ bookings: [cancelledQueue, cancelledProduction, nullStatuses, active, otherDay] });
   let response = await handler(request());
   let json = await response.json();
   assertEquals([json.skipped_cancelled, json.telegram_sent, json.line_sent], [2, 2, 2]);
@@ -67,6 +69,7 @@ Deno.test("appointment-reminder handler covers cancellations, dedupe, paging, re
   response = await handler(request()); json = await response.json();
   assertEquals([fakeState().ranges.length, fakeState().logReads, fakeState().ranges[0], fakeState().ranges[1], fakeState().ranges[2], json.telegram_sent], [3, 3, [0, 99], [100, 199], [200, 299], 250]);
 
+  assertEquals(MAX_PAGES, 20);
   mockFetch(); resetFake({ fullPages: true });
   response = await handler(request()); json = await response.json();
   assertEquals([fakeState().ranges.length, fakeState().ranges.length <= MAX_PAGES, json.truncated], [MAX_PAGES, true, true]);

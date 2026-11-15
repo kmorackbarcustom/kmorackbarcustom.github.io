@@ -1,3 +1,4 @@
+import { addDays, dateOnlyInBangkok } from "../_shared/constants.ts";
 type Log = Record<string, unknown>;
 type State = {
   settings: Record<string, string>;
@@ -47,7 +48,7 @@ class Query {
     if (this.table === "bookings") {
       const [from, to] = this.ranges ?? [0, 99];
       state.ranges.push([from, to]);
-      const data = state.fullPages ? Array.from({ length: 100 }, (_, i) => booking(from + i + 1)) : state.bookings.slice(from, to + 1);
+      const data = state.fullPages ? Array.from({ length: 100 }, (_, i) => booking(from + i + 1)) : state.bookings.filter((row) => this.filters.appointment_date === undefined || row.appointment_date === this.filters.appointment_date).slice(from, to + 1);
       return Promise.resolve(resolve({ data, error: null }));
     }
     if (this.table === "notifications_log") {
@@ -55,12 +56,12 @@ class Query {
       if (state.logReadError || state.logReadErrorAt === state.logReads) return Promise.resolve(resolve({ data: null, error: new Error("log read failed") }));
       const ids = this.filters.booking_id as unknown[];
       const types = this.filters.notification_type as unknown[];
-      return Promise.resolve(resolve({ data: state.logs.filter((row) => ids.includes(row.booking_id) && types.includes(row.notification_type) && row.success === true), error: null }));
+      return Promise.resolve(resolve({ data: state.logs.filter((row) => ids.includes(row.booking_id) && types.includes(row.notification_type) && (this.filters.success === undefined || row.success === this.filters.success)), error: null }));
     }
     return Promise.resolve(resolve({ data: [], error: null }));
   }
 }
 
 export function booking(id: number) {
-  return { id, job_id: `JOB-${id}`, customer_name: `Customer ${id}`, phone: "fake phone", brand: "Honda", model: "ADV350", product: "Service", appointment_date: "2026-11-16", production_status: "รอเริ่มงาน" as string | null, queue_status: "ยืนยัน" as string | null, line_uid: `fake-line-${id}`, assigned_mechanic_username: null };
+  return { id, job_id: `JOB-${id}`, customer_name: `Customer ${id}`, phone: "fake phone", brand: "Honda", model: "ADV350", product: "Service", appointment_date: addDays(dateOnlyInBangkok(), 1), production_status: "รอเริ่มงาน" as string | null, queue_status: "ยืนยัน" as string | null, line_uid: `fake-line-${id}`, assigned_mechanic_username: null };
 }
