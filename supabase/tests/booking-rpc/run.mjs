@@ -229,6 +229,194 @@ async function probeCap(today) {
   sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('PCAP-1','${day}','${plus(day,3)}'),('PCAP-2','${day}','${plus(day,3)}'),('PCAP-3','${day}','${plus(day,3)}');`);
   return checkExpectedError(await asyncPsql(call(day, plus(day,3), uuid(18006))), 'KMO_DAY_FULL');
 }
+async function probeWorkdayRules(today) {
+  await clearFixtures();
+  const monday = findDow(plus(today, 7), 1), wed = plus(monday, 2);
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${wed}','mutant workday fixture');`);
+  const holiday = checkExpectedError(await asyncPsql(call(monday, wed, uuid(18101))), 'KMO_MIN_WORKDAYS');
+  await clearFixtures();
+  const tue = plus(monday, 1);
+  const closedDay = checkExpectedError(await asyncPsql(call(monday, tue, uuid(18102))), 'KMO_MIN_WORKDAYS');
+  return holiday && closedDay;
+}
+async function probeWorkdayBoundaries(today) {
+  await clearFixtures();
+  const thu = findDow(plus(today, 7), 4), fri = plus(thu, 1);
+  return (await asyncPsql(call(thu, fri, uuid(18103)))).code === 0;
+}
+async function probeAppointmentHoliday(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1);
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ('${day}','mutant appointment fixture');`);
+  return checkExpectedError(await asyncPsql(call(day, plus(day, 3), uuid(18104))), 'KMO_APPOINT_HOLIDAY');
+}
+async function probePastAppointment(today) {
+  await clearFixtures();
+  const day = plus(today, -1);
+  return checkExpectedError(await asyncPsql(call(day, plus(day, 3), uuid(18105))), 'KMO_APPOINT_PAST');
+}
+async function probeReplayBeforeValidation(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), req = uuid(18106);
+  const first = parseJsonOutput(sql(call(day, plus(day, 3), req)));
+  const invalid = await asyncPsql(call(plus(today, -1), plus(today, 2), req, { customer_name: '' }));
+  const replay = parseJsonOutput(invalid.stdout);
+  return first?.replay === false && invalid.code === 0 && replay?.replay === true && replay?.job_id === first.job_id;
+}
+async function probeBadRequests(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), pickup = plus(day, 3);
+  const expect = async (body, req) => checkExpectedError(await asyncPsql(`SELECT public.create_booking(${sqlLiteral(jsonAscii(body))}::jsonb, '${req}'::uuid);`), 'KMO_BAD_REQUEST');
+  if (!checkExpectedError(await asyncPsql(`SELECT public.create_booking(${sqlLiteral(jsonAscii(payload(day, pickup)))}::jsonb, NULL);`), 'KMO_BAD_REQUEST')) return false;
+  if (!checkExpectedError(await asyncPsql(`SELECT public.create_booking(NULL, '${uuid(18107)}'::uuid);`), 'KMO_BAD_REQUEST')) return false;
+  if (!checkExpectedError(await asyncPsql(`SELECT public.create_booking('[]'::jsonb, '${uuid(18108)}'::uuid);`), 'KMO_BAD_REQUEST')) return false;
+  for (const key of ['customer_name','phone','brand','product','source','appointment_date']) {
+    const body = payload(day, pickup); delete body[key];
+    if (!await expect(body, uuid(18110 + ['customer_name','phone','brand','product','source','appointment_date'].indexOf(key)))) return false;
+  }
+  return checkExpectedError(await asyncPsql(call(day, pickup, uuid(18120), { pickup_date: null })), 'KMO_PICKUP_MISSING')
+    && checkExpectedError(await asyncPsql(call(day, pickup, uuid(18121), { pickup_date: '' })), 'KMO_PICKUP_MISSING');
+}
+async function probeBadDateAndTotal(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), pickup = plus(day, 3);
+  const badDate = await asyncPsql(call('abc', pickup, uuid(18122)));
+  const infinityDate = checkExpectedError(await asyncPsql(call('infinity', pickup, uuid(18123))), 'KMO_BAD_REQUEST')
+    && checkExpectedError(await asyncPsql(call(day, 'infinity', uuid(18124))), 'KMO_BAD_REQUEST');
+  const badTotals = [];
+  for (const value of ['NaN','Infinity','-Infinity']) badTotals.push(checkExpectedError(await asyncPsql(call(day, pickup, randomUUID(), { estimated_total: value })), 'KMO_BAD_REQUEST'));
+  const negative = checkExpectedError(await asyncPsql(call(day, pickup, uuid(18125), { estimated_total: '-1' })), 'KMO_BAD_REQUEST');
+  return checkExpectedError(badDate, 'KMO_BAD_REQUEST') && infinityDate && badTotals.every(Boolean) && negative;
+}
+async function probePickupRules(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1);
+  const before = checkExpectedError(await asyncPsql(call(day, plus(day, -1), uuid(18126))), 'KMO_PICKUP_BEFORE_APPOINT');
+  const same = checkExpectedError(await asyncPsql(call(day, day, uuid(18127))), 'KMO_MIN_WORKDAYS');
+  const twoDays = (await asyncPsql(call(findDow(plus(today, 7), 4), plus(findDow(plus(today, 7), 4), 1), uuid(18128)))).code === 0;
+  const oneWorkday = checkExpectedError(await asyncPsql(call(day, plus(day, 1), uuid(18129))), 'KMO_MIN_WORKDAYS');
+  return before && same && twoDays && oneWorkday;
+}
+async function probeFarPickup(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), started = performance.now();
+  const result = await asyncPsql(call(day, '9999-12-31', uuid(18130)));
+  const duration = Math.round(performance.now() - started);
+  if (result.code !== 0 || parseJsonOutput(result.stdout)?.replay !== false || duration >= 2000) {
+    console.log(`M29_9999 code=${result.code} duration=${duration} stdout=${result.stdout} stderr=${result.stderr}`);
+    return false;
+  }
+  const guarded = await asyncPsql(`SET statement_timeout='500ms'; ${call(day, '9999-12-31', uuid(18144))}`);
+  if (guarded.code !== 0) console.log(`M29_GUARDED code=${guarded.code} stdout=${guarded.stdout} stderr=${guarded.stderr}`);
+  return guarded.code === 0 && parseJsonOutput(guarded.stdout)?.replay === false;
+}
+async function probeDifferentDayCap(today) {
+  await clearFixtures();
+  const full = findDow(plus(today, 7), 1), free = plus(full, 7);
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('OTHER-1','${full}','${plus(full,3)}'),('OTHER-2','${full}','${plus(full,3)}'),('OTHER-3','${full}','${plus(full,3)}');`);
+  return (await asyncPsql(call(free, plus(free,3), uuid(18131)))).code === 0;
+}
+async function probeStoredBooking(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), request = uuid(18132);
+  const result = parseJsonOutput(sql(call(day, plus(day,3), request, {
+    customer_name: '  Name  ', phone: '  123  ', brand: '  Brand  ', product: '  Product  ',
+  })));
+  if (!result) return false;
+  const stored = sql(`SELECT customer_name||'|'||phone||'|'||brand||'|'||product||'|'||queue_status||'|'||production_status||'|'||id FROM public.bookings WHERE job_id=${sqlLiteral(result.job_id)};`);
+  const ym = sql("SELECT to_char(now() AT TIME ZONE 'Asia/Bangkok','YYMM');");
+  return /^KLI-\d{4}-\d{4}$/.test(result.job_id) && result.booking_id > 0
+    && stored === `Name|123|Brand|Product|ยืนยัน|รอเริ่มงาน|${result.booking_id}`
+    && result.job_id.startsWith(`KLI-${ym}-`);
+}
+async function probeInsertAndFirstResponse(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), request = uuid(18133);
+  const first = parseJsonOutput(sql(call(day, plus(day,3), request)));
+  const replay = parseJsonOutput(sql(call(day, plus(day,3), request)));
+  const rows = sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${request}';`);
+  const bookingId = sql(`SELECT id FROM public.bookings WHERE job_id=${sqlLiteral(first?.job_id ?? '')};`);
+  return first?.replay === false && replay?.replay === true && rows === '1' && Number(bookingId) === first?.booking_id;
+}
+async function probeUnmatchedUniqueViolation(today) {
+  await clearFixtures();
+  sql(`CREATE FUNCTION test_support.force_unique_violation() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE unique_violation; END $fn$;
+    CREATE TRIGGER force_unique_violation BEFORE INSERT ON public.bookings FOR EACH ROW EXECUTE FUNCTION test_support.force_unique_violation();`);
+  const day = findDow(plus(today, 7), 1);
+  const result = await asyncPsql(call(day, plus(day,3), uuid(18134)));
+  sql('DROP TRIGGER force_unique_violation ON public.bookings; DROP FUNCTION test_support.force_unique_violation();');
+  return result.code !== 0 && /23505|unique_violation/i.test(`${result.stdout}\n${result.stderr}`);
+}
+async function probeSecurityAndSearchPath(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1);
+  const anon = await asyncPsql(`SET ROLE anon; ${call(day, plus(day,3), uuid(18135))}`);
+  const config = sql(`SELECT coalesce(array_to_string(proconfig,','),'') FROM pg_proc WHERE oid='public.create_booking(jsonb,uuid)'::regprocedure;`);
+  return anon.code === 0 && config.includes('search_path=public, pg_temp');
+}
+async function probeTodayBoundary(today) {
+  await clearFixtures();
+  if (dow(today) === 2) return true;
+  const result = await asyncPsql(call(today, plus(today,3), uuid(18136)));
+  return result.code === 0;
+}
+async function probeCurrentDate(today) {
+  await clearFixtures();
+  const dates = sql("SELECT (now() AT TIME ZONE 'Etc/GMT+12')::date || '|' || (now() AT TIME ZONE 'Pacific/Kiritimati')::date;").split('|');
+  const [behind, ahead] = dates;
+  if (behind < today) return checkExpectedError(await asyncPsql(`SET TIME ZONE 'Etc/GMT+12'; ${call(behind, plus(behind,3), uuid(18137))}`), 'KMO_APPOINT_PAST');
+  if (ahead > today) {
+    const result = await asyncPsql(`SET TIME ZONE 'Pacific/Kiritimati'; ${call(today, plus(today,3), uuid(18137))}`);
+    return !checkExpectedError(result, 'KMO_APPOINT_PAST');
+  }
+  throw new Error(`No PostgreSQL session timezone differs from Bangkok today ${today}`);
+}
+async function probeLockPickup(today) {
+  await clearFixtures();
+  const day = plus(findDow(today, 1), 91);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('LPU-1','${day}','${plus(day,3)}'),('LPU-2','${day}','${plus(day,3)}');`);
+  const a = holdOpen(call(day, plus(day, 3), uuid(18138)));
+  await delay(700);
+  const b = await asyncPsql(call(day, plus(day, 4), uuid(18139)));
+  const ar = await a;
+  const count = sql(`SELECT count(*) FROM public.bookings WHERE appointment_date='${day}';`);
+  return ar.code === 0 && checkExpectedError(b, 'KMO_DAY_FULL') && count === '3';
+}
+async function probeReplayAfterLock(today) {
+  await clearFixtures();
+  const day = plus(findDow(today, 1), 98), req = uuid(18140);
+  sql(`INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('RPL-1','${day}','${plus(day,3)}'),('RPL-2','${day}','${plus(day,3)}');`);
+  const a = holdOpen(call(day, plus(day, 3), req));
+  await delay(700);
+  const b = await asyncPsql(call(day, plus(day, 3), req));
+  const ar = await a, replay = parseJsonOutput(b.stdout);
+  const reqRows = sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${req}';`);
+  const dayRows = sql(`SELECT count(*) FROM public.bookings WHERE appointment_date='${day}';`);
+  return ar.code === 0 && b.code === 0 && replay?.replay === true && replay.job_id === parseJsonOutput(ar.stdout)?.job_id
+    && replay.booking_id === parseJsonOutput(ar.stdout)?.booking_id && reqRows === '1' && dayRows === '3';
+}
+async function probeCanceledCapacity(today) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1);
+  const canceled = sqlText('\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01');
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date,queue_status,production_status) VALUES
+    ('MC-1','${day}','${plus(day,3)}',${canceled},${canceled}),('MC-2','${day}','${plus(day,3)}',${canceled},${canceled}),('MC-3','${day}','${plus(day,3)}',${canceled},${canceled});`);
+  const freed = (await asyncPsql(call(day, plus(day,3), uuid(18141)))).code === 0;
+  await clearFixtures();
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('MA-1','${day}','${plus(day,3)}'),('MA-2','${day}','${plus(day,3)}'),('MA-3','${day}','${plus(day,3)}');`);
+  const activeFull = checkExpectedError(await asyncPsql(call(day, plus(day,3), uuid(18142))), 'KMO_DAY_FULL');
+  return freed && activeFull;
+}
+async function probeReplayAcrossDays(today) {
+  await clearFixtures();
+  const dayA = plus(findDow(today, 1), 105), dayB = plus(dayA, 7), req = uuid(18143);
+  const a = holdOpen(call(dayA, plus(dayA,3), req), 1);
+  await delay(300);
+  const b = await asyncPsql(call(dayB, plus(dayB,3), req));
+  const ar = await a, replay = parseJsonOutput(b.stdout);
+  return ar.code === 0 && b.code === 0 && replay?.replay === true && replay.job_id === parseJsonOutput(ar.stdout)?.job_id
+    && sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${req}';`) === '1';
+}
 async function runConcurrency(today, { final = false } = {}) {
   let start = findDow(today, 1); // Monday; all dates are fresh and valid.
   let roundsOK = true;
@@ -305,6 +493,12 @@ async function runLockProofs(today) {
   const dsARes = await dsA;
   record('lock proof: advisory lock key is DateStyle-independent', dsARes.code === 0 && checkExpectedError(dsB, 'KMO_DAY_FULL'),
     `A=${dsARes.code}, B full=${checkExpectedError(dsB, 'KMO_DAY_FULL')}`);
+
+  const pickupLock = await probeLockPickup(today);
+  record('lock proof: same appointment serializes different pickup dates', pickupLock);
+
+  const replayAfterLock = await probeReplayAfterLock(today);
+  record('idempotency proof: same-day waiter replays committed booking after lock', replayAfterLock);
 
   await clearFixtures();
   const dayA = plus(findDow(today, 1), 70);
@@ -569,44 +763,163 @@ async function runFinalBookingMutants(migration, today) {
   const fn = source.match(/CREATE OR REPLACE FUNCTION public\.create_booking\(p_payload jsonb, p_request_id uuid\)[\s\S]*?\$function\$;/)?.[0];
   if (!fn) throw new Error('Cannot load final create_booking mutant source');
   const expectedHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
-  const probes = [
+  const probeSet = {
+    capacity: () => probeD2(today), lock: () => probeLock(today), dateStyle: () => probeDateStyle(today),
+    tuesday: () => probeTuesday(today), cap: () => probeCap(today), workdays: () => probeWorkdayRules(today),
+    boundaries: () => probeWorkdayBoundaries(today), appointmentHoliday: () => probeAppointmentHoliday(today),
+    past: () => probePastAppointment(today), lockPickup: () => probeLockPickup(today), replayLock: () => probeReplayAfterLock(today),
+    replayFirst: () => probeReplayBeforeValidation(today), badRequests: () => probeBadRequests(today),
+    badNumbers: () => probeBadDateAndTotal(today), pickupRules: () => probePickupRules(today), farPickup: () => probeFarPickup(today),
+    otherDayCap: () => probeDifferentDayCap(today), stored: () => probeStoredBooking(today),
+    replayInsert: () => probeInsertAndFirstResponse(today), replayUnique: () => probeReplayAcrossDays(today),
+    unmatchedUnique: () => probeUnmatchedUniqueViolation(today), canceledCapacity: () => probeCanceledCapacity(today),
+    security: () => probeSecurityAndSearchPath(today), todayBoundary: () => probeTodayBoundary(today), currentDate: () => probeCurrentDate(today),
+  };
+  const legacyProbes = [
     ['D2 detector on final function', () => probeD2(today)],
     ['lock detector on final function', () => probeLock(today)],
     ['DateStyle detector on final function', () => probeDateStyle(today)],
     ['Tuesday detector on final function', () => probeTuesday(today)],
     ['cap detector on final function', () => probeCap(today)],
   ];
-  for (const [name, probe] of probes) {
+  for (const [name, probe] of legacyProbes) {
     await clearFixtures();
     const ok = await probe();
     record(name, ok);
     if (!ok) throw new Error(`${name} failed on final create_booking; mutant results would be invalid`);
   }
-  const mutants = [
-    ['M5 DateStyle-dependent lock key', "to_char(v_appointment, 'YYYY-MM-DD')", 'v_appointment::text', probeDateStyle],
-    ['M6 advisory lock removed', "  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || to_char(v_appointment, 'YYYY-MM-DD')));", '', probeLock],
-    ['M7 cap boundary changed', '>= public.kmo_booking_daily_cap()', '> public.kmo_booking_daily_cap()', probeCap],
-    ['M8 Tuesday rule disabled', 'IF extract(dow FROM v_appointment)::integer = ANY(public.kmo_closed_weekdays()) THEN', 'IF false THEN', probeTuesday],
-  ];
-  for (const [name, before, after, probe] of mutants) {
-    const definition = fn.replace(before, after);
-    if (definition === fn) throw new Error(`Could not construct final create_booking mutant ${name}`);
-    const file = path.join(dataDir, `mutant-final-${name.replaceAll(/[^a-z0-9]+/gi, '-')}.sql`);
+  const usedProbes = new Set();
+  const replaceOnce = (definition, before, after, label) => {
+    if (!definition.includes(before)) throw new Error(`Cannot find source text for ${label}`);
+    if (definition.indexOf(before) !== definition.lastIndexOf(before)) throw new Error(`Ambiguous source text for ${label}`);
+    const changed = definition.replace(before, after);
+    if (changed === definition) throw new Error(`Could not construct mutant ${label}`);
+    return changed;
+  };
+  const line = {
+    lock: "  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || to_char(v_appointment, 'YYYY-MM-DD')));",
+    replayAfterLock: `  SELECT b.* INTO v_existing\n  FROM public.booking_requests r JOIN public.bookings b ON b.job_id = r.job_id\n  WHERE r.request_id = p_request_id;\n  IF FOUND THEN\n    RETURN jsonb_build_object('job_id', v_existing.job_id, 'booking_id', v_existing.id, 'replay', true);\n  END IF;\n`,
+    replayBeforeValidation: `  SELECT b.* INTO v_existing\n  FROM public.booking_requests r JOIN public.bookings b ON b.job_id = r.job_id\n  WHERE r.request_id = p_request_id;\n  IF FOUND THEN\n    RETURN jsonb_build_object('job_id', v_existing.job_id, 'booking_id', v_existing.id, 'replay', true);\n  END IF;\n`,
+  };
+  const mutants = [];
+  const add = (id, name, transform, probes, helper = false) => mutants.push({ id, name, transform, probes, helper });
+  const change = (id, name, before, after, probes) => add(id, name, text => replaceOnce(text, before, after, `${id} ${name}`), probes);
+  change('M1', 'holiday exclusion removed', '      AND NOT EXISTS (SELECT 1 FROM public.holidays h WHERE h.date = d.day::date)\n', '', ['workdays']);
+  add('M2', 'weekday range shortcut', text => replaceOnce(text, `  SELECT count(*)::integer INTO v_workdays\n  FROM (\n    SELECT 1\n    FROM generate_series(v_appointment, v_pickup, interval '1 day') AS d(day)\n    WHERE extract(dow FROM d.day)::integer <> ALL(public.kmo_closed_weekdays())\n      AND NOT EXISTS (SELECT 1 FROM public.holidays h WHERE h.date = d.day::date)\n    LIMIT public.kmo_min_booking_workdays()\n  ) AS qualifying_workdays;`, `  IF v_pickup - v_appointment >= 2 THEN v_workdays := public.kmo_min_booking_workdays();\n  ELSE v_workdays := 1; END IF;`, 'M2'), ['workdays']);
+  change('M3a', 'appointment boundary excluded', 'generate_series(v_appointment, v_pickup, interval', 'generate_series(v_appointment + 1, v_pickup, interval', ['boundaries']);
+  change('M3b', 'pickup boundary excluded', 'generate_series(v_appointment, v_pickup, interval', 'generate_series(v_appointment, v_pickup - 1, interval', ['boundaries']);
+  change('M4', 'Tuesday counted as workday', 'extract(dow FROM d.day)::integer <> ALL(public.kmo_closed_weekdays())', 'true', ['workdays']);
+  change('M5', 'DateStyle-dependent lock key', "to_char(v_appointment, 'YYYY-MM-DD')", 'v_appointment::text', ['dateStyle']);
+  change('M6', 'advisory lock removed', `${line.lock}\n`, '', ['lock','capacity']);
+  change('M7', 'cap boundary changed', '>= public.kmo_booking_daily_cap()', '> public.kmo_booking_daily_cap()', ['cap']);
+  change('M8', 'appointment weekday check disabled', 'IF extract(dow FROM v_appointment)::integer = ANY(public.kmo_closed_weekdays()) THEN', 'IF false THEN', ['tuesday']);
+  add('M9', 'lock moved after capacity check', text => {
+    let out = replaceOnce(text, `${line.lock}\n`, '', 'M9 remove lock');
+    return replaceOnce(out, `  END IF;\n\n  v_job_id :=`, `  END IF;\n\n${line.lock}\n\n  v_job_id :=`, 'M9 move lock');
+  }, ['lock','capacity']);
+  change('M10', 'lock keyed by pickup date', "to_char(v_appointment, 'YYYY-MM-DD')", "to_char(v_pickup, 'YYYY-MM-DD')", ['lockPickup']);
+  change('M11', 'appointment holiday check disabled', 'IF EXISTS (SELECT 1 FROM public.holidays WHERE date = v_appointment) THEN', 'IF false THEN', ['appointmentHoliday']);
+  change('M12', 'past appointment check disabled', 'IF v_appointment < public.kmo_today() THEN', 'IF false THEN', ['past']);
+  add('M13', 'post-lock replay check removed', text => {
+    const lockAt = text.indexOf(line.lock), replayAt = text.indexOf(line.replayAfterLock, lockAt + line.lock.length);
+    if (lockAt < 0 || replayAt < 0) throw new Error('Cannot locate M13 replay check after appointment lock');
+    const changed = text.slice(0, replayAt) + text.slice(replayAt + line.replayAfterLock.length);
+    if (changed === text) throw new Error('Could not construct M13 post-lock replay mutant');
+    return changed;
+  }, ['replayLock']);
+  const helperPath = path.join(repo, 'supabase/migrations/20261116090000_booking_rpc_hardening.sql');
+  const helperSource = (await readFile(helperPath, 'utf8')).replaceAll('\r\n', '\n');
+  const helperFn = helperSource.match(/CREATE OR REPLACE FUNCTION public\.booking_uses_slot\([\s\S]*?\$function\$;/)?.[0];
+  if (!helperFn) throw new Error('Cannot load booking_uses_slot from T3 migration');
+  const helperHash = sql("SELECT md5(pg_get_functiondef('public.booking_uses_slot(text,text)'::regprocedure));");
+  for (const [name, body] of [['always true', 'SELECT true'], ['always false', 'SELECT false']]) {
+    add('M14', `booking_uses_slot ${name}`, () => {
+      const changed = helperFn.replace(/  SELECT coalesce\([\s\S]*?\n\$function\$;/, `  ${body}\n$function$;`);
+      if (changed === helperFn) throw new Error(`Could not construct M14 booking_uses_slot ${name}`);
+      return changed;
+    }, ['canceledCapacity'], true);
+  }
+  add('M15', 'pre-validation replay removed', text => {
+    const lockAt = text.indexOf(line.lock), replayAt = text.indexOf(line.replayBeforeValidation);
+    if (lockAt < 0 || replayAt < 0 || replayAt > lockAt) throw new Error('Cannot locate M15 replay check before appointment lock');
+    const changed = text.slice(0, replayAt) + text.slice(replayAt + line.replayBeforeValidation.length);
+    if (changed === text) throw new Error('Could not construct M15 pre-validation replay mutant');
+    return changed;
+  }, ['replayFirst']);
+  change('M16', 'request and object validation disabled', 'IF p_request_id IS NULL OR p_payload IS NULL OR jsonb_typeof(p_payload) <> \'object\' THEN', 'IF false THEN', ['badRequests']);
+  change('M17', 'required fields validation disabled', `IF nullif(trim(p_payload->>'customer_name'), '') IS NULL\n     OR nullif(trim(p_payload->>'phone'), '') IS NULL\n     OR nullif(trim(p_payload->>'brand'), '') IS NULL\n     OR nullif(trim(p_payload->>'product'), '') IS NULL\n     OR nullif(trim(p_payload->>'source'), '') IS NULL\n     OR nullif(trim(p_payload->>'appointment_date'), '') IS NULL THEN`, 'IF false THEN', ['badRequests']);
+  change('M18', 'pickup required validation disabled', "IF nullif(trim(p_payload->>'pickup_date'), '') IS NULL THEN", 'IF false THEN', ['badRequests']);
+  change('M19', 'date parse exception narrowed', 'EXCEPTION WHEN OTHERS THEN', 'EXCEPTION WHEN no_data_found THEN', ['badNumbers']);
+  change('M20', 'infinite dates accepted', 'IF NOT isfinite(v_appointment) OR NOT isfinite(v_pickup)\n     OR ', 'IF ', ['badNumbers']);
+  change('M21', 'nonfinite total accepted', "(v_total IS NOT NULL AND (v_total IN ('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric) OR v_total < 0))", 'false', ['badNumbers']);
+  change('M22', 'negative total accepted', " OR v_total < 0", '', ['badNumbers']);
+  change('M23', 'yesterday appointment accepted', 'v_appointment < public.kmo_today()', 'v_appointment < public.kmo_today() - 1', ['past']);
+  change('M24', 'today appointment rejected', 'v_appointment < public.kmo_today()', 'v_appointment <= public.kmo_today()', ['todayBoundary']);
+  change('M25', 'pickup-before-appointment check disabled', 'IF v_pickup < v_appointment THEN', 'IF false THEN', ['pickupRules']);
+  change('M26', 'same-day pickup rejected too early', 'IF v_pickup < v_appointment THEN', 'IF v_pickup <= v_appointment THEN', ['pickupRules']);
+  change('M27', 'minimum workdays comparison inclusive', 'IF v_workdays < public.kmo_min_booking_workdays() THEN', 'IF v_workdays <= public.kmo_min_booking_workdays() THEN', ['pickupRules']);
+  change('M28', 'minimum workdays check disabled', 'IF v_workdays < public.kmo_min_booking_workdays() THEN', 'IF false THEN', ['pickupRules']);
+  change('M29', 'workday LIMIT removed', '    LIMIT public.kmo_min_booking_workdays()\n', '', ['farPickup']);
+  change('M30', 'capacity count omits appointment date', '      WHERE b.appointment_date = v_appointment\n        AND ', '      WHERE ', ['otherDayCap']);
+  change('M31', 'fixed job ID', 'v_job_id := public.kmo_next_job_id(p_payload->>\'source\');', "v_job_id := 'FIXED-ID';", ['stored']);
+  change('M32a', 'initial queue status changed', "'ยืนยัน', 'รอเริ่มงาน'", "'อื่น', 'รอเริ่มงาน'", ['stored']);
+  change('M32b', 'initial production status changed', "'ยืนยัน', 'รอเริ่มงาน'", "'ยืนยัน', 'อื่น'", ['stored']);
+  add('M33', 'stored fields not trimmed', text => {
+    const values = text.indexOf('  VALUES (v_job_id,');
+    if (values < 0) throw new Error('Cannot locate create_booking VALUES for M33');
+    let tail = text.slice(values);
+    for (const field of ['customer_name','phone','brand','product']) tail = replaceOnce(tail, `trim(p_payload->>'${field}')`, `p_payload->>'${field}'`, `M33 ${field}`);
+    return text.slice(0, values) + tail;
+  }, ['stored']);
+  change('M34', 'idempotency insert removed', "  INSERT INTO public.booking_requests(request_id, job_id) VALUES (p_request_id, v_job_id);\n", '', ['replayInsert']);
+  change('M35', 'first response marked replay', "'replay', false", "'replay', true", ['replayInsert']);
+  change('M36', 'unique handler narrowed', 'EXCEPTION WHEN unique_violation THEN', 'EXCEPTION WHEN no_data_found THEN', ['replayUnique']);
+  change('M37', 'unique handler replay disabled', '  IF FOUND THEN\n    RETURN jsonb_build_object(\'job_id\', v_existing.job_id, \'booking_id\', v_existing.id, \'replay\', true);\n  END IF;\n  RAISE;', '  IF false THEN\n    RETURN jsonb_build_object(\'job_id\', v_existing.job_id, \'booking_id\', v_existing.id, \'replay\', true);\n  END IF;\n  RAISE;', ['replayUnique']);
+  change('M38', 'unmatched unique violation swallowed', '  RAISE;\nEND\n$function$;', 'END\n$function$;', ['unmatchedUnique']);
+  change('M39', 'SECURITY INVOKER', 'VOLATILE SECURITY DEFINER', 'VOLATILE SECURITY INVOKER', ['security']);
+  change('M40', 'search_path not pinned', 'SET search_path = public, pg_temp\n', '', ['security']);
+  change('M41', 'booking_id hardcoded zero', "'booking_id', v_booking_id", "'booking_id', 0", ['replayInsert']);
+  change('M42', 'Bangkok today replaced by session current_date', 'v_appointment < public.kmo_today()', 'v_appointment < current_date', ['currentDate']);
+
+  const allProbes = [...new Set(mutants.flatMap(m => m.probes))];
+  for (const key of allProbes) {
+    await clearFixtures();
+    const ok = await probeSet[key]();
+    record(`final mutant probe baseline ${key}`, ok);
+    usedProbes.add(key);
+    if (!ok) throw new Error(`final mutant probe ${key} failed on original function; mutant results would be invalid`);
+  }
+  for (const mutant of mutants) {
+    const { id, name, probes } = mutant;
+    const definition = mutant.helper ? mutant.transform() : mutant.transform(fn);
+    if (definition === fn) throw new Error(`Could not construct final create_booking mutant ${id} ${name}`);
+    const file = path.join(dataDir, `mutant-final-${id}-${name.replaceAll(/[^a-z0-9]+/gi, '-')}.sql`);
     await writeFile(file, `${definition}\n`);
     let detected = false;
     let detail = '';
     try {
       fileSql(file); // Commit the mutant so all concurrent sessions see it.
-      await clearFixtures();
-      detected = !(await probe(today));
-      detail = `expected detector result=false, actual=${!detected}`;
+      for (const key of probes) {
+        await clearFixtures();
+        if (!(await probeSet[key]())) { detected = true; detail = `killed by ${key}`; break; }
+      }
+      if (!detected) detail = `survived probes=${probes.join(',')}`;
     } finally {
-      fileSql(migration);
-      const restoredHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
-      if (restoredHash !== expectedHash) throw new Error(`Failed to restore final create_booking after ${name}: ${restoredHash}`);
+      if (mutant.helper) {
+        fileSql(helperPath);
+        fileSql(migration);
+      } else fileSql(migration);
+      const signature = mutant.helper ? 'public.booking_uses_slot(text,text)' : 'public.create_booking(jsonb,uuid)';
+      const restoredHash = sql(`SELECT md5(pg_get_functiondef('${signature}'::regprocedure));`);
+      const expected = mutant.helper ? helperHash : expectedHash;
+      if (restoredHash !== expected) throw new Error(`Failed to restore ${id} ${name}: ${restoredHash}`);
+      if (mutant.helper && sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));") !== expectedHash) {
+        throw new Error(`Failed to restore final create_booking after ${id} ${name}`);
+      }
     }
-    record(`mutant rejected: create_booking final ${name}`, detected, detail);
+    record(`mutant rejected: create_booking final ${id} ${name}`, detected, detail);
   }
+  if (usedProbes.size !== allProbes.length) throw new Error('Some final mutant probes were not run against the original function');
 }
 
 async function runBookingMutants(migration) {
