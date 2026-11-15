@@ -505,7 +505,7 @@ ROLLBACK;`;
   const counterResult = tool(psql, psqlArgs(['-f', counterFile]), { allowFailure: true });
   record('mutant rejected: counter upsert/increment removed', counterResult.status !== 0 && counterResult.out.includes('ASSERTION_FAILED'), counterResult.out.split(/\r?\n/).find(line => line.includes('ASSERTION_FAILED')) || `exit=${counterResult.status}`);
 
-  const migrationSql = await readFile(migration, 'utf8');
+  const migrationSql = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
   const guarded = `IF NOT EXISTS (\n    SELECT 1 FROM pg_constraint\n    WHERE conrelid = 'public.booking_requests'::regclass\n      AND conname = 'booking_requests_job_id_fkey'\n  ) THEN`;
   const unguarded = migrationSql.replace(guarded, 'IF true THEN');
   if (unguarded === migrationSql) throw new Error('Could not build idempotency mutant');
@@ -515,8 +515,8 @@ ROLLBACK;`;
   record('mutant rejected: migration is not idempotent', migrationMutant.status !== 0 && /already exists|duplicate/i.test(migrationMutant.out), migrationMutant.out.split(/\r?\n/).find(line => /already exists|duplicate/i.test(line)) || `exit=${migrationMutant.status}`);
 
   await mutant('rollback does not restore baseline function hash', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT IF EXISTS booking_requests_job_id_fkey; SELECT test_support.assert((SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=hash FROM test_support.generate_job_id_before), 'rollback hash invariant'); ROLLBACK;`);
-  const bookingDefinition = await readFile(migration, 'utf8');
-  const rollback = await readFile(path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql'), 'utf8');
+  const bookingDefinition = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
+  const rollback = (await readFile(path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql'), 'utf8')).replaceAll('\r\n', '\n');
   const restoredFunction = rollback.match(/CREATE OR REPLACE FUNCTION public\.create_booking\([^)]*\)[\s\S]*?\$function\$;/)?.[0];
   if (!restoredFunction || !bookingDefinition.includes('AND NOT EXISTS (') || !bookingDefinition.includes('public.holidays h WHERE h.date = d.day::date')) throw new Error('Cannot verify create_booking holiday or rollback mutant fixtures');
   // The good migration is idempotent; this final check ensures all mutant transactions rolled back.
