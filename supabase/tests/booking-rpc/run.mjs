@@ -133,14 +133,16 @@ async function loadBaseline() {
 
 async function snapshotBaseline() {
   sql(`CREATE TABLE test_support.functions_before AS SELECT p.oid, p.proname, pg_get_function_identity_arguments(p.oid) args, md5(pg_get_functiondef(p.oid)) hash FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public';
+    CREATE TABLE test_support.generate_job_id_before AS SELECT p.proargtypes::text argtypes, p.prorettype, p.prosecdef, coalesce(p.proconfig::text,'NULL') proconfig, coalesce(p.proacl::text,'NULL') proacl, md5(pg_get_functiondef(p.oid)) hash FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='generate_job_id';
     CREATE TABLE test_support.triggers_before AS SELECT c.relname, t.tgname, md5(pg_get_triggerdef(t.oid)) hash FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal;
     CREATE TABLE test_support.policies_before AS SELECT schemaname, tablename, policyname, permissive, roles::text roles, cmd, coalesce(qual,'') qual, coalesce(with_check,'') check_expr, md5(concat_ws('|',permissive,roles::text,cmd,coalesce(qual,''),coalesce(with_check,''))) hash FROM pg_policies WHERE schemaname='public' AND tablename IN ('bookings','holidays');
     INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');
     CREATE TABLE test_support.availability_before AS SELECT * FROM public.get_booking_availability(date '2026-11-16', date '2026-11-18');`);
 }
-async function compareBaseline(label) {
+async function compareBaseline(label, ignoreGenerateJobId = false) {
+  const generateFilter = ignoreGenerateJobId ? "AND f.proname <> 'generate_job_id'" : '';
   const diffs = sql(`SELECT
-   (SELECT count(*) FROM test_support.functions_before f LEFT JOIN pg_proc p ON p.oid=f.oid WHERE p.oid IS NULL OR md5(pg_get_functiondef(p.oid))<>f.hash) +
+   (SELECT count(*) FROM test_support.functions_before f LEFT JOIN pg_proc p ON p.oid=f.oid WHERE (p.oid IS NULL OR md5(pg_get_functiondef(p.oid))<>f.hash) ${generateFilter}) +
    (SELECT count(*) FROM test_support.triggers_before t LEFT JOIN pg_trigger g ON g.tgname=t.tgname LEFT JOIN pg_class c ON c.oid=g.tgrelid AND c.relname=t.relname WHERE g.oid IS NULL OR md5(pg_get_triggerdef(g.oid))<>t.hash) +
    (SELECT count(*) FROM test_support.policies_before b LEFT JOIN pg_policies p ON p.schemaname=b.schemaname AND p.tablename=b.tablename AND p.policyname=b.policyname WHERE p.policyname IS NULL OR md5(concat_ws('|',p.permissive,p.roles::text,p.cmd,coalesce(p.qual,''),coalesce(p.with_check,'')))<>b.hash) +
    (SELECT count(*) FROM pg_policies p LEFT JOIN test_support.policies_before b ON p.schemaname=b.schemaname AND p.tablename=b.tablename AND p.policyname=b.policyname WHERE p.schemaname='public' AND p.tablename IN ('bookings','holidays') AND b.policyname IS NULL);`);
@@ -151,6 +153,17 @@ async function compareBaseline(label) {
 async function migrateTwice(migration) {
   fileSql(migration); fileSql(migration);
   record('migration applies twice', true, 'two PostgreSQL 17 executions completed');
+}
+function functionMetaMatches() {
+  return sql(functionMetaSql()) === '1';
+}
+function functionMetaSql() {
+  return `SELECT count(*) FROM test_support.generate_job_id_before b JOIN pg_proc p ON p.proname='generate_job_id' JOIN pg_namespace n ON n.oid=p.pronamespace AND n.nspname='public' WHERE p.proargtypes::text=b.argtypes AND p.prorettype=b.prorettype AND p.prosecdef=b.prosecdef AND coalesce(p.proconfig::text,'NULL')=b.proconfig AND coalesce(p.proacl::text,'NULL')=b.proacl`;
+}
+function originalGenerateDefinition(functions) {
+  const block = sectionBlocks(functions).find(b => b.startsWith('-- ==== function public.generate_job_id(p_platform text)'));
+  if (!block) throw new Error('Cannot find baseline generate_job_id block');
+  return block.slice(block.indexOf('CREATE OR REPLACE FUNCTION'));
 }
 async function clearFixtures() {
   sql('TRUNCATE public.bookings, public.booking_requests, public.booking_job_counters, public.holidays RESTART IDENTITY CASCADE; TRUNCATE net._calls RESTART IDENTITY; UPDATE net._config SET fail=false;');
@@ -337,6 +350,91 @@ ROLLBACK;
   record('job ID platform prefixes', mapped.every(Boolean), `${mapped.filter(Boolean).length}/7 mapped`);
 }
 
+async function runF8(today) {
+  await clearFixtures();
+  const date = findDow(plus(today, 1), 1);
+  const request = uuid(8101);
+  const first = parseJsonOutput(sql(call(date, plus(date, 3), request)));
+  sql(`DELETE FROM public.bookings WHERE job_id=${sqlLiteral(first.job_id)};`);
+  const orphanCount = sql(`SELECT count(*) FROM public.booking_requests r LEFT JOIN public.bookings b ON b.job_id=r.job_id WHERE b.job_id IS NULL;`);
+  const attach = await asyncPsql(`SELECT public.attach_booking_images('${request}'::uuid, ARRAY[]::text[]);`);
+  record('F8 delete cascades request row and leaves no orphan', orphanCount === '0' && sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${request}';`) === '0');
+  record('F8 attach after delete returns KMO_REQUEST_NOT_FOUND', checkExpectedError(attach, 'KMO_REQUEST_NOT_FOUND'), attach.stderr);
+  const retry = parseJsonOutput(sql(call(date, plus(date, 3), request)));
+  record('F8 same request retries as new booking', first?.replay === false && retry?.replay === false && retry?.job_id !== first?.job_id && sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${request}';`) === '1', `first=${first?.job_id}, retry=${retry?.job_id}`);
+  record('F8 retry has no raw unique violation', retry?.replay === false && retry?.job_id !== first?.job_id);
+}
+
+async function runF9(today) {
+  await clearFixtures();
+  const dates = [];
+  for (let d = plus(today, 1); dates.length < 20; d = plus(d, 1)) if (dow(d) !== 2) dates.push(d);
+  const mixed = await Promise.all([
+    ...Array.from({ length: 20 }, (_, i) => asyncPsql(`SELECT public.generate_job_id('line');`)),
+    ...dates.map((d, i) => asyncPsql(call(d, plus(d, 3), uuid(8200 + i)))),
+  ]);
+  const generated = mixed.slice(0, 20).filter(r => r.code === 0).map(r => r.stdout.trim());
+  const bookingResults = mixed.slice(20).filter(r => r.code === 0).map(r => parseJsonOutput(r.stdout));
+  const allIds = [...generated, ...bookingResults.map(r => r?.job_id)];
+  const noUniqueError = mixed.every(r => !`${r.stdout}\n${r.stderr}`.includes('23505'));
+  record('F9 mixed 40-way generator and booking concurrency', mixed.every(r => r.code === 0) && new Set(allIds).size === 40 && noUniqueError,
+    `generated=${generated.length}/20 bookings=${bookingResults.length}/20 distinct=${new Set(allIds).size}/40 unique-errors=${mixed.filter(r => `${r.stdout}\n${r.stderr}`.includes('23505')).length}`);
+  record('F9 generated IDs do not collide with bookings', generated.every(id => !bookingResults.some(r => r?.job_id === id)));
+
+  await clearFixtures();
+  const ym = sql("SELECT to_char(now() AT TIME ZONE 'Asia/Bangkok','YYMM');");
+  const date = findDow(plus(today, 1), 1);
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('KLI-${ym}-0100','${date}','${plus(date,3)}');`);
+  const next = sql("SELECT public.generate_job_id('line');");
+  const nullPrefix = sql("SELECT public.generate_job_id(NULL);");
+  record('F9 next ID follows maximum, keeps format, and NULL maps to KOT', next === `KLI-${ym}-0101` && /^[A-Z]{3}-[0-9]{4}-[0-9]{4}$/.test(next) && nullPrefix.startsWith('KOT-') && /^[A-Z]{3}-[0-9]{4}-[0-9]{4}$/.test(nullPrefix), `next=${next}, null=${nullPrefix}`);
+  record('F9 generate_job_id signature/security/config/ACL unchanged', functionMetaMatches());
+  const anonGenerate = await asyncPsql("SET ROLE anon; SELECT public.generate_job_id('line');");
+  const anonCounter = await asyncPsql("SET ROLE anon; SELECT public.kmo_next_job_id('line');");
+  record('F9 anon can call wrapper but not counter directly', anonGenerate.code === 0 && anonCounter.code !== 0, `wrapper=${anonGenerate.code}, counter=${anonCounter.code}`);
+}
+
+async function runMutants(migration) {
+  await clearFixtures();
+  const constraint = "EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey' AND confdeltype='c' AND confupdtype='c')";
+  const mutant = async (name, command, detail = '') => {
+    const result = tool(psql, psqlArgs(['-c', command]), { allowFailure: true });
+    const caught = result.status !== 0 && result.out.includes('ASSERTION_FAILED');
+    record(`mutant rejected: ${name}`, caught, detail || result.out.split(/\r?\n/).find(line => line.includes('ASSERTION_FAILED')) || `exit=${result.status}`);
+  };
+  await mutant('FK/CASCADE removed', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT booking_requests_job_id_fkey; SELECT test_support.assert(${constraint}, 'FK cascade invariant'); ROLLBACK;`);
+  await mutant('ON DELETE CASCADE removed', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT booking_requests_job_id_fkey; ALTER TABLE public.booking_requests ADD CONSTRAINT booking_requests_job_id_fkey FOREIGN KEY(job_id) REFERENCES public.bookings(job_id) ON DELETE RESTRICT ON UPDATE CASCADE; SELECT test_support.assert(${constraint}, 'delete cascade invariant'); ROLLBACK;`);
+
+  const baselineFunctions = await readFile(path.join(repo, 'supabase/baseline/live-20261115/functions.sql'), 'utf8');
+  const legacy = originalGenerateDefinition(baselineFunctions);
+  await mutant('generate_job_id no longer shares the counter', `BEGIN; ${legacy} SELECT test_support.assert((SELECT public.kmo_next_job_id('line')) <> (SELECT public.generate_job_id('line')), 'shared counter invariant'); ROLLBACK;`);
+  await mutant('generate_job_id ACL changed', `BEGIN; REVOKE ALL ON FUNCTION public.generate_job_id(text) FROM anon; SELECT test_support.assert((${functionMetaSql()}) = '1', 'ACL snapshot invariant'); ROLLBACK;`);
+  await mutant('generate_job_id signature changed', `BEGIN; DROP FUNCTION public.generate_job_id(text); CREATE FUNCTION public.generate_job_id(p_platform varchar) RETURNS text LANGUAGE sql SECURITY DEFINER SET search_path=public,pg_temp AS $$ SELECT 'KOT-0000-0000'::text $$; SELECT test_support.assert((${functionMetaSql()}) = '1', 'signature snapshot invariant'); ROLLBACK;`);
+  await mutant('generate_job_id SECURITY DEFINER changed', `BEGIN; ALTER FUNCTION public.generate_job_id(text) SECURITY INVOKER; SELECT test_support.assert((${functionMetaSql()}) = '1', 'security snapshot invariant'); ROLLBACK;`);
+
+  const counterMutant = `BEGIN;
+SELECT replace(pg_get_functiondef('public.kmo_next_job_id(text)'::regprocedure), 'greatest(public.booking_job_counters.last_seq, EXCLUDED.last_seq - 1) + 1', 'public.booking_job_counters.last_seq') \\gexec
+SELECT test_support.assert(public.kmo_next_job_id('line') <> public.kmo_next_job_id('line'), 'counter atomic increment invariant');
+ROLLBACK;`;
+  const counterFile = path.join(dataDir, 'mutant-counter.sql');
+  await writeFile(counterFile, counterMutant);
+  const counterResult = tool(psql, psqlArgs(['-f', counterFile]), { allowFailure: true });
+  record('mutant rejected: counter upsert/increment removed', counterResult.status !== 0 && counterResult.out.includes('ASSERTION_FAILED'), counterResult.out.split(/\r?\n/).find(line => line.includes('ASSERTION_FAILED')) || `exit=${counterResult.status}`);
+
+  const migrationSql = await readFile(migration, 'utf8');
+  const guarded = `IF NOT EXISTS (\n    SELECT 1 FROM pg_constraint\n    WHERE conrelid = 'public.booking_requests'::regclass\n      AND conname = 'booking_requests_job_id_fkey'\n  ) THEN`;
+  const unguarded = migrationSql.replace(guarded, 'IF true THEN');
+  if (unguarded === migrationSql) throw new Error('Could not build idempotency mutant');
+  const migrationMutantFile = path.join(dataDir, 'mutant-migration.sql');
+  await writeFile(migrationMutantFile, `BEGIN;\n${unguarded}\n${unguarded}\nROLLBACK;`);
+  const migrationMutant = tool(psql, psqlArgs(['-f', migrationMutantFile]), { allowFailure: true });
+  record('mutant rejected: migration is not idempotent', migrationMutant.status !== 0 && /already exists|duplicate/i.test(migrationMutant.out), migrationMutant.out.split(/\r?\n/).find(line => /already exists|duplicate/i.test(line)) || `exit=${migrationMutant.status}`);
+
+  await mutant('rollback does not restore baseline function hash', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT IF EXISTS booking_requests_job_id_fkey; SELECT test_support.assert((SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=hash FROM test_support.generate_job_id_before), 'rollback hash invariant'); ROLLBACK;`);
+  // The good migration is idempotent; this final check ensures all mutant transactions rolled back.
+  record('mutant transactions leave the working definitions intact', sql(`SELECT ${constraint} AND ((${functionMetaSql()}) = 1);`) === 't');
+}
+
 async function runStatusAndHoliday(today) {
   await clearFixtures();
   sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date,queue_status,production_status) VALUES
@@ -441,9 +539,33 @@ try {
   await runIdempotencyAndIds(today);
   await runStatusAndHoliday(today);
   await runSecurity(today);
+
+  const followup = path.join(repo, 'supabase/migrations/20261116100000_booking_rpc_followup_f8_f9.sql');
+  const followupRollback = path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql');
+  sql("INSERT INTO public.booking_requests(request_id,job_id) VALUES ('00000000-0000-4000-8000-000000008000','ORPHAN-T3B-FIXTURE');");
+  fileSql(followup);
+  record('T3b migration removes pre-existing orphan before FK', sql("SELECT count(*) FROM public.booking_requests WHERE request_id='00000000-0000-4000-8000-000000008000';") === '0');
+  await migrateTwice(followup);
   await clearFixtures();
   sql("INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');");
-  await compareBaseline('after all suites');
+  await compareBaseline('after T3b migration', true);
+  record('T3b preserves generate_job_id signature/security/config/ACL', functionMetaMatches());
+  await runF8(today);
+  await runF9(today);
+  await runMutants(followup);
+
+  await clearFixtures();
+  sql("INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');");
+  await compareBaseline('after all suites', true);
+
+  fileSql(followupRollback);
+  const restored = sql(`SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=(SELECT hash FROM test_support.generate_job_id_before) AND coalesce((SELECT p.proacl::text FROM pg_proc p WHERE p.oid='public.generate_job_id(text)'::regprocedure),'NULL')=(SELECT proacl FROM test_support.generate_job_id_before);`);
+  const fkRemain = sql("SELECT count(*) FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey';");
+  record('T3b rollback restores baseline generate_job_id hash and ACL', restored === 't');
+  record('T3b rollback removes FK', fkRemain === '0');
+  await compareBaseline('after T3b rollback');
+  await migrateTwice(followup);
+  fileSql(followupRollback);
 
   fileSql(path.join(repo, 'supabase/rollback/20261116090000_booking_rpc_hardening.down.sql'));
   const remaining = sql(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN ('kmo_closed_weekdays','kmo_booking_daily_cap','kmo_min_booking_workdays','booking_uses_slot','kmo_next_job_id','create_booking','attach_booking_images','get_booking_day_usage','bookings_status_sync','holidays_notify_conflicts')`);
@@ -452,17 +574,25 @@ try {
   await compareBaseline('after rollback');
   await migrateTwice(migration);
   record('migration reapplies after rollback', sql("SELECT to_regclass('public.booking_requests') IS NOT NULL AND to_regclass('public.booking_job_counters') IS NOT NULL;") === 't');
+  await migrateTwice(followup);
+  record('T3 then T3b both reapply after complete rollback', sql("SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey') AND public.generate_job_id('line') LIKE 'KLI-%';") === 't');
 } catch (error) {
   failed.push({ name: 'harness runtime', detail: error.message });
   console.error(`HARNESS ERROR ${error.stack ?? error}`);
 } finally {
-  if (started) {
-    const stop = tool(pgCtl, ['-D', dataDir, '-m', 'fast', '-w', 'stop']);
-    console.log(`PG_STOP ${stop.out}`);
+  try {
+    if (started) {
+      const stop = tool(pgCtl, ['-D', dataDir, '-m', 'fast', '-w', 'stop']);
+      console.log(`PG_STOP ${stop.out}`);
+    }
+  } catch (error) {
+    failed.push({ name: 'portable PostgreSQL shutdown', detail: error.message });
+    console.error(`PG_STOP ERROR ${error.message}`);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    const remaining = spawnSync(pgCtl, ['-D', dataDir, 'status'], { encoding: 'utf8', windowsHide: true });
+    record('portable PostgreSQL stopped and temp data removed', remaining.status !== 0);
   }
-  await rm(dataDir, { recursive: true, force: true });
-  const remaining = spawnSync(pgCtl, ['-D', dataDir, 'status'], { encoding: 'utf8', windowsHide: true });
-  record('portable PostgreSQL stopped and temp data removed', remaining.status !== 0);
 }
 console.log(`SUMMARY passed=${passed.length} failed=${failed.length}`);
 console.log(`RAW EVIDENCE\n${raw.join('\n\n')}`);

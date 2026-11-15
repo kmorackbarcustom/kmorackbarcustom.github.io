@@ -75,3 +75,13 @@ The `holidays` trigger calls the existing Telegram function URL with this JSON b
 ```
 
 `hit` is `appointment`, `pickup`, or `both`. No overlapping active booking means no post. Notification errors are swallowed so the holiday write succeeds. `telegram-notify` does not yet handle this type; the receiver change belongs to T5.
+
+## T3b — F8/F9 follow-up
+
+Apply `20261116090000_booking_rpc_hardening.sql` (T3) first, then `20261116100000_booking_rpc_followup_f8_f9.sql` (T3b). The T3b migration removes pre-existing orphaned `booking_requests` before adding `booking_requests_job_id_fkey`; deleting a booking then cascades to its request row. Retrying that request ID creates a new booking (`replay:false`) with a newly allocated job ID because the counter never moves backwards. Calling `attach_booking_images` after the booking is deleted and before retry returns `KMO_REQUEST_NOT_FOUND`.
+
+`generate_job_id` now allocates from the same counter as `kmo_next_job_id`. Its month uses Bangkok time, so on the first day of a month it switches at 00:00 Thailand time instead of waiting until 07:00. Each call consumes a sequence value even if the caller does not insert a booking, so job ID gaps can occur.
+
+**T6 Phase A warning:** T3b changes the existing live `generate_job_id` function; T3 only adds new objects. The live function hash has not been checked before or after applying T3b (`UNVERIFIED`).
+
+Rollback T3b first with `20261116100000_booking_rpc_followup_f8_f9.down.sql`, then rollback T3 with `20261116090000_booking_rpc_hardening.down.sql`. The T3b rollback removes the FK and restores the baseline `generate_job_id` definition; T3 removes the counter and RPC objects.
