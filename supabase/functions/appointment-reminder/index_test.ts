@@ -67,6 +67,7 @@ Deno.test("appointment-reminder handler covers cancellations, dedupe, paging, re
 
   mockFetch(); resetFake({ bookings: Array.from({ length: 250 }, (_, i) => ({ ...booking(i + 1), line_uid: null })) });
   response = await handler(request()); json = await response.json();
+  assertEquals(fakeState().orders, [["id", { ascending: true }], ["id", { ascending: true }], ["id", { ascending: true }]]);
   assertEquals([fakeState().ranges.length, fakeState().logReads, fakeState().ranges[0], fakeState().ranges[1], fakeState().ranges[2], json.telegram_sent], [3, 3, [0, 99], [100, 199], [200, 299], 250]);
 
   assertEquals(MAX_PAGES, 20);
@@ -95,6 +96,7 @@ Deno.test("appointment-reminder handler covers cancellations, dedupe, paging, re
   mockFetch(); resetFake({ bookings: [booking(1)] }); telegramFailures = 10;
   response = await handler(request()); await response.json();
   assertEquals(calls.filter(({ url }) => url.includes("api.telegram.org")).length, 3);
+  assertEquals(fakeState().logs.find((row) => row.notification_type?.toString().startsWith("appointment_reminder_staff_telegram:"))?.success, false);
 
   mockFetch(); resetFake({ bookings: [] });
   response = await handler(request()); json = await response.json();

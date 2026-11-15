@@ -11,6 +11,7 @@ type State = {
   insertThrows: boolean;
   fullPages: boolean;
   logReads: number;
+  orders: unknown[];
 };
 
 let state: State;
@@ -18,7 +19,7 @@ let state: State;
 export function resetFake(options: Partial<State> = {}) {
   state = {
     settings: { telegram_group_chat_id: "fake-staff-chat" }, bookings: [], logs: [], ranges: [],
-    logReadError: false, logReadErrorAt: 0, insertError: false, insertThrows: false, fullPages: false, logReads: 0, ...options,
+    logReadError: false, logReadErrorAt: 0, insertError: false, insertThrows: false, fullPages: false, logReads: 0, orders: [], ...options,
   };
   globalThis.__fakeSupabaseFactory = () => ({ from: (table: string) => new Query(table) });
   return state;
@@ -33,7 +34,8 @@ class Query {
   select(_columns: string) { return this; }
   eq(key: string, val: unknown) { this.filters[key] = val; return this; }
   in(key: string, values: unknown[]) { this.filters[key] = values; return this; }
-  order(_key: string, _options: unknown) { return this; }
+  private orderBy: unknown;
+  order(key: string, options: unknown) { this.orderBy = [key, options]; return this; }
   range(from: number, to: number) { this.ranges = [from, to]; return this; }
   insert(row: Log) {
     if (state.insertThrows) return Promise.reject(new Error("insert threw"));
@@ -48,6 +50,7 @@ class Query {
     if (this.table === "bookings") {
       const [from, to] = this.ranges ?? [0, 99];
       state.ranges.push([from, to]);
+      state.orders.push(this.orderBy);
       const data = state.fullPages ? Array.from({ length: 100 }, (_, i) => booking(from + i + 1)) : state.bookings.filter((row) => this.filters.appointment_date === undefined || row.appointment_date === this.filters.appointment_date).slice(from, to + 1);
       return Promise.resolve(resolve({ data, error: null }));
     }

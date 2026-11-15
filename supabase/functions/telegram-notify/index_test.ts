@@ -55,6 +55,13 @@ Deno.test("telegram-notify handles HOLIDAY_CONFLICT and preserves old INSERT beh
   assert(longMessage.includes("…และอีก 10 คิว"));
 
   mockFetch();
+  const wide = "ก".repeat(100);
+  await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19", reason: "ย".repeat(300) }, bookings: Array.from({ length: 20 }, (_, i) => ({ ...bookings[0], job_id: `J-${i}`, customer_name: wide, brand: wide, model: wide })) }));
+  const wideMessage = String(calls[0]?.body.text ?? "");
+  assert(wideMessage.length <= 4096);
+  assert((wideMessage.match(/🔖/g) ?? []).length < 20);
+
+  mockFetch();
   let result = await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19" }, bookings: [] }));
   assertEquals([result.status, calls.length], [200, 0]);
   for (const bad of [
