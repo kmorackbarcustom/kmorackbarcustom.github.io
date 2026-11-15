@@ -8,7 +8,7 @@ const handler = lastHandler!;
 type Call = { url: string; body: Record<string, unknown> };
 let calls: Call[] = [];
 
-function mockFetch() {
+function mockFetch(status = 200, shouldThrow = false) {
   calls = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input);
@@ -16,7 +16,8 @@ function mockFetch() {
     let body: Record<string, unknown> = {};
     if (typeof raw === "string") { try { body = JSON.parse(raw); } catch { /* body is non-JSON */ } }
     calls.push({ url, body });
-    return Response.json({ ok: true });
+    if (shouldThrow) throw new Error("synthetic fetch failure");
+    return Response.json({ ok: status === 200 }, { status });
   }) as typeof fetch;
 }
 
@@ -38,9 +39,20 @@ Deno.test("telegram-notify handles HOLIDAY_CONFLICT and preserves old INSERT beh
   const response = await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { id: 1, date: "2026-11-19", reason: "ร้านปิด", created_at: "ignored", phone: "PII-RECORD-PHONE", line_uid: "PII-RECORD-LINE" }, bookings: bookings.map((b) => ({ ...b, phone: "PII-BOOKING-PHONE", line_uid: "PII-BOOKING-LINE" })) }));
   const message = String(calls[0]?.body.text ?? "");
   assertEquals([response.status, calls.length, calls[0]?.body.chat_id], [200, 1, "fake-staff-chat"]);
+  assertEquals([await response.text(), response.headers.get("Content-Type")], ['{"ok":true}', "application/json"]);
   for (const part of ["19 พ.ย. 2569", "ร้านปิด", "KMO-1", "First", "Honda ADV350", "นัดเข้าร้าน", "รับรถ 21 พ.ย. 2569", "KMO-2", "Second", "Yamaha XMAX", "วันรับรถ", "KMO-3", "Third", "ทั้งสองวัน", "พนักงานติดต่อลูกค้าเพื่อนัดใหม่"]) assert(message.includes(part), part);
   for (const pii of ["PII-RECORD-PHONE", "PII-RECORD-LINE", "PII-BOOKING-PHONE", "PII-BOOKING-LINE"]) assert(!message.includes(pii), pii);
   assert(!calls.some(({ url }) => url.includes("api.line.me")));
+
+  for (const status of [400, 500]) {
+    mockFetch(status);
+    const failed = await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19" }, bookings }));
+    assertEquals([failed.status, await failed.text(), failed.headers.get("Content-Type"), calls.length], [500, '{"ok":false,"error":"telegram_send_failed"}', "application/json", 1]);
+  }
+
+  mockFetch(200, true);
+  const fetchError = await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19" }, bookings }));
+  assertEquals([fetchError.status, await fetchError.text(), calls.length], [500, "error", 1]);
 
   mockFetch();
   await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19", reason: `<b>x</b> & "y"` }, bookings: [{ ...bookings[0], customer_name: `<b>x</b> & "y"` }] }));
@@ -94,6 +106,20 @@ Deno.test("telegram-notify handles HOLIDAY_CONFLICT and preserves old INSERT beh
     mockFetch();
     const newResponse = await handler(req(input));
     assertEquals([newResponse.status, calls.length, calls[0]?.body.text], [oldStatus, 1, oldBody]);
+
+    mockFetch(500);
+    const oldFailed = await legacyHandler(req(input));
+    const oldFailure = [oldFailed.status, await oldFailed.text()];
+    mockFetch(500);
+    const newFailed = await handler(req(input));
+    assertEquals([newFailed.status, await newFailed.text(), calls.length], [...oldFailure, 1]);
+
+    mockFetch(200, true);
+    const oldThrown = await legacyHandler(req(input));
+    const oldThrownResult = [oldThrown.status, await oldThrown.text()];
+    mockFetch(200, true);
+    const newThrown = await handler(req(input));
+    assertEquals([newThrown.status, await newThrown.text(), calls.length], [...oldThrownResult, 1]);
   }
 
   mockFetch(); result = await handler(req({ type: "UPDATE", table: "bookings", record: {} }));
