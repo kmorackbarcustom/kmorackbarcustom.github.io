@@ -46,8 +46,13 @@ Deno.test("telegram-notify handles HOLIDAY_CONFLICT and preserves old INSERT beh
 
   for (const status of [400, 500]) {
     mockFetch(status);
+    const logged: unknown[][] = [];
+    const origError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args); };
     const failed = await handler(req({ type: "HOLIDAY_CONFLICT", table: "holidays", record: { date: "2026-11-19" }, bookings }));
+    console.error = origError;
     assertEquals([failed.status, await failed.text(), failed.headers.get("Content-Type"), calls.length], [500, '{"ok":false,"error":"telegram_send_failed"}', "application/json", 1]);
+    assertEquals([logged.length, logged[0]?.[0]], [1, "Telegram error:"]);
   }
 
   mockFetch(200, true);
