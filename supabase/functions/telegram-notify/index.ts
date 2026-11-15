@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { holidayConflictMessage } from "./holiday-conflict.ts";
 
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID")!;
@@ -90,12 +91,27 @@ function formatOrder(r: Record<string, unknown>): string {
 
 serve(async (req) => {
   try {
-    const payload = await req.json();
+    let payload: unknown;
+    try { payload = await req.json(); } catch { return new Response("invalid payload", { status: 400 }); }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return new Response("invalid payload", { status: 400 });
+    }
     const { table, record, type } = payload as {
       table: string;
       record: Record<string, unknown>;
       type: string;
     };
+
+    if (type === "HOLIDAY_CONFLICT") {
+      const message = holidayConflictMessage(payload);
+      if (message === null) return new Response("invalid payload", { status: 400 });
+      if (!message) return new Response("skip", { status: 200 });
+      await sendTelegram(message);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     if (type !== "INSERT") {
       return new Response("skip", { status: 200 });
