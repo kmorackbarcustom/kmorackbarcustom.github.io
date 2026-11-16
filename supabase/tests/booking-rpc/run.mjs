@@ -462,11 +462,30 @@ async function probeSecurityAndSearchPath(today) {
   const config = sql(`SELECT coalesce(array_to_string(proconfig,','),'') FROM pg_proc WHERE oid='public.create_booking(jsonb,uuid)'::regprocedure;`);
   return anon.code === 0 && config.includes('search_path=public, pg_temp');
 }
-async function probeTodayBoundary(today) {
+// Same path every weekday: make "today" open by swapping the closed weekday to one outside today..today+3, probe, then restore.
+async function withTodayOpen(today, body, { restore = true, closedDow = (dow(today) + 4) % 7 } = {}) {
+  const readDef = "SELECT pg_get_functiondef('public.kmo_closed_weekdays()'::regprocedure);";
+  const before = sql(readDef);
+  sql(`CREATE OR REPLACE FUNCTION public.kmo_closed_weekdays() RETURNS integer[] LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $f$ SELECT ARRAY[${closedDow}]::integer[] $f$;`);
+  let value;
+  try { value = await body(); } finally { if (restore) sql(`${before};`); }
+  return { value, restored: sql(readDef) === before, before };
+}
+async function probeTodayBoundary(today, opts = {}) {
   await clearFixtures();
-  if (dow(today) === 2) return true;
-  const result = await asyncPsql(call(today, plus(today,3), uuid(18136)));
-  return result.code === 0;
+  const { value, restored } = await withTodayOpen(today, async () => (await asyncPsql(call(today, plus(today,3), uuid(18136)))).code === 0, opts);
+  if (!restored && opts.restore !== false) throw new Error('kmo_closed_weekdays was not restored byte-for-byte');
+  return value;
+}
+// Detects broken variants of the probe itself, on the final function: closed day = today, and no restore.
+async function probeTodayBoundarySelfCheck(today) {
+  const real = await probeTodayBoundary(today);
+  const wrongDay = await probeTodayBoundary(today, { closedDow: dow(today) });
+  await clearFixtures();
+  const noRestore = await withTodayOpen(today, async () => true, { restore: false });
+  sql(`${noRestore.before};`);
+  const fixed = sql("SELECT pg_get_functiondef('public.kmo_closed_weekdays()'::regprocedure);") === noRestore.before;
+  return real === true && wrongDay === false && noRestore.restored === false && fixed;
 }
 async function probeCurrentDate(today) {
   await clearFixtures();
@@ -891,6 +910,7 @@ async function runFinalBookingMutants(migration, today) {
     ['DateStyle detector on final function', () => probeDateStyle(today)],
     ['Tuesday detector on final function', () => probeTuesday(today)],
     ['cap detector on final function', () => probeCap(today)],
+    ['today-boundary probe self-check on final function', () => probeTodayBoundarySelfCheck(today)],
   ];
   for (const [name, probe] of legacyProbes) {
     await clearFixtures();
