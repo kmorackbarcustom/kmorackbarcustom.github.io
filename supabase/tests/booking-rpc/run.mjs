@@ -329,6 +329,117 @@ async function probeStoredBooking(today) {
     && stored === `Name|123|Brand|Product|ยืนยัน|รอเริ่มงาน|${result.booking_id}`
     && result.job_id.startsWith(`KLI-${ym}-`);
 }
+async function probeFullRow(today, report = false) {
+  await clearFixtures();
+  const appointment = findDow(plus(today, 7), 1), pickup = plus(appointment, 3), request = uuid(18145);
+  const meta = { cart: { shop: 'กม.โอ', items: [{ sku: 'T3b-Ω', qty: 2, enabled: true, note: null }], tags: ['หนึ่ง', 'special\\value'] }, total: 12345.67 };
+  const original = {
+    source: 'facebook', customer_name: '  ชื่อ|ผู้จอง  ', phone: '  081-234-5678  ', line_uid: 'U-r4-line-unique',
+    brand: '  แบรนด์ Honda  ', model: `รุ่น O'Reilly "ADV" \\ 50% 🏍️`, product: '  บริการ R4  ', color: 'สีม่วง/Gold',
+    appointment_date: appointment, pickup_date: pickup, estimated_total: 12345.67,
+    source_page: '/booking/r4?campaign=purple', cart_meta: meta,
+  };
+  const check = (label, value) => { if (report) record(`probeFullRow ${label}`, value); return value; };
+  let first;
+  try { first = parseJsonOutput(sql(call(appointment, pickup, request, original))); } catch { return false; }
+  if (!first || first.replay !== false || !/^KFB-\d{4}-\d{4}$/.test(first.job_id ?? '') || !(first.booking_id > 0)) return false;
+  const ym = sql("SELECT to_char(now() AT TIME ZONE 'Asia/Bangkok','YYMM');");
+  const expected = {
+    job_id: first.job_id, source: 'facebook', customer_name: 'ชื่อ|ผู้จอง', phone: '081-234-5678', line_uid: original.line_uid,
+    brand: 'แบรนด์ Honda', model: original.model, product: 'บริการ R4', color: original.color,
+    appointment_date: appointment, pickup_date: pickup, queue_status: 'ยืนยัน', production_status: 'รอเริ่มงาน',
+    cart_meta: meta, estimated_total: 12345.67, source_page: original.source_page,
+  };
+  const row = () => sql(`SELECT to_jsonb(b)::text FROM public.bookings b WHERE b.id=${Number(first.booking_id)};`);
+  const requestJob = sql(`SELECT job_id FROM public.booking_requests WHERE request_id='${request}';`);
+  if (!check('booking_id matches stored row id', sql(`SELECT id FROM public.bookings WHERE id=${Number(first.booking_id)};`) === String(first.booking_id))) return false;
+  if (!check('booking_requests.job_id matches response', requestJob === first.job_id)) return false;
+  let ok = check('job_id / KFB format', first.job_id.startsWith(`KFB-${ym}-`));
+  const fields = Object.keys(expected);
+  const stored = JSON.parse(row());
+  for (const field of fields) {
+    const same = field === 'cart_meta'
+      ? sql(`SELECT cart_meta IS NOT DISTINCT FROM ${sqlLiteral(jsonAscii(meta))}::jsonb FROM public.bookings WHERE id=${Number(first.booking_id)};`) === 't'
+      : field === 'queue_status' || field === 'production_status'
+        ? sql(`SELECT encode(convert_to(${field},'UTF8'),'hex')=${sqlLiteral(Buffer.from(expected[field], 'utf8').toString('hex'))} FROM public.bookings WHERE id=${Number(first.booking_id)};`) === 't'
+        : String(stored[field] ?? '') === String(expected[field] ?? '');
+    ok = check(field, same) && ok;
+  }
+  const normalizeJson = value => Array.isArray(value) ? value.map(normalizeJson)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, normalizeJson(value[key])])) : value;
+  const compareReplayRow = (expectedRow, id, label) => {
+    const actual = JSON.parse(sql(`SELECT to_jsonb(b)::text FROM public.bookings b WHERE b.id=${Number(id)};`));
+    let all = true;
+    for (const field of Object.keys(expectedRow)) {
+      const same = field === 'cart_meta'
+        ? JSON.stringify(normalizeJson(actual[field])) === JSON.stringify(normalizeJson(expectedRow[field]))
+        : String(actual[field] ?? '') === String(expectedRow[field] ?? '');
+      all = check(`${label} ${field}`, same) && all;
+    }
+    return all;
+  };
+  const replayPayload = { ...original, source: 'instagram', customer_name: '  Replay name  ', phone: '  999-0000  ',
+    line_uid: 'U-r4-replay', brand: '  Replay brand  ', model: 'Replay model #2', product: '  Replay product  ',
+    color: 'Replay color', appointment_date: plus(appointment, 7), pickup_date: plus(pickup, 7), estimated_total: 9876.54,
+    source_page: '/different/replay', cart_meta: { replay: [false, 99, 'ต่าง'] } };
+  const replay = parseJsonOutput(sql(call(replayPayload.appointment_date, replayPayload.pickup_date, request, replayPayload)));
+  const prelockUnchanged = compareReplayRow(expected, first.booking_id, 'pre-lock replay keeps');
+  ok = check('pre-lock replay true and original IDs', replay?.replay === true && replay.job_id === first.job_id && replay.booking_id === first.booking_id) && ok;
+  ok = check('pre-lock replay preserves every column', prelockUnchanged) && ok;
+
+  await clearFixtures();
+  const lockRequest = uuid(18146);
+  const lockDay = findDow(plus(today, 21), 1), lockPickupDay = plus(lockDay, 3);
+  const aPayload = { ...original, appointment_date: lockDay, pickup_date: lockPickupDay };
+  const a = holdOpen(call(lockDay, lockPickupDay, lockRequest, aPayload));
+  await delay(700);
+  const bPayload = { ...replayPayload, appointment_date: lockDay, pickup_date: plus(lockPickupDay, 7) };
+  const b = await asyncPsql(call(lockDay, bPayload.pickup_date, lockRequest, bPayload));
+  const ar = await a, firstLock = parseJsonOutput(ar.stdout), replayLock = parseJsonOutput(b.stdout);
+  const lockRow = firstLock?.booking_id ? JSON.parse(sql(`SELECT to_jsonb(b)::text FROM public.bookings b WHERE b.id=${Number(firstLock.booking_id)};`)) : null;
+  const lockExpected = { ...expected, job_id: firstLock?.job_id, appointment_date: lockDay, pickup_date: lockPickupDay };
+  let lockFieldsSame = Boolean(lockRow);
+  for (const field of Object.keys(lockExpected)) {
+    const same = field === 'cart_meta'
+      ? sql(`SELECT cart_meta IS NOT DISTINCT FROM ${sqlLiteral(jsonAscii(meta))}::jsonb FROM public.bookings WHERE id=${Number(firstLock?.booking_id)};`) === 't'
+      : field === 'queue_status' || field === 'production_status'
+        ? sql(`SELECT encode(convert_to(${field},'UTF8'),'hex')=${sqlLiteral(Buffer.from(lockExpected[field], 'utf8').toString('hex'))} FROM public.bookings WHERE id=${Number(firstLock?.booking_id)};`) === 't'
+        : String(lockRow?.[field] ?? '') === String(lockExpected[field] ?? '');
+    lockFieldsSame = check(`post-lock replay keeps ${field}`, same) && lockFieldsSame;
+  }
+  ok = check('post-lock replay true and original IDs', ar.code === 0 && b.code === 0 && replayLock?.replay === true && replayLock.job_id === firstLock?.job_id && replayLock.booking_id === firstLock?.booking_id) && ok;
+  const reqJob = firstLock?.job_id ? sql(`SELECT job_id FROM public.booking_requests WHERE request_id='${lockRequest}';`) : '';
+  ok = check('post-lock replay preserves every column', lockFieldsSame && reqJob === firstLock?.job_id) && ok;
+  return ok;
+}
+async function probeBlankRequired(today, report = false) {
+  await clearFixtures();
+  const day = findDow(plus(today, 7), 1), pickup = plus(day, 3);
+  const fields = ['customer_name','phone','brand','product','source','appointment_date'];
+  const check = (name, value) => { if (report) record(`probeBlankRequired ${name}`, value); return value; };
+  let ok = true, seq = 18200;
+  for (const field of fields) for (const blank of ['', '   ']) {
+    const req = uuid(seq++), body = payload(day, pickup);
+    body[field] = blank;
+    const beforeBookings = sql('SELECT count(*) FROM public.bookings;'), beforeRequests = sql('SELECT count(*) FROM public.booking_requests;');
+    const result = await asyncPsql(`SELECT public.create_booking(${sqlLiteral(jsonAscii(body))}::jsonb, '${req}'::uuid);`);
+    const code = field === 'pickup_date' ? 'KMO_PICKUP_MISSING' : 'KMO_BAD_REQUEST';
+    const passed = checkExpectedError(result, code)
+      && sql('SELECT count(*) FROM public.bookings;') === beforeBookings
+      && sql('SELECT count(*) FROM public.booking_requests;') === beforeRequests;
+    ok = check(`${field} ${JSON.stringify(blank)} -> ${code}, no rows`, passed) && ok;
+  }
+  for (const blank of ['', '   ']) {
+    const req = uuid(seq++), body = payload(day, pickup); body.pickup_date = blank;
+    const beforeBookings = sql('SELECT count(*) FROM public.bookings;'), beforeRequests = sql('SELECT count(*) FROM public.booking_requests;');
+    const result = await asyncPsql(`SELECT public.create_booking(${sqlLiteral(jsonAscii(body))}::jsonb, '${req}'::uuid);`);
+    const passed = checkExpectedError(result, 'KMO_PICKUP_MISSING')
+      && sql('SELECT count(*) FROM public.bookings;') === beforeBookings
+      && sql('SELECT count(*) FROM public.booking_requests;') === beforeRequests;
+    ok = check(`pickup_date ${JSON.stringify(blank)} -> KMO_PICKUP_MISSING, no rows`, passed) && ok;
+  }
+  return ok;
+}
 async function probeInsertAndFirstResponse(today) {
   await clearFixtures();
   const day = findDow(plus(today, 7), 1), request = uuid(18133);
@@ -774,6 +885,7 @@ async function runFinalBookingMutants(migration, today) {
     replayInsert: () => probeInsertAndFirstResponse(today), replayUnique: () => probeReplayAcrossDays(today),
     unmatchedUnique: () => probeUnmatchedUniqueViolation(today), canceledCapacity: () => probeCanceledCapacity(today),
     security: () => probeSecurityAndSearchPath(today), todayBoundary: () => probeTodayBoundary(today), currentDate: () => probeCurrentDate(today),
+    fullRow: () => probeFullRow(today), blankRequired: () => probeBlankRequired(today),
   };
   const legacyProbes = [
     ['D2 detector on final function', () => probeD2(today)],
@@ -804,6 +916,11 @@ async function runFinalBookingMutants(migration, today) {
   const mutants = [];
   const add = (id, name, transform, probes, helper = false) => mutants.push({ id, name, transform, probes, helper });
   const change = (id, name, before, after, probes) => add(id, name, text => replaceOnce(text, before, after, `${id} ${name}`), probes);
+  const valueChange = (id, name, before, after, probes) => add(id, name, text => {
+    const start = text.indexOf('  VALUES (v_job_id,'), end = text.indexOf('  RETURNING id INTO v_booking_id;', start);
+    if (start < 0 || end < 0) throw new Error(`Cannot locate VALUES expressions for ${id} ${name}`);
+    return text.slice(0, start) + replaceOnce(text.slice(start, end), before, after, `${id} ${name}`) + text.slice(end);
+  }, probes);
   change('M1', 'holiday exclusion removed', '      AND NOT EXISTS (SELECT 1 FROM public.holidays h WHERE h.date = d.day::date)\n', '', ['workdays']);
   add('M2', 'weekday range shortcut', text => replaceOnce(text, `  SELECT count(*)::integer INTO v_workdays\n  FROM (\n    SELECT 1\n    FROM generate_series(v_appointment, v_pickup, interval '1 day') AS d(day)\n    WHERE extract(dow FROM d.day)::integer <> ALL(public.kmo_closed_weekdays())\n      AND NOT EXISTS (SELECT 1 FROM public.holidays h WHERE h.date = d.day::date)\n    LIMIT public.kmo_min_booking_workdays()\n  ) AS qualifying_workdays;`, `  IF v_pickup - v_appointment >= 2 THEN v_workdays := public.kmo_min_booking_workdays();\n  ELSE v_workdays := 1; END IF;`, 'M2'), ['workdays']);
   change('M3a', 'appointment boundary excluded', 'generate_series(v_appointment, v_pickup, interval', 'generate_series(v_appointment + 1, v_pickup, interval', ['boundaries']);
@@ -880,11 +997,84 @@ async function runFinalBookingMutants(migration, today) {
   change('M40', 'search_path not pinned', 'SET search_path = public, pg_temp\n', '', ['security']);
   change('M41', 'booking_id hardcoded zero', "'booking_id', v_booking_id", "'booking_id', 0", ['replayInsert']);
   change('M42', 'Bangkok today replaced by session current_date', 'v_appointment < public.kmo_today()', 'v_appointment < current_date', ['currentDate']);
+  valueChange('M43', 'source stored as NULL', "p_payload->>'source'", 'NULL', ['fullRow']);
+  valueChange('M44', "source hardcoded to 'web'", "p_payload->>'source'", "'web'", ['fullRow']);
+  valueChange('M45', 'source copied from brand', "p_payload->>'source'", "p_payload->>'brand'", ['fullRow']);
+  valueChange('M46', 'customer_name stored as NULL', "trim(p_payload->>'customer_name')", 'NULL', ['fullRow']);
+  valueChange('M47', "customer_name hardcoded to 'X'", "trim(p_payload->>'customer_name')", "'X'", ['fullRow']);
+  valueChange('M48', 'customer_name copied from product', "trim(p_payload->>'customer_name')", "trim(p_payload->>'product')", ['fullRow']);
+  valueChange('M49', 'phone stored as NULL', "trim(p_payload->>'phone')", 'NULL', ['fullRow']);
+  valueChange('M50', "phone hardcoded to '0'", "trim(p_payload->>'phone')", "'0'", ['fullRow']);
+  valueChange('M51', 'phone copied from customer_name', "trim(p_payload->>'phone')", "trim(p_payload->>'customer_name')", ['fullRow']);
+  valueChange('M52', 'line_uid stored as NULL', "p_payload->>'line_uid'", 'NULL', ['fullRow']);
+  valueChange('M53', "line_uid hardcoded to 'x'", "p_payload->>'line_uid'", "'x'", ['fullRow']);
+  valueChange('M54', 'line_uid copied from model', "p_payload->>'line_uid'", "p_payload->>'model'", ['fullRow']);
+  valueChange('M55', 'brand stored as NULL', "trim(p_payload->>'brand')", 'NULL', ['fullRow']);
+  valueChange('M56', "brand hardcoded to 'x'", "trim(p_payload->>'brand')", "'x'", ['fullRow']);
+  valueChange('M57', 'brand copied from product', "trim(p_payload->>'brand')", "trim(p_payload->>'product')", ['fullRow']);
+  valueChange('M58', 'model stored as NULL', "p_payload->>'model'", 'NULL', ['fullRow']);
+  valueChange('M59', "model hardcoded to 'x'", "p_payload->>'model'", "'x'", ['fullRow']);
+  valueChange('M60', 'model copied from color', "p_payload->>'model'", "p_payload->>'color'", ['fullRow']);
+  valueChange('M61', 'product stored as NULL', "trim(p_payload->>'product')", 'NULL', ['fullRow']);
+  valueChange('M62', "product hardcoded to 'x'", "trim(p_payload->>'product')", "'x'", ['fullRow']);
+  valueChange('M63', 'product copied from brand', "trim(p_payload->>'product')", "trim(p_payload->>'brand')", ['fullRow']);
+  valueChange('M64', 'color stored as NULL', "p_payload->>'color'", 'NULL', ['fullRow']);
+  valueChange('M65', "color hardcoded to 'x'", "p_payload->>'color'", "'x'", ['fullRow']);
+  valueChange('M66', 'color copied from model', "p_payload->>'color'", "p_payload->>'model'", ['fullRow']);
+  valueChange('M67', 'appointment_date stored as NULL', 'v_appointment', 'NULL', ['fullRow']);
+  valueChange('M68', 'appointment_date hardcoded to 2099', 'v_appointment', "date '2099-01-01'", ['fullRow']);
+  valueChange('M69', 'appointment_date copied from pickup', 'v_appointment', 'v_pickup', ['fullRow']);
+  valueChange('M70', 'pickup_date stored as NULL', 'v_pickup', 'NULL', ['fullRow']);
+  valueChange('M71', 'pickup_date copied from appointment', 'v_pickup', 'v_appointment', ['fullRow']);
+  valueChange('M72', 'pickup_date incremented by one', 'v_pickup', 'v_pickup + 1', ['fullRow']);
+  valueChange('M73', 'queue_status stored as NULL', "'ยืนยัน'", 'NULL', ['fullRow']);
+  valueChange('M74', "queue_status hardcoded to 'รอเริ่มงาน'", "'ยืนยัน'", "'รอเริ่มงาน'", ['fullRow']);
+  valueChange('M75', "queue_status hardcoded to 'ยกเลิก'", "'ยืนยัน'", "'ยกเลิก'", ['fullRow']);
+  valueChange('M76', 'production_status stored as NULL', "'รอเริ่มงาน'", 'NULL', ['fullRow']);
+  valueChange('M77', "production_status hardcoded to 'ยืนยัน'", "'รอเริ่มงาน'", "'ยืนยัน'", ['fullRow']);
+  valueChange('M78', "production_status hardcoded to 'เสร็จ'", "'รอเริ่มงาน'", "'เสร็จ'", ['fullRow']);
+  valueChange('M79', 'cart_meta stored as NULL', "p_payload->'cart_meta'", 'NULL', ['fullRow']);
+  valueChange('M80', "cart_meta hardcoded to '{}'", "p_payload->'cart_meta'", "'{}'::jsonb", ['fullRow']);
+  valueChange('M81', 'cart_meta converted to JSON string', "p_payload->'cart_meta'", "to_jsonb(p_payload->>'cart_meta')", ['fullRow']);
+  valueChange('M82', 'estimated_total stored as NULL', 'v_total', 'NULL', ['fullRow']);
+  valueChange('M83', 'estimated_total hardcoded to zero', 'v_total', '0', ['fullRow']);
+  valueChange('M84', 'estimated_total incremented', 'v_total', 'v_total + 1', ['fullRow']);
+  valueChange('M85', 'source_page stored as NULL', "p_payload->>'source_page'", 'NULL', ['fullRow']);
+  valueChange('M86', "source_page hardcoded to 'x'", "p_payload->>'source_page'", "'x'", ['fullRow']);
+  valueChange('M87', 'source_page copied from source', "p_payload->>'source_page'", "p_payload->>'source'", ['fullRow']);
+  add('M88', 'pre-lock replay job_id hardcoded', text => {
+    const before = "'job_id', v_existing.job_id", after = "'job_id', 'X'";
+    if (text.split(before).length !== 4) throw new Error('M88 expected both replay job_id expressions');
+    return text.replaceAll(before, after);
+  }, ['fullRow']);
+  add('M89', 'pre-lock replay booking_id hardcoded', text => {
+    const before = "'booking_id', v_existing.id", after = "'booking_id', 0";
+    if (text.split(before).length !== 4) throw new Error('M89 expected both replay booking_id expressions');
+    return text.replaceAll(before, after);
+  }, ['fullRow']);
+  const replayReturn = "    RETURN jsonb_build_object('job_id', v_existing.job_id, 'booking_id', v_existing.id, 'replay', true);";
+  add('M90', 'pre-lock replay overwrites booking', text => {
+    const at = text.indexOf(replayReturn);
+    if (at < 0 || text.indexOf(replayReturn, at + replayReturn.length) < 0) throw new Error('M90 cannot locate both replay returns');
+    return text.slice(0, at) + `    UPDATE public.bookings SET customer_name = trim(p_payload->>'customer_name'), pickup_date = (p_payload->>'pickup_date')::date WHERE id = v_existing.id;\n` + text.slice(at);
+  }, ['fullRow']);
+  add('M91', 'post-lock replay overwrites booking', text => {
+    const first = text.indexOf(replayReturn), at = text.indexOf(replayReturn, first + replayReturn.length);
+    if (first < 0 || at < 0) throw new Error('M91 cannot locate post-lock replay return');
+    return text.slice(0, at) + `    UPDATE public.bookings SET customer_name = trim(p_payload->>'customer_name'), pickup_date = (p_payload->>'pickup_date')::date WHERE id = v_existing.id;\n` + text.slice(at);
+  }, ['fullRow']);
+  for (const [id, field] of [['M92','customer_name'],['M93','phone'],['M94','brand'],['M95','product'],['M96','source'],['M97','appointment_date']]) {
+    const before = `nullif(trim(p_payload->>'${field}'), '') IS NULL`;
+    const after = `nullif(p_payload->>'${field}', '') IS NULL`;
+    change(id, `${field} required check does not trim`, before, after, ['blankRequired']);
+  }
+  mutants.find(m => m.id === 'M97').equivalent = 'date cast still rejects whitespace with KMO_BAD_REQUEST';
 
   const allProbes = [...new Set(mutants.flatMap(m => m.probes))];
   for (const key of allProbes) {
     await clearFixtures();
-    const ok = await probeSet[key]();
+    const ok = key === 'fullRow' ? await probeFullRow(today, true)
+      : key === 'blankRequired' ? await probeBlankRequired(today, true) : await probeSet[key]();
     record(`final mutant probe baseline ${key}`, ok);
     usedProbes.add(key);
     if (!ok) throw new Error(`final mutant probe ${key} failed on original function; mutant results would be invalid`);
@@ -903,7 +1093,9 @@ async function runFinalBookingMutants(migration, today) {
         await clearFixtures();
         if (!(await probeSet[key]())) { detected = true; detail = `killed by ${key}`; break; }
       }
-      if (!detected) detail = `survived probes=${probes.join(',')}`;
+    if (!detected) detail = mutant.equivalent
+      ? `equivalent: ${mutant.equivalent}; ${path.relative(repo, migration)}:57`
+      : `survived probes=${probes.join(',')}`;
     } finally {
       if (mutant.helper) {
         fileSql(helperPath);
@@ -917,7 +1109,7 @@ async function runFinalBookingMutants(migration, today) {
         throw new Error(`Failed to restore final create_booking after ${id} ${name}`);
       }
     }
-    record(`mutant rejected: create_booking final ${id} ${name}`, detected, detail);
+    record(`${mutant.equivalent ? 'mutant equivalent' : 'mutant rejected'}: create_booking final ${id} ${name}`, detected || Boolean(mutant.equivalent), detail);
   }
   if (usedProbes.size !== allProbes.length) throw new Error('Some final mutant probes were not run against the original function');
 }
