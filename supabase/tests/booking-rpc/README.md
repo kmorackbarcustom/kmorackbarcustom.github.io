@@ -40,6 +40,7 @@ Only `customer_name`, `phone`, `source`, `line_uid`, `brand`, `model`, `product`
 | `KMO_APPOINT_HOLIDAY` | Appointment date exists in `holidays` |
 | `KMO_PICKUP_MISSING` | Pickup date is empty |
 | `KMO_PICKUP_BEFORE_APPOINT` | Pickup precedes appointment |
+| `KMO_BAD_REQUEST` | Pickup is more than 180 calendar days after appointment |
 | `KMO_MIN_WORKDAYS` | Fewer than two working days after excluding Tuesdays and dates in `holidays` |
 | `KMO_DAY_FULL` | Three active bookings already use that appointment date |
 
@@ -75,6 +76,12 @@ The `holidays` trigger calls the existing Telegram function URL with this JSON b
 ```
 
 `hit` is `appointment`, `pickup`, or `both`. No overlapping active booking means no post. Notification errors are swallowed so the holiday write succeeds. `telegram-notify` does not yet handle this type; the receiver change belongs to T5.
+
+## เพดานช่วงวันรับรถ 180 วัน
+
+`pickup_date` ห่างจาก `appointment_date` ได้ไม่เกิน 180 วันปฏิทิน: 180 วันผ่าน และ 181 วันขึ้นไปถูกปฏิเสธด้วย `KMO_BAD_REQUEST` (`P0001`). ระยะห่างคำนวณจากวันนัด ไม่ใช่วันปัจจุบัน. ด่านอยู่หลัง replay และการตรวจวันนัด/วันที่รับรถก่อนวันนัด แต่ก่อนนับวันทำงาน เพื่อปฏิเสธช่วงที่ยาวก่อน `generate_series` สแกนข้อมูล.
+
+T6 Phase A: migration นี้แก้ `create_booking` เพิ่มอีกชั้นจาก T3b. ลำดับ apply คือ T3 → T3b → T3c (`20261116110000_booking_rpc_pickup_horizon.sql`); rollback ย้อนลำดับ T3c → T3b → T3. ใบจองที่รับไปแล้วไม่ถูกตรวจย้อนหลัง.
 
 ## T3b — F8/F9 follow-up
 

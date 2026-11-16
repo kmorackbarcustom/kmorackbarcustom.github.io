@@ -56,7 +56,7 @@ function call(appointment, pickup, request = randomUUID(), extra = {}) {
 }
 function asyncPsql(statement) {
   return new Promise(resolve => {
-    const child = spawn(psql, psqlArgs(['-At', '-c', statement]), { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(psql, psqlArgs(['-At', '-v', 'VERBOSITY=verbose', '-c', statement]), { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = ''; let stderr = '';
     child.stdout.setEncoding('utf8').on('data', s => stdout += s);
     child.stderr.setEncoding('utf8').on('data', s => stderr += s);
@@ -64,6 +64,7 @@ function asyncPsql(statement) {
   });
 }
 function checkExpectedError(result, code) { return result.code !== 0 && `${result.stdout}\n${result.stderr}`.includes(code); }
+function checkSqlstate(result, code) { return result.code !== 0 && new RegExp(`\\b${code}\\b`).test(`${result.stdout}\n${result.stderr}`); }
 function parseJsonOutput(output) { try { return JSON.parse(output.trim().split(/\r?\n/).at(-1)); } catch { return null; } }
 function sectionBlocks(source) {
   return source.split(/(?=^-- ==== )/m).filter(s => s.startsWith('-- ==== '));
@@ -299,17 +300,13 @@ async function probePickupRules(today) {
 }
 async function probeFarPickup(today) {
   await clearFixtures();
-  const day = findDow(plus(today, 7), 1), started = performance.now();
-  const result = await asyncPsql(call(day, '9999-12-31', uuid(18130)));
-  const duration = Math.round(performance.now() - started);
-  if (result.code !== 0 || parseJsonOutput(result.stdout)?.replay !== false || duration >= 2000) {
-    console.log(`M29_9999 code=${result.code} duration=${duration} stdout=${result.stdout} stderr=${result.stderr}`);
-    return false;
-  }
-  const guarded = await asyncPsql(`SET statement_timeout='500ms'; ${call(day, '9999-12-31', uuid(18144))}`);
-  if (guarded.code !== 0) console.log(`M29_GUARDED code=${guarded.code} stdout=${guarded.stdout} stderr=${guarded.stderr}`);
-  return guarded.code === 0 && parseJsonOutput(guarded.stdout)?.replay === false;
+  const day = findDow(plus(today, 7), 1);
+  const req = uuid(18130), result = await asyncPsql(call(day, '9999-12-31', req));
+  return checkExpectedError(result, 'KMO_BAD_REQUEST') && checkSqlstate(result, 'P0001')
+    && sql(`SELECT count(*) FROM public.bookings WHERE pickup_date=date '9999-12-31';`) === '0'
+    && sql(`SELECT count(*) FROM public.booking_requests WHERE request_id='${req}';`) === '0';
 }
+
 async function probeDifferentDayCap(today) {
   await clearFixtures();
   const full = findDow(plus(today, 7), 1), free = plus(full, 7);
@@ -822,7 +819,7 @@ async function runF9(today) {
   record('F9 anon can call wrapper but not counter directly', anonGenerate.code === 0 && anonCounter.code !== 0, `wrapper=${anonGenerate.code}, counter=${anonCounter.code}`);
 }
 
-async function runMutants(migration) {
+async function runMutants(migration, finalMigration = migration, t3bHash) {
   await clearFixtures();
   const constraint = "EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey' AND confdeltype='c' AND confupdtype='c')";
   const mutant = async (name, command, detail = '') => {
@@ -859,14 +856,15 @@ ROLLBACK;`;
   record('mutant rejected: migration is not idempotent', migrationMutant.status !== 0 && /already exists|duplicate/i.test(migrationMutant.out), migrationMutant.out.split(/\r?\n/).find(line => /already exists|duplicate/i.test(line)) || `exit=${migrationMutant.status}`);
 
   await mutant('rollback does not restore baseline function hash', `BEGIN; ALTER TABLE public.booking_requests DROP CONSTRAINT IF EXISTS booking_requests_job_id_fkey; SELECT test_support.assert((SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=hash FROM test_support.generate_job_id_before), 'rollback hash invariant'); ROLLBACK;`);
-  const bookingDefinition = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
+  const bookingDefinition = (await readFile(finalMigration, 'utf8')).replaceAll('\r\n', '\n');
   const rollback = (await readFile(path.join(repo, 'supabase/rollback/20261116100000_booking_rpc_followup_f8_f9.down.sql'), 'utf8')).replaceAll('\r\n', '\n');
   const restoredFunction = rollback.match(/CREATE OR REPLACE FUNCTION public\.create_booking\([^)]*\)[\s\S]*?\$function\$;/)?.[0];
   if (!restoredFunction || !bookingDefinition.includes('AND NOT EXISTS (') || !bookingDefinition.includes('public.holidays h WHERE h.date = d.day::date')) throw new Error('Cannot verify create_booking holiday or rollback mutant fixtures');
   // The good migration is idempotent; this final check ensures all mutant transactions rolled back.
   record('mutant transactions leave the working definitions intact', sql(`SELECT ${constraint} AND ((${functionMetaSql()}) = 1);`) === 't');
-  await runBookingMutants(migration);
-  await runFinalBookingMutants(migration, sql('SELECT public.kmo_today();'));
+  await runBookingMutants(finalMigration);
+  await runFinalBookingMutants(finalMigration, sql('SELECT public.kmo_today();'));
+  await runHorizonMutants(finalMigration, t3bHash, sql('SELECT public.kmo_today();'));
 }
 
 async function runFinalBookingMutants(migration, today) {
@@ -1069,6 +1067,7 @@ async function runFinalBookingMutants(migration, today) {
     change(id, `${field} required check does not trim`, before, after, ['blankRequired']);
   }
   mutants.find(m => m.id === 'M97').equivalent = 'date cast still rejects whitespace with KMO_BAD_REQUEST';
+  mutants.find(m => m.id === 'M29').equivalent = 'with the T3c gate, no accepted call scans beyond 180 days; the LIMIT only stops after reaching the minimum, so removing it preserves the count threshold result';
 
   const allProbes = [...new Set(mutants.flatMap(m => m.probes))];
   for (const key of allProbes) {
@@ -1144,6 +1143,253 @@ async function runBookingMutants(migration) {
   const badRollbackFn = rollbackFn.replace('IF v_pickup < v_appointment THEN', 'IF v_pickup <= v_appointment THEN');
   const hashCheck = `SELECT test_support.assert(md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure))=(SELECT hash FROM test_support.create_booking_before), 'rollback must restore c54decf1 create_booking hash');`;
   await run('rollback definition differs from c54decf1', badRollbackFn, hashCheck);
+}
+
+function exactBookingFunction(source) {
+  return source.replaceAll('\r\n', '\n').match(/CREATE OR REPLACE FUNCTION public\.create_booking\(p_payload jsonb, p_request_id uuid\)[\s\S]*?\$function\$;/)?.[0] ?? null;
+}
+function bookingMetaSnapshot() {
+  return sql(`SELECT p.proargtypes::text||'|'||p.prorettype::text||'|'||p.prosecdef::text||'|'||coalesce(p.proconfig::text,'NULL')||'|'||coalesce(p.proacl::text,'NULL') FROM pg_proc p WHERE p.oid='public.create_booking(jsonb,uuid)'::regprocedure;`);
+}
+function monthAppointments(today) {
+  const [year, month, day] = today.split('-').map(Number), dates = [];
+  for (let i = 0; i < 12; i++) {
+    let value = new Date(Date.UTC(year, month - 1 + i, Math.min(day, 25))).toISOString().slice(0, 10);
+    while (dow(value) === 2) value = plus(value, 1);
+    dates.push(value);
+  }
+  return dates;
+}
+async function functionOutcome(fn, appointment, pickup, request) {
+  const body = sqlLiteral(jsonAscii(payload(appointment, pickup)));
+  const result = await asyncPsql(`DO $x$ BEGIN PERFORM ${fn}(${body}::jsonb,'${request}'::uuid); RAISE NOTICE 'RESULT:OK'; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'RESULT:%|%',SQLSTATE,SQLERRM; END $x$;`);
+  return `${result.stdout}\n${result.stderr}`.match(/RESULT:[^\r\n]*/)?.[0] ?? '';
+}
+async function pickupPerformance(today) {
+  const day = findDow(plus(today, 7), 1), runs = 5;
+  const median = values => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const measure = async (fn, pickup, base) => {
+    const values = [];
+    for (let i = 0; i < runs; i++) {
+      await clearFixtures();
+      const start = performance.now();
+      const result = await asyncPsql(`SELECT ${fn}(${sqlLiteral(jsonAscii(payload(day, pickup)))}::jsonb,'${uuid(base + i)}'::uuid);`);
+      values.push(performance.now() - start);
+      if (pickup === '9999-12-31' && fn === 'public.create_booking' && result.code === 0) throw new Error('T3c accepted 9999-12-31 during timing probe');
+    }
+    return median(values);
+  };
+  const t3bFar = await measure('test_support.create_booking_t3b', '9999-12-31', 23000);
+  const near = await measure('public.create_booking', plus(day, 3), 23100);
+  const t3cFar = await measure('public.create_booking', '9999-12-31', 23200);
+  const ratio = (t3cFar - near) / (t3bFar - near);
+  const ok = t3bFar > near && ratio < 0.5;
+  record('relative pickup cost T3c versus T3b', ok, `median_ms T3b_far=${t3bFar.toFixed(2)} near=${near.toFixed(2)} T3c_far=${t3cFar.toFixed(2)} ratio=${ratio.toFixed(3)}`);
+  return ok;
+}
+async function runPickupHorizonTests(today, t3bMigration, t3cMigration, t3cRollback) {
+  const t3b = exactBookingFunction(await readFile(t3bMigration, 'utf8'));
+  const t3c = exactBookingFunction(await readFile(t3cMigration, 'utf8'));
+  const rollback = exactBookingFunction(await readFile(t3cRollback, 'utf8'));
+  if (!t3b || !t3c || !rollback) throw new Error('Cannot read T3b/T3c create_booking definitions');
+  const expected = t3b.replace('DECLARE\n', 'DECLARE\n  c_max_pickup_horizon_days constant integer := 180;\n')
+    .replace('  SELECT count(*)::integer INTO v_workdays\n', `  IF v_pickup - v_appointment > c_max_pickup_horizon_days THEN\n    RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';\n  END IF;\n\n  SELECT count(*)::integer INTO v_workdays\n`);
+  record('T3c structural diff only adds constant and gate', t3c === expected, `exact=${t3c === expected}`);
+  record('T3c rollback exactly restores T3b', rollback === t3b, `exact=${rollback === t3b}`);
+  record('T3c metadata before apply matches T3b', bookingMetaSnapshot() === sql(`SELECT argtypes||'|'||prorettype::text||'|'||prosecdef::text||'|'||proconfig||'|'||proacl FROM test_support.create_booking_before;`));
+
+  sql('CREATE SCHEMA IF NOT EXISTS test_support;');
+  const copy = t3b.replace('public.create_booking(', 'test_support.create_booking_t3b(')
+    .replace('SET search_path = public, pg_temp', 'SET search_path = public, test_support, pg_temp');
+  const copyPath = path.join(dataDir, 't3b-create-booking.sql');
+  await writeFile(copyPath, `${copy}\n`);
+  fileSql(copyPath);
+  await pickupPerformance(today);
+
+  const dates = monthAppointments(today), sources = ['facebook', 'line', 'tiktok', 'instagram', 'หน้าร้าน', 'เพื่อนแนะนำ', 'อื่น'];
+  let boundary = true, attempt = 0;
+  for (const appointment of dates) for (let i = 0; i < sources.length; i++) {
+    const extra = { source: sources[i], estimated_total: i % 2 ? 25 : null };
+    await clearFixtures();
+    const accepted = await asyncPsql(call(appointment, plus(appointment, 180), uuid(24000 + attempt++), extra));
+    boundary &&= accepted.code === 0;
+    await clearFixtures();
+    const rejected = await asyncPsql(call(appointment, plus(appointment, 181), uuid(25000 + attempt++), extra));
+    boundary &&= checkExpectedError(rejected, 'KMO_BAD_REQUEST') && checkSqlstate(rejected, 'P0001');
+  }
+  for (const days of [182, 365]) {
+    await clearFixtures(); const date = dates[0], result = await asyncPsql(call(date, plus(date, days), uuid(26000 + days)));
+    boundary &&= checkExpectedError(result, 'KMO_BAD_REQUEST') && checkSqlstate(result, 'P0001');
+  }
+  record('180 passes and 181/182/365 reject across months and all sources', boundary, `months=${dates.length} sources=${sources.length}; estimated_total NULL and present`);
+
+  let extreme = true;
+  for (const [suffix, pickup] of [['9999', '9999-12-31'], ['max', '5874897-12-31']]) {
+    await clearFixtures(); const request = uuid(suffix === '9999' ? 27000 : 27001);
+    const result = await asyncPsql(call(dates[0], pickup, request));
+    extreme &&= checkExpectedError(result, 'KMO_BAD_REQUEST') && checkSqlstate(result, 'P0001')
+      && sql(`SELECT (SELECT count(*) FROM public.bookings WHERE pickup_date='${pickup}'::date)+(SELECT count(*) FROM public.booking_requests WHERE request_id='${request}'::uuid);`) === '0';
+  }
+  record('9999 and maximum finite date reject without persisted rows', extreme);
+
+  const appointment = dates[0], far = plus(appointment, 181); let order = true;
+  await clearFixtures();
+  const holidays = Array.from({ length: 181 }, (_, i) => `(date '${plus(appointment, i + 1)}','horizon order')`).join(',');
+  sql(`INSERT INTO public.holidays(date,reason) VALUES ${holidays};`);
+  const d1far = await asyncPsql(call(appointment, far, uuid(27100)));
+  const d1edge = await asyncPsql(call(appointment, plus(appointment, 180), uuid(27101)));
+  const d1 = checkExpectedError(d1far, 'KMO_BAD_REQUEST') && checkExpectedError(d1edge, 'KMO_MIN_WORKDAYS');
+  record('horizon d1 precedes workday scan', d1, `181=${d1far.stderr.split(/\r?\n/)[0]}; 180=${d1edge.stderr.split(/\r?\n/)[0]}`);
+  await clearFixtures();
+  sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('HORIZON-FULL-1','${appointment}','${plus(appointment, 3)}'),('HORIZON-FULL-2','${appointment}','${plus(appointment, 3)}'),('HORIZON-FULL-3','${appointment}','${plus(appointment, 3)}');`);
+  const d2result = await asyncPsql(call(appointment, far, uuid(27102)));
+  const d2 = checkExpectedError(d2result, 'KMO_BAD_REQUEST');
+  record('horizon d2 precedes full-day capacity', d2, d2result.stderr.split(/\r?\n/)[0]);
+  const replayRequest = uuid(27103); await clearFixtures(); await asyncPsql(call(appointment, plus(appointment, 3), replayRequest));
+  const replay = await asyncPsql(call(appointment, far, replayRequest)); const replayOk = replay.code === 0 && parseJsonOutput(replay.stdout)?.replay === true;
+  await clearFixtures(); const pastResult = await asyncPsql(call(plus(today, -1), plus(today, 200), uuid(27104)));
+  const pastOk = checkExpectedError(pastResult, 'KMO_APPOINT_PAST');
+  const closed = findDow(plus(today, 7), 2);
+  const closedResult = await asyncPsql(call(closed, plus(closed, 200), uuid(27105)));
+  const closedOk = checkExpectedError(closedResult, 'KMO_APPOINT_CLOSED_WEEKDAY');
+  await clearFixtures(); sql(`INSERT INTO public.holidays(date,reason) VALUES ('${appointment}','d3 holiday');`);
+  const holidayResult = await asyncPsql(call(appointment, far, uuid(27106)));
+  const holidayOk = checkExpectedError(holidayResult, 'KMO_APPOINT_HOLIDAY');
+  await clearFixtures();
+  const beforeResult = await asyncPsql(call(appointment, plus(appointment, -181), uuid(27107)));
+  const beforeOk = checkExpectedError(beforeResult, 'KMO_PICKUP_BEFORE_APPOINT');
+  const future = findDow(plus(today, 300), 1); await clearFixtures();
+  const futureResult = await asyncPsql(call(future, plus(future, 10), uuid(27108)));
+  const futureOk = futureResult.code === 0;
+  order = d1 && d2 && replayOk && pastOk && closedOk && holidayOk && beforeOk && futureOk;
+  record('horizon d3 replay remains first', replayOk);
+  record('horizon d3 precedes past-date check', pastOk, pastResult.stderr.split(/\r?\n/)[0]);
+  record('horizon d3 precedes closed-weekday check', closedOk, closedResult.stderr.split(/\r?\n/)[0]);
+  record('horizon d3 precedes appointment-holiday check', holidayOk, holidayResult.stderr.split(/\r?\n/)[0]);
+  record('horizon d3 preserves pickup-before-appointment error', beforeOk, beforeResult.stderr.split(/\r?\n/)[0]);
+  record('horizon measured from appointment, not today', futureOk);
+
+  const differential = [[appointment, plus(appointment, 3)], [appointment, plus(appointment, 180)],
+    [future, plus(future, 10)], ['5874897-12-20', '5874897-12-27']];
+  let same = true;
+  for (let i = 0; i < differential.length; i++) {
+    const [a, p] = differential[i]; await clearFixtures();
+    const before = await functionOutcome('test_support.create_booking_t3b', a, p, uuid(27200 + i));
+    await clearFixtures(); const after = await functionOutcome('public.create_booking', a, p, uuid(27300 + i));
+    same &&= before === after;
+  }
+  record('T3b/T3c differential outcomes match within horizon', same, `cases=${differential.length}; includes near maximum date`);
+}
+
+async function runHorizonMutants(migration, t3bHash, today) {
+  const source = (await readFile(migration, 'utf8')).replaceAll('\r\n', '\n');
+  const fn = exactBookingFunction(source);
+  const rollbackPath = path.join(repo, 'supabase/rollback/20261116110000_booking_rpc_pickup_horizon.down.sql');
+  const rollback = exactBookingFunction(await readFile(rollbackPath, 'utf8'));
+  const gate = `  IF v_pickup - v_appointment > c_max_pickup_horizon_days THEN\n    RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';\n  END IF;\n\n`;
+  if (!fn || !fn.includes(gate) || !rollback) throw new Error('Cannot load C1-C30 source fixtures');
+  const baseHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+  const farCall = async (days, source = 'line', extra = {}) => {
+    await clearFixtures(); const day = findDow(plus(today, 7), 1);
+    return asyncPsql(call(day, plus(day, days), randomUUID(), { source, ...extra }));
+  };
+  const run = async (id, name, mutant, probe) => {
+    const file = path.join(dataDir, `mutant-C${id}.sql`);
+    await writeFile(file, `${mutant}\n`);
+    let rejected = false, detail = '';
+    try {
+      fileSql(file);
+      rejected = await probe();
+      detail = rejected ? 'probe distinguished mutant' : 'survived';
+    } catch (error) { detail = `mutation execution failed: ${error.message}`; }
+    finally {
+      fileSql(migration);
+      if (sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));") !== baseHash) throw new Error(`Failed to restore function after C${id}`);
+    }
+    record(`mutant rejected: C${id} ${name}`, rejected, detail);
+  };
+  const change = (text, before, after) => {
+    if (!text.includes(before)) throw new Error(`Cannot construct mutant from ${before}`);
+    return text.replace(before, after);
+  };
+  const intervalGate = (name, mutant, probe) => run(name, name, mutant, probe);
+  const day = findDow(plus(today, 7), 1), far = plus(day, 181);
+  await intervalGate('1 gate removed', fn.replace(gate, ''), async () => !(await probeFarPickup(today)));
+  await intervalGate('2 greater-than becomes greater-or-equal', change(fn, ' > c_max_pickup_horizon_days', ' >= c_max_pickup_horizon_days'), async () => {
+    await clearFixtures(); return (await asyncPsql(call(day, plus(day,180), randomUUID()))).code !== 0;
+  });
+  await intervalGate('3 maximum becomes 181', change(fn, 'integer := 180;', 'integer := 181;'), async () => (await farCall(181)).code === 0);
+  await intervalGate('4 maximum becomes 179', change(fn, 'integer := 180;', 'integer := 179;'), async () => (await farCall(180)).code !== 0);
+  await intervalGate('5 maximum becomes 365', change(fn, 'integer := 180;', 'integer := 365;'), async () => (await farCall(181)).code === 0);
+  await intervalGate('6 distance measured from today', change(fn, 'v_pickup - v_appointment > c_max_pickup_horizon_days', 'v_pickup - public.kmo_today() > c_max_pickup_horizon_days'), async () => {
+    const future = findDow(plus(today,300),1); await clearFixtures(); return (await asyncPsql(call(future,plus(future,10),randomUUID()))).code !== 0;
+  });
+  await intervalGate('7 distance direction reversed', change(fn, 'v_pickup - v_appointment > c_max_pickup_horizon_days', 'v_appointment - v_pickup > c_max_pickup_horizon_days'), async () => (await farCall(181)).code === 0);
+  const lockLine = "  PERFORM pg_advisory_xact_lock(hashtext('kmo:booking:' || to_char(v_appointment, 'YYYY-MM-DD')));";
+  const moved = fn.replace(gate,'').replace(lockLine, `${gate}${lockLine}`);
+  await intervalGate('8 gate moved after workday count', moved, async () => {
+    await clearFixtures(); const values=Array.from({length:181},(_,i)=>`(date '${plus(day,i+1)}','C8')`).join(','); sql(`INSERT INTO public.holidays(date,reason) VALUES ${values};`);
+    return checkExpectedError(await asyncPsql(call(day,plus(day,181),randomUUID())),'KMO_MIN_WORKDAYS');
+  });
+  const beforeCapacity = fn.replace(gate,'').replace('  v_job_id :=', `${gate}  v_job_id :=`);
+  await intervalGate('9 gate moved after capacity check', beforeCapacity, async () => {
+    await clearFixtures(); sql(`INSERT INTO public.bookings(job_id,appointment_date,pickup_date) VALUES ('C9a','${day}','${plus(day,3)}'),('C9b','${day}','${plus(day,3)}'),('C9c','${day}','${plus(day,3)}');`);
+    return checkExpectedError(await asyncPsql(call(day,far,randomUUID())),'KMO_DAY_FULL');
+  });
+  const absGate = `  IF abs(v_pickup - v_appointment) > c_max_pickup_horizon_days THEN\n    RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';\n  END IF;\n\n`;
+  const beforePickup = fn.replace(gate,'').replace('  IF v_pickup < v_appointment THEN', `${absGate}  IF v_pickup < v_appointment THEN`);
+  await intervalGate('10 gate moved before pickup-before with absolute distance', beforePickup, async () => checkExpectedError(await asyncPsql(call(day,plus(day,-181),randomUUID())),'KMO_BAD_REQUEST'));
+  for (const [id, before] of [['11a','  IF v_appointment < public.kmo_today() THEN'],['11b','  IF extract(dow FROM v_appointment)::integer = ANY(public.kmo_closed_weekdays()) THEN'],['11c','  IF EXISTS (SELECT 1 FROM public.holidays WHERE date = v_appointment) THEN']]) {
+    const movedBefore = fn.replace(gate,'').replace(before,`${gate}${before}`);
+    const probe = id==='11a' ? async()=>checkExpectedError(await asyncPsql(call(plus(today,-1),plus(today,200),randomUUID())),'KMO_BAD_REQUEST')
+      : id==='11b' ? async()=>{const closed=findDow(plus(today,7),2);return checkExpectedError(await asyncPsql(call(closed,plus(closed,200),randomUUID())),'KMO_BAD_REQUEST');}
+      : async()=>{await clearFixtures();sql(`INSERT INTO public.holidays(date,reason) VALUES ('${day}','C11c')`);return checkExpectedError(await asyncPsql(call(day,plus(day,200),randomUUID())),'KMO_BAD_REQUEST');};
+    await intervalGate(id, movedBefore, probe);
+  }
+  const replayBlock = `  SELECT b.* INTO v_existing\n  FROM public.booking_requests r JOIN public.bookings b ON b.job_id = r.job_id\n  WHERE r.request_id = p_request_id;\n  IF FOUND THEN\n    RETURN jsonb_build_object('job_id', v_existing.job_id, 'booking_id', v_existing.id, 'replay', true);\n  END IF;\n`;
+  const earlyGate = `  IF (p_payload->>'pickup_date')::date - (p_payload->>'appointment_date')::date > c_max_pickup_horizon_days THEN\n    RAISE EXCEPTION 'KMO_BAD_REQUEST' USING ERRCODE = 'P0001';\n  END IF;\n\n`;
+  const beforeReplay = fn.replace(gate,'').replace(replayBlock, `${earlyGate}${replayBlock}`);
+  await intervalGate('12 gate before replay', beforeReplay, async()=>{const req=randomUUID();await clearFixtures();await asyncPsql(call(day,plus(day,3),req));return (await asyncPsql(call(day,far,req))).code!==0;});
+  for (const [id, old, next, state] of [
+    ['13','KMO_BAD_REQUEST','KMO_MIN_WORKDAYS','P0001'], ['14','KMO_BAD_REQUEST','KMO_PICKUP_BEFORE_APPOINT','P0001'],
+    ['15','KMO_BAD_REQUEST','KMO_PICKUP_TOO_FAR','P0001'], ['16','KMO_BAD_REQUEST','KMO_BAD_REQUEST','22023']]) {
+    const changed=fn.replace(gate,gate.replace(`RAISE EXCEPTION '${old}' USING ERRCODE = 'P0001';`,`RAISE EXCEPTION '${next}' USING ERRCODE = '${state}';`));
+    await intervalGate(id, changed, async()=>{const result=await farCall(181);return !checkExpectedError(result,'KMO_BAD_REQUEST')||!checkSqlstate(result,'P0001');});
+  }
+  const overflow = change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days','v_pickup > v_appointment + c_max_pickup_horizon_days');
+  await intervalGate('17 date addition overflows at maximum date', overflow, async()=>{
+    await clearFixtures();const before=await functionOutcome('test_support.create_booking_t3b','5874897-12-20','5874897-12-27',randomUUID());await clearFixtures();const after=await functionOutcome('public.create_booking','5874897-12-20','5874897-12-27',randomUUID());return before!==after;
+  });
+  await intervalGate('18 interval six months', change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days',"v_pickup > v_appointment + interval '6 months'"), async()=>{
+    const a=findDow(plus(today,105),1);await clearFixtures();const result=await asyncPsql(call(a,plus(a,182),randomUUID()));return result.code===0;
+  });
+  await intervalGate('19 bypass when source is line', change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days',"v_pickup - v_appointment > c_max_pickup_horizon_days AND p_payload->>'source' <> 'line'"), async()=>{await clearFixtures();return (await asyncPsql(call(day,far,randomUUID(),{source:'line'}))).code===0;});
+  await intervalGate('20 bypass on Sunday appointment', change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days','v_pickup - v_appointment > c_max_pickup_horizon_days AND extract(dow FROM v_appointment) <> 0'), async()=>{const sunday=findDow(plus(today,7),0);await clearFixtures();return (await asyncPsql(call(sunday,plus(sunday,181),randomUUID()))).code===0;});
+  await intervalGate('21 bypass when estimated_total is NULL', change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days','v_pickup - v_appointment > c_max_pickup_horizon_days AND v_total IS NOT NULL'), async()=>{await clearFixtures();return (await asyncPsql(call(day,far,randomUUID(),{estimated_total:null}))).code===0;});
+  await intervalGate('22 workday LIMIT changed to one', change(fn,'LIMIT public.kmo_min_booking_workdays()','LIMIT 1'), async()=>!(await probePickupRules(today)));
+  const security = change(fn,'VOLATILE SECURITY DEFINER','VOLATILE SECURITY INVOKER');
+  await intervalGate('23 SECURITY INVOKER', security, async()=>bookingMetaSnapshot()!==sql(`SELECT argtypes||'|'||prorettype::text||'|'||prosecdef::text||'|'||proconfig||'|'||proacl FROM test_support.create_booking_before;`));
+  await intervalGate('24 search_path changed', change(fn,'SET search_path = public, pg_temp','SET search_path = public'), async()=>bookingMetaSnapshot()!==sql(`SELECT argtypes||'|'||prorettype::text||'|'||prosecdef::text||'|'||proconfig||'|'||proacl FROM test_support.create_booking_before;`));
+  const preAcl=bookingMetaSnapshot();
+  const aclResult=tool(psql,psqlArgs(['-c',`BEGIN; REVOKE EXECUTE ON FUNCTION public.create_booking(jsonb,uuid) FROM anon; SELECT test_support.assert((${bookingMetaSnapshotSql()}) <> ${sqlLiteral(preAcl)}, 'ACL mutant'); ROLLBACK;`]),{allowFailure:true});
+  record('mutant rejected: C25 migration ACL revoke', aclResult.status===0 && aclResult.out.includes('ROLLBACK'), 'transaction rolled back after ACL metadata changed');
+  const noReplace=source.replace('CREATE OR REPLACE FUNCTION public.create_booking','CREATE FUNCTION public.create_booking');
+  const c26=tool(psql,psqlArgs(['-c',noReplace]),{allowFailure:true}); record('mutant rejected: C26 CREATE FUNCTION is not repeatable',c26.status!==0&&/already exists|duplicate/i.test(c26.out),c26.out.split(/\r?\n/).find(x=>/already exists|duplicate/i.test(x))||`exit=${c26.status}`);
+  const badRollback=rollback.replace('IF v_pickup < v_appointment THEN','IF v_pickup <= v_appointment THEN');
+  const rollbackFile=path.join(dataDir,'C27-rollback.sql');await writeFile(rollbackFile,badRollback);fileSql(rollbackFile);
+  record('mutant rejected: C27 rollback one character differs',sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));")!==t3bHash);
+  fileSql(migration); const emptyRollback=path.join(dataDir,'C28-empty-rollback.sql'); await writeFile(emptyRollback,''); fileSql(emptyRollback); record('mutant rejected: C28 empty rollback',sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));")!==t3bHash);
+  const c8=fn.replace(gate,'').replace(lockLine,`${gate}${lockLine}`);
+  await intervalGate('29 relative performance comparison rejects C8',c8,async()=>{
+    const a=findDow(plus(today,7),1), time=async(callFn,pickup,base)=>{const v=[];for(let i=0;i<3;i++){await clearFixtures();const t=performance.now();await asyncPsql(`SELECT ${callFn}(${sqlLiteral(jsonAscii(payload(a,pickup)))}::jsonb,'${uuid(base+i)}'::uuid);`);v.push(performance.now()-t);}return v.sort((x,y)=>x-y)[1];};
+    const old=await time('test_support.create_booking_t3b','9999-12-31',28000),near=await time('public.create_booking',plus(a,3),28100),slow=await time('public.create_booking','9999-12-31',28200);
+    return old>near && (slow-near)/(old-near)>=.25;
+  });
+  await intervalGate('30 gate only rejects exact 181-day distance', change(fn,'v_pickup - v_appointment > c_max_pickup_horizon_days','v_pickup - v_appointment = 181'), async()=>checkExpectedError(await farCall(182),'KMO_BAD_REQUEST')===false);
+  await sql('DROP FUNCTION test_support.create_booking_t3b(jsonb,uuid);');
+}
+function bookingMetaSnapshotSql() {
+  return `SELECT p.proargtypes::text||'|'||p.prorettype::text||'|'||p.prosecdef::text||'|'||coalesce(p.proconfig::text,'NULL')||'|'||coalesce(p.proacl::text,'NULL') FROM pg_proc p WHERE p.oid='public.create_booking(jsonb,uuid)'::regprocedure`;
 }
 
 async function runStatusAndHoliday(today) {
@@ -1256,7 +1502,7 @@ try {
   await snapshotPostT3();
   sql("INSERT INTO public.booking_requests(request_id,job_id) VALUES ('00000000-0000-4000-8000-000000008000','ORPHAN-T3B-FIXTURE');");
   fileSql(followup);
-  const finalCreateBookingHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+  const t3bCreateBookingHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
   record('T3b migration removes pre-existing orphan before FK', sql("SELECT count(*) FROM public.booking_requests WHERE request_id='00000000-0000-4000-8000-000000008000';") === '0');
   await migrateTwice(followup);
   await clearFixtures();
@@ -1268,12 +1514,21 @@ try {
   record('T3b preserves generate_job_id signature/security/config/ACL', functionMetaMatches());
   await runF8(today);
   await runF9(today);
+  const pickupMigration = path.join(repo, 'supabase/migrations/20261116110000_booking_rpc_pickup_horizon.sql');
+  const pickupRollback = path.join(repo, 'supabase/rollback/20261116110000_booking_rpc_pickup_horizon.down.sql');
+  const t3bMetaBefore = bookingMetaSnapshot();
+  fileSql(pickupMigration); fileSql(pickupMigration);
+  record('T3c migration applies twice', true, 'two PostgreSQL executions completed');
+  record('T3c metadata preserves signature/security/config/ACL', bookingMetaSnapshot() === t3bMetaBefore);
+  await runPickupHorizonTests(today, followup, pickupMigration, pickupRollback);
+  const finalCreateBookingHash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
   phase = '[final] ';
   const verifyFinalCreateBooking = label => {
     const hash = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
     record(`T3b final create_booking hash ${label}`, hash === finalCreateBookingHash, `expected=${finalCreateBookingHash}, actual=${hash}`);
   };
   verifyFinalCreateBooking('before suite');
+  record('T3c far pickup rejects with SQLSTATE P0001', await probeFarPickup(today));
   await clearFixtures();
   await runConcurrency(today, { final: true });
   await runLockProofs(today);
@@ -1283,12 +1538,17 @@ try {
   await runSecurity(today);
   verifyFinalCreateBooking('after suite');
   phase = '';
-  await runMutants(followup);
+  await runMutants(followup, pickupMigration, t3bCreateBookingHash);
 
   await clearFixtures();
   sql("INSERT INTO public.bookings(job_id, appointment_date, pickup_date) VALUES ('BASELINE-AVAILABILITY', date '2026-11-16', date '2026-11-18');");
   await compareBaseline('after all suites', true);
 
+  fileSql(pickupRollback);
+  const pickupRestored = sql("SELECT md5(pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure));");
+  record('T3c rollback restores exact T3b snapshot hash', pickupRestored === t3bCreateBookingHash, `expected=${t3bCreateBookingHash}, actual=${pickupRestored}`);
+  await migrateTwice(pickupMigration);
+  fileSql(pickupRollback);
   fileSql(followupRollback);
   const restored = sql(`SELECT md5(pg_get_functiondef('public.generate_job_id(text)'::regprocedure))=(SELECT hash FROM test_support.generate_job_id_before) AND coalesce((SELECT p.proacl::text FROM pg_proc p WHERE p.oid='public.generate_job_id(text)'::regprocedure),'NULL')=(SELECT proacl FROM test_support.generate_job_id_before);`);
   const fkRemain = sql("SELECT count(*) FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey';");
@@ -1299,6 +1559,8 @@ try {
   await compareBaseline('after T3b rollback');
   await comparePostT3('after T3b rollback');
   await migrateTwice(followup);
+  await migrateTwice(pickupMigration);
+  fileSql(pickupRollback);
   fileSql(followupRollback);
 
   fileSql(path.join(repo, 'supabase/rollback/20261116090000_booking_rpc_hardening.down.sql'));
@@ -1309,7 +1571,8 @@ try {
   await migrateTwice(migration);
   record('migration reapplies after rollback', sql("SELECT to_regclass('public.booking_requests') IS NOT NULL AND to_regclass('public.booking_job_counters') IS NOT NULL;") === 't');
   await migrateTwice(followup);
-  record('T3 then T3b both reapply after complete rollback', sql("SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey') AND public.generate_job_id('line') LIKE 'KLI-%';") === 't');
+  await migrateTwice(pickupMigration);
+  record('T3, T3b and T3c reapply after complete rollback', sql("SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_requests'::regclass AND conname='booking_requests_job_id_fkey') AND public.generate_job_id('line') LIKE 'KLI-%' AND position('c_max_pickup_horizon_days' in pg_get_functiondef('public.create_booking(jsonb,uuid)'::regprocedure))>0;") === 't');
 } catch (error) {
   failed.push({ name: 'harness runtime', detail: error.message });
   console.error(`HARNESS ERROR ${error.stack ?? error}`);
