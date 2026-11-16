@@ -1,0 +1,14 @@
+DROP TRIGGER IF EXISTS holidays_notify_conflicts ON public.holidays;
+DROP TRIGGER IF EXISTS bookings_status_sync ON public.bookings;
+DROP FUNCTION IF EXISTS public.holidays_notify_conflicts();
+DROP FUNCTION IF EXISTS public.bookings_status_sync();
+DROP FUNCTION IF EXISTS public.get_booking_day_usage(date, date);
+DROP FUNCTION IF EXISTS public.attach_booking_images(uuid, text[]);
+DROP FUNCTION IF EXISTS public.create_booking(jsonb, uuid);
+DROP FUNCTION IF EXISTS public.kmo_next_job_id(text);
+DROP FUNCTION IF EXISTS public.booking_uses_slot(text, text);
+DROP FUNCTION IF EXISTS public.kmo_min_booking_workdays();
+DROP FUNCTION IF EXISTS public.kmo_booking_daily_cap();
+DROP FUNCTION IF EXISTS public.kmo_closed_weekdays();
+DROP TABLE IF EXISTS public.booking_requests;
+DROP TABLE IF EXISTS public.booking_job_counters;

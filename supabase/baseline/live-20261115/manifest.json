@@ -1,0 +1,365 @@
+{
+  "project_ref": "xfhpwxjywqgqefbncumm",
+  "generated_at": "2026-11-15T02:56:29.603Z",
+  "tables": [
+    "bookings",
+    "holidays",
+    "production_allocations",
+    "orders"
+  ],
+  "blocks": {
+    "function public.calculate_queue()": {
+      "file": "functions.sql",
+      "sha256": "8f1959b6e07d3e07d52c98671d64f2e64bf39129bb3fbbb2db84a92982abc917"
+    },
+    "function public.check_queue_availability(p_appoint_date date, p_pickup_date date, p_exclude_booking_id integer)": {
+      "file": "functions.sql",
+      "sha256": "ff9acb20771434e9b9d5a36b88e84cbee94fdf35e343534b7f706b7e90205ff5"
+    },
+    "function public.create_customer_order(p_payload jsonb)": {
+      "file": "functions.sql",
+      "sha256": "d33d4960db978167d60b4c713a5eaa4939f6bdbe0413902175bda58ba49d6b73"
+    },
+    "function public.create_shopee_order(p_payload jsonb)": {
+      "file": "functions.sql",
+      "sha256": "4b9dc05cfbdcc5ae0f4c1d8b8f8ff5f38aa3ed24394c1cec8b6a11b3cfb64c28"
+    },
+    "function public.generate_job_id(p_platform text)": {
+      "file": "functions.sql",
+      "sha256": "00a6c8fe8556b24d62dc1f7f6a6dbfff4d2b5e56aac3fc0922b845b9f7594385"
+    },
+    "function public.get_booking_availability(p_start date, p_end date)": {
+      "file": "functions.sql",
+      "sha256": "948c48980ef547c7257820e3ee99ba2a74813aa5da6155ff0f6d5ccaacc38ff2"
+    },
+    "function public.get_daily_summary(p_date date)": {
+      "file": "functions.sql",
+      "sha256": "4c5942d6174d2c417a538b82ab26c9707170d405c0671ffa0af39279268d668c"
+    },
+    "function public.get_schedule_health()": {
+      "file": "functions.sql",
+      "sha256": "5ff97cdcace586016054660750d44c08f8f4300b8f1c4c8e16b78f65974266ca"
+    },
+    "function public.get_upcoming_queue_density(from_date date, days integer)": {
+      "file": "functions.sql",
+      "sha256": "a218f217761c29f623d026b6892d4435d459e3572a115fc6de1e888536d3ab5b"
+    },
+    "function public.kmo_allocate_backward(p_order_id uuid, p_units numeric, p_due_date date, p_source text)": {
+      "file": "functions.sql",
+      "sha256": "f2f1e2691c82b3f2c86ae1ae74e11e1d810ae95c26c88426c81e770b4ac5c561"
+    },
+    "function public.kmo_allocate_forward(p_order_id uuid, p_units numeric, p_earliest date)": {
+      "file": "functions.sql",
+      "sha256": "73e621d4666999b25c5159950adb46292481b679ef9f71dcb3a651b3f2bfe97f"
+    },
+    "function public.kmo_daily_allocation_units(p_units numeric)": {
+      "file": "functions.sql",
+      "sha256": "a2464d8a698a16c565a358ab5eee089bd2c130d85b0bddfda13a5573ec8ba957"
+    },
+    "function public.kmo_day_has_capacity(p_day date, p_units numeric)": {
+      "file": "functions.sql",
+      "sha256": "a8444f8006c637b75a3c42dd72f6bf34b37e69caa3944832c16e6cb7a4c4356e"
+    },
+    "function public.kmo_insert_order_from_payload(p_payload jsonb, p_is_shopee boolean)": {
+      "file": "functions.sql",
+      "sha256": "039b3a97c4092d32b0a2cbc813c80e9fdad202368ad4ec5114c2f5c99319ecf2"
+    },
+    "function public.kmo_order_effective_due(p_order orders)": {
+      "file": "functions.sql",
+      "sha256": "22a74fffb3dd0968ddb8f2ec68664a4bb42155ecaecbb7d21d85024251c025aa"
+    },
+    "function public.kmo_production_days(p_units numeric)": {
+      "file": "functions.sql",
+      "sha256": "510c249560fb9a49a95a5063f9a1ae34542864310b33074d79a1e28caa28f1b1"
+    },
+    "function public.kmo_sync_customer_from_booking()": {
+      "file": "functions.sql",
+      "sha256": "3808c9c40dd69c68c48b84423b035e633834b70a1e33d532de1975d728dae217"
+    },
+    "function public.kmo_today()": {
+      "file": "functions.sql",
+      "sha256": "a0d3fa50a57313b80f75c7efc409e0c4625007b49c330d4c1c42017d33c0dd9b"
+    },
+    "function public.notify_telegram_booking()": {
+      "file": "functions.sql",
+      "sha256": "ab3fdc32d261a784afc616af8d2fdbb239905a4dc88e6de1b2aa1df26ceb2268"
+    },
+    "function public.notify_telegram_order()": {
+      "file": "functions.sql",
+      "sha256": "608d1b255dc36fd7f56e1ab3774721d80fea1d4ebfc2dcd028f80ce7049a17f1"
+    },
+    "function public.rebuild_production_schedule()": {
+      "file": "functions.sql",
+      "sha256": "f3de65485e8aedfaabdff45032b610cc9de67052da3f247a9f9fac8dadf47229"
+    },
+    "function public.update_order_status(p_order_id uuid, p_status text)": {
+      "file": "functions.sql",
+      "sha256": "4d6e6f66dd5e48d6c092785107a8e7a60ad38e9fe3197a3f55b936a32877b38b"
+    },
+    "function public.update_shopee_deadline(p_order_id uuid, p_deadline date)": {
+      "file": "functions.sql",
+      "sha256": "1459136f6f1e9772ed32e12a139b8d6686516cef130369ecc8932274b9fa753a"
+    },
+    "function public.update_updated_at()": {
+      "file": "functions.sql",
+      "sha256": "bf9d61953d86abcfc6b4eb509d5c993ace8ce182ab6f0f80e556b7fd063078da"
+    },
+    "columns public.bookings": {
+      "file": "tables.sql",
+      "sha256": "d170ae33ae851f5e492b0f1d6aed7a5afc72f362b8c3d056d73a5237d3735735"
+    },
+    "columns public.holidays": {
+      "file": "tables.sql",
+      "sha256": "085cf2ba0de0cee2716bfd49a70c974279b530b22898ed9ae5dfc7697a4ba26d"
+    },
+    "columns public.orders": {
+      "file": "tables.sql",
+      "sha256": "b679e6c0945994f06a69f0c82b9b9fb871034055a051653b2cd8b67da3c77fa7"
+    },
+    "columns public.production_allocations": {
+      "file": "tables.sql",
+      "sha256": "7cc09ae188cede77c79aea90798a996dadc4f99fa75e6b6e19b9725abf1d796e"
+    },
+    "constraint public.bookings bookings_customer_id_fkey": {
+      "file": "tables.sql",
+      "sha256": "08186705efdd3b70dd55ecb7c76ad500515b80d66ad438003f33e9344d1f8852"
+    },
+    "constraint public.bookings bookings_job_id_key": {
+      "file": "tables.sql",
+      "sha256": "fb7b206a444f6795fe52a703e2c8c20d82298befa58436e9890532d5cbef778e"
+    },
+    "constraint public.bookings bookings_pkey": {
+      "file": "tables.sql",
+      "sha256": "67cac3f8e452629fc2bbfedf1b1eae227bb4a58e5dfdc8b27e4a05b8695000dc"
+    },
+    "constraint public.holidays holidays_date_key": {
+      "file": "tables.sql",
+      "sha256": "723fe5e3e82f4be400e257fc87099f14218745dd66dbc102165aa1c50137fd50"
+    },
+    "constraint public.holidays holidays_pkey": {
+      "file": "tables.sql",
+      "sha256": "607e53745f050bec37cd497a4e4518e7c75cee9767b4e32c9eac32efec265af8"
+    },
+    "constraint public.orders orders_order_id_key": {
+      "file": "tables.sql",
+      "sha256": "f9f39ef1dfdc782a4b30e2eda531d928b8fc83a1f9a53f5b2f5216c14c734493"
+    },
+    "constraint public.orders orders_pkey": {
+      "file": "tables.sql",
+      "sha256": "cf90dbe70239bcfb7c75451a97d0cffd9458aa1083b5809b236d8df15d8b83b3"
+    },
+    "constraint public.production_allocations production_allocations_order_id_fkey": {
+      "file": "tables.sql",
+      "sha256": "4fcb3ae50a1df22561429b9846689cd1c8dc2f09d442894a5533c58658e5ae43"
+    },
+    "constraint public.production_allocations production_allocations_order_id_work_date_key": {
+      "file": "tables.sql",
+      "sha256": "4f2feaf5270ff6fcdf5dfeea94c1500a35901fc1f7b535acb5d2b5377d6848f5"
+    },
+    "constraint public.production_allocations production_allocations_pkey": {
+      "file": "tables.sql",
+      "sha256": "10c5893cc451270d2630fbb71d3f788093e49e54dcb245dbcf0d4cb199938677"
+    },
+    "constraint public.production_allocations production_allocations_source_check": {
+      "file": "tables.sql",
+      "sha256": "57b8deeb18a17095b1591b6ded3f818c10bdd63e4cae47e45864b9e3fbb82970"
+    },
+    "constraint public.production_allocations production_allocations_units_check": {
+      "file": "tables.sql",
+      "sha256": "3054b8b0015a18628da0a446e8da2bbabf363a8be1fbbe6873c18f33fed78a7a"
+    },
+    "index public.bookings bookings_job_id_key": {
+      "file": "tables.sql",
+      "sha256": "f383e046819c2dba2ba864ed0fba905d52b33c0022534877706bd42cb8cc361b"
+    },
+    "index public.bookings bookings_pkey": {
+      "file": "tables.sql",
+      "sha256": "d520ce91d5608e11747e4e334b7806653244604e0d5a74d00f74ce1354a9367f"
+    },
+    "index public.bookings idx_bookings_appointment_date": {
+      "file": "tables.sql",
+      "sha256": "7f79eb4d6771d18976f48c61f461b99eada0ae8679b0367ad189e62435c6935d"
+    },
+    "index public.bookings idx_bookings_dates": {
+      "file": "tables.sql",
+      "sha256": "e3bb6619d9c85321d4cd82842edb0f5bb114323d04c6a2e6a76b5f3c8cc46015"
+    },
+    "index public.bookings idx_bookings_followup_due": {
+      "file": "tables.sql",
+      "sha256": "7145e1dbe76793c672bb236788407634da04c3949af0d7a95ac6b00e7367a117"
+    },
+    "index public.bookings idx_bookings_job_id": {
+      "file": "tables.sql",
+      "sha256": "056514ccd30af25988a2889907de08a238a391eef40b811653ba33ca53fc51b5"
+    },
+    "index public.bookings idx_bookings_pickup_date": {
+      "file": "tables.sql",
+      "sha256": "31ebfc875f654ba66593af57e98e54f7cc7066f6a9526927f72721f740fe463b"
+    },
+    "index public.bookings idx_bookings_production_status": {
+      "file": "tables.sql",
+      "sha256": "923b8943d50ec1223fbe97cd01e5a809b9e85269bd265c1b0e01bda6c053162e"
+    },
+    "index public.bookings idx_bookings_queue_status": {
+      "file": "tables.sql",
+      "sha256": "13d3cb23a49ace67b3c685484bf5ee5abd0c86f35b54ccb7e85840956844ef62"
+    },
+    "index public.holidays holidays_date_key": {
+      "file": "tables.sql",
+      "sha256": "c94eed235395416bd3b440689887d8cee787d5c83fc1df28f81dbdeeb2826eca"
+    },
+    "index public.holidays holidays_pkey": {
+      "file": "tables.sql",
+      "sha256": "ca19ea2a0da27dd4341ef7bbe72aabb2da7c9127061196905995a2b7b3f95252"
+    },
+    "index public.orders idx_orders_followup_due": {
+      "file": "tables.sql",
+      "sha256": "0982de0f9889d228ea0e413b8cd24cca6e5b7b134fc9adc33b9ea043ef00f3df"
+    },
+    "index public.orders orders_order_id_key": {
+      "file": "tables.sql",
+      "sha256": "b16766e8f8c8ae8321412c0991a9bc8488ef82dcac793642b3a62b42109f4c77"
+    },
+    "index public.orders orders_pkey": {
+      "file": "tables.sql",
+      "sha256": "f455d87615dffa1adeb133dc9afa4f73d7190d558348c9d9767c79f11c5a419b"
+    },
+    "index public.production_allocations production_allocations_order_id_idx": {
+      "file": "tables.sql",
+      "sha256": "d1be6985388119a3863b8d71b86255d5ced0091a42324b5a61682861aca10815"
+    },
+    "index public.production_allocations production_allocations_order_id_work_date_key": {
+      "file": "tables.sql",
+      "sha256": "736b1da00be53fb2551095b37df11cb44386ecefcaf569ede254cf88c5edd6da"
+    },
+    "index public.production_allocations production_allocations_pkey": {
+      "file": "tables.sql",
+      "sha256": "8af47ea9610b1565f8b4cd2be6502b0a440da2ddf416053634a2c16ff11632c8"
+    },
+    "index public.production_allocations production_allocations_work_date_idx": {
+      "file": "tables.sql",
+      "sha256": "16188ba1e8086e58b3c3a92a9285e152f8c37c00ac037883de2f0134644f71df"
+    },
+    "policy public.bookings anon can insert bookings": {
+      "file": "policies-rls.sql",
+      "sha256": "51d43e018cd9792724b019decbd2cc4f10a9d528074f654fcb614e0023f5d2bb"
+    },
+    "policy public.holidays anon can read holidays": {
+      "file": "policies-rls.sql",
+      "sha256": "376140a2697e83a7e5f221729bba87263864e4a284d293a13007381a9db698df"
+    },
+    "rls public.bookings": {
+      "file": "policies-rls.sql",
+      "sha256": "2b7a932ac872a76c683803c33c185a56b5ec439e2feb3e018902233996a08f03"
+    },
+    "rls public.holidays": {
+      "file": "policies-rls.sql",
+      "sha256": "2b7a932ac872a76c683803c33c185a56b5ec439e2feb3e018902233996a08f03"
+    },
+    "rls public.orders": {
+      "file": "policies-rls.sql",
+      "sha256": "2b7a932ac872a76c683803c33c185a56b5ec439e2feb3e018902233996a08f03"
+    },
+    "rls public.production_allocations": {
+      "file": "policies-rls.sql",
+      "sha256": "2b7a932ac872a76c683803c33c185a56b5ec439e2feb3e018902233996a08f03"
+    },
+    "trigger public.bookings bookings_updated_at": {
+      "file": "triggers.sql",
+      "sha256": "030cd0dca2c611d478f0b92d12e775036bdf0855821bcbf7a8f37ea4cd1ef16e"
+    },
+    "trigger public.bookings on_booking_insert": {
+      "file": "triggers.sql",
+      "sha256": "6c20c34ed5237527034d8c5a9338d6699a0df60b1ddb7aa86cb4988e385a44cf"
+    },
+    "trigger public.bookings trg_sync_customer_from_booking": {
+      "file": "triggers.sql",
+      "sha256": "8a50f9eae86c78dafe4f90c4841173b9731b67d77412300db91a24ad49d27b84"
+    },
+    "trigger public.orders on_order_insert_telegram": {
+      "file": "triggers.sql",
+      "sha256": "d246d0e7fc6cd5d879e0fd54cdd7289ce76d94996a2998342b7b2a64dbde89c9"
+    },
+    "trigger public.orders on_order_ready_telegram": {
+      "file": "triggers.sql",
+      "sha256": "b7b6bf6149e5e8e0edabc23de3103d0fe179997a0aacc43ef0cc4c96b73a79a1"
+    },
+    "trigger public.orders orders_updated_at": {
+      "file": "triggers.sql",
+      "sha256": "eec245b234e0fada44a6a3abb88403c14144b1ec15b8d009aa86710573e4df0a"
+    },
+    "cron appointment-reminder": {
+      "file": "cron-jobs.md",
+      "sha256": "db819c17618dde409670b533bdb47d3d3e188fca3d48569e316f3e538500f9be"
+    },
+    "cron customer-followup": {
+      "file": "cron-jobs.md",
+      "sha256": "db819c17618dde409670b533bdb47d3d3e188fca3d48569e316f3e538500f9be"
+    },
+    "cron daily-summary": {
+      "file": "cron-jobs.md",
+      "sha256": "5d40c20ca8dd5d12f613ad566028fc50a0200b3cee49e10786ff50e6309b822a"
+    },
+    "cron followup-check": {
+      "file": "cron-jobs.md",
+      "sha256": "fb593b2afc1cab8bf54614c9e4582da100d8d1a81886f1e86785bedbc49c73a4"
+    },
+    "cron line-chat-sessions-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "d4b8170bc609f6f17fcd188bb08319737c2c59ad18fff7e9318705edfb161a8a"
+    },
+    "cron line-image-batches-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "53d13ddef7218c70d9a7b04def81dbb1d62380bd31dba74168fcc5b422d194fe"
+    },
+    "cron line-inbox-messages-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "9836fafdc62c95b83b98edfd5b5f64c12cc2c02ac38e4791d29a6f449b299a16"
+    },
+    "cron line-inbox-pending-reconciliation": {
+      "file": "cron-jobs.md",
+      "sha256": "53d13ddef7218c70d9a7b04def81dbb1d62380bd31dba74168fcc5b422d194fe"
+    },
+    "cron line-staff-auth-attempts-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "20e129c3c31560bb81ddca85184eeab83543849b99808d5c12e6672d3759bc8f"
+    },
+    "cron line-webhook-events-cleanup": {
+      "file": "cron-jobs.md",
+      "sha256": "9836fafdc62c95b83b98edfd5b5f64c12cc2c02ac38e4791d29a6f449b299a16"
+    },
+    "cron pickup-reminder": {
+      "file": "cron-jobs.md",
+      "sha256": "f891582eac33124e9bf9152d23e69ecca8eca6c3f90bf4badad9e24cd84c3496"
+    }
+  },
+  "out_of_scope_functions": [
+    "public.commit_next_doc_number(p_doc_type text, p_year integer)",
+    "public.get_line_token()",
+    "public.line_append_chat_history(p_user_id text, p_message jsonb, p_max_history integer, p_event_ids text[])",
+    "public.line_customer_set_human_mode(p_customer_id uuid, p_human_takeover boolean)",
+    "public.line_delivery_claim(p_customer_id uuid, p_event_id text, p_mode text)",
+    "public.line_delivery_release(p_customer_id uuid, p_event_id text)",
+    "public.line_delivery_renew(p_customer_id uuid, p_claim_token text)",
+    "public.line_image_batch_append(p_line_uid text, p_message_id text, p_reply_token text, p_event_timestamp bigint, p_provider_type text, p_webhook_event_id text)",
+    "public.line_image_batch_claim(p_line_uid text, p_since timestamp with time zone, p_max_wait_seconds integer)",
+    "public.line_inbox_list(p_search text, p_status text, p_offset integer, p_limit integer)",
+    "public.line_staff_auth_attempt(p_ip_hash text, p_success boolean)",
+    "public.line_webhook_event_claim(p_event_id text, p_event_type text, p_reclaim_after_seconds integer)",
+    "public.peek_next_doc_number(p_doc_type text, p_year integer)",
+    "public.search_products(customer_message text)",
+    "public.send_line(target_id text, message_text text)",
+    "public.trigger_calculate_queue()",
+    "public.update_shop_config_setting(setting_key text, setting_value text)"
+  ],
+  "counts": {
+    "columns": 4,
+    "constraint": 12,
+    "cron": 11,
+    "function": 24,
+    "index": 18,
+    "policy": 2,
+    "rls": 4,
+    "trigger": 6
+  }
+}
