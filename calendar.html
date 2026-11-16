@@ -451,11 +451,11 @@
   <div class="info-box">
     <div class="info-item">
       <span class="info-icon">🏍️</span>
-      <span>รับงานสูงสุด <strong>3 คิวต่อวัน</strong></span>
+      <span>จำนวนคิวว่างแสดงตามข้อมูลปฏิทิน</span>
     </div>
     <div class="info-item">
       <span class="info-icon">📅</span>
-      <span>ร้านปิดทุก<strong>วันอังคาร</strong></span>
+      <span>วันปิดรับแสดงตามข้อมูลปฏิทิน</span>
     </div>
     <div class="info-item">
       <span class="info-icon">⏰</span>
@@ -474,22 +474,20 @@
   <a href="https://lin.ee/nqKigax" target="_blank">LINE: @hzf3231v</a> • 062-5893189
 </div>
 
+<script src="kmo-booking-api.js"></script>
 <script>
   // ===== ตั้งค่า =====
   const SUPABASE_URL = 'https://xfhpwxjywqgqefbncumm.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_8sBSio03fAXOoBK3inSnSQ_gTXsEVGT';
-  // Cap เดียว: รับรถเข้าใหม่ได้ DAILY_CAP คัน/วัน นับแค่วันรับรถเข้า (appointment_date)
-  // เท่านั้น ไม่นับลากยาวไปถึง pickup_date — เมื่อเหลือช่องไม่เกิน DENSE_THRESHOLD
-  // ถือว่าคิวแน่น (ใช้เลือกสี/label แสดงในปฏิทินเท่านั้น)
-  const DAILY_CAP = 3;
   const DENSE_THRESHOLD = 1;
   // ===================
 
   let currentYear  = new Date().getFullYear();
   let currentMonth = new Date().getMonth();
   let bookingData  = {};
-  let holidays     = new Set(); // เก็บวันหยุดจาก Supabase
+  let loadFailed   = false;
   let isLoading    = false;
+  const bookingApi = KmoBookingApi.createApi({ supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
 
   const THAI_MONTHS = [
     'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
@@ -501,37 +499,6 @@
     return new Date(y, m - 1, d);
   }
 
-  function buildPoolUsage(bookings) {
-    const usage = {};
-
-    bookings
-      .filter(b => b.queue_status !== 'ยกเลิก')
-      .forEach(b => {
-        const key = b.appointment_date;
-        usage[key] = (usage[key] || 0) + 1;
-      });
-
-    return usage;
-  }
-
-  // ===== โหลด holidays จาก Supabase =====
-  async function loadHolidays() {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/holidays?select=date`, {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      });
-      const data = await res.json();
-      holidays = new Set(data.map(h => h.date));
-    } catch (err) {
-      console.error('โหลด holidays ไม่ได้:', err);
-      holidays = new Set();
-    }
-  }
-
-  // ===== โหลด bookings จาก Supabase =====
   async function loadBookings() {
     if (isLoading) return;
     isLoading = true;
@@ -542,39 +509,16 @@
       const lastDay  = new Date(currentYear, currentMonth + 1, 0);
       const lastDayStr = toDateStr(lastDay);
 
-      // นับ "คิวรับรถเข้าใหม่" ต่อวัน — ดูแค่ appointment_date ในเดือนนี้
-      // (ไม่นับ pickup_date เพราะงานที่ค้างอยู่ในร้านนานไม่ควรไปบล็อกคิวรับรถใหม่วันอื่น)
-      // ponytail: ใช้ RPC แทน select ตรงบน bookings เพราะ table ถูกล็อก RLS ไม่ให้ anon SELECT ตรงๆ แล้ว (กัน PII รั่ว)
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/rpc/get_booking_availability`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ p_start: firstDay, p_end: lastDayStr })
-        }
-      );
-      const bookings = await res.json();
-      bookingData = buildPoolUsage(bookings);
-    } catch (err) {
-      console.error('โหลด bookings ไม่ได้:', err);
+      const rows = await bookingApi.loadDayUsage(firstDay, lastDayStr);
+      bookingData = Object.fromEntries(rows.map(row => [row.day, row]));
+      loadFailed = false;
+    } catch (_) {
       bookingData = {};
+      loadFailed = true;
     }
 
     isLoading = false;
     renderCalendar();
-  }
-
-  // ===== ตรวจสอบวันหยุด =====
-  function isHoliday(dateStr) {
-    return holidays.has(dateStr);
-  }
-
-  function isTuesday(date) {
-    return date.getDay() === 2;
   }
 
   function toDateStr(date) {
@@ -591,6 +535,20 @@
 
     const container = document.getElementById('cal-days');
     container.innerHTML = '';
+    if (loadFailed) {
+      const error = document.createElement('div');
+      error.className = 'loading';
+      error.style.cssText = 'grid-column:1/-1;text-align:center;padding:16px 8px;';
+      error.textContent = 'โหลดปฏิทิน/วันหยุดไม่ได้ ยังจองไม่ได้ตอนนี้';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.style.cssText = 'display:block;margin:12px auto 0;padding:10px 24px;border:0;border-radius:10px;background:#fbbf24;color:#111;font-weight:700;cursor:pointer;';
+      retry.textContent = 'ลองใหม่';
+      retry.addEventListener('click', loadBookings);
+      error.appendChild(retry);
+      container.append(error);
+      return;
+    }
 
     const today    = new Date();
     today.setHours(0, 0, 0, 0);
@@ -613,12 +571,11 @@
       const date    = new Date(currentYear, currentMonth, d);
       const dateStr = toDateStr(date);
       const isPast  = date < today;
-      const isTue   = isTuesday(date);
-      const isHol   = isHoliday(dateStr);
       const isToday = dateStr === todayStr;
-      const used = (bookingData || {})[dateStr] || 0;
-      const remaining = DAILY_CAP - used;
-      const isFullyClosed = remaining <= 0;
+      const row = bookingData[dateStr];
+      const used = row ? row.used : 0;
+      const remaining = row ? row.cap - row.used : 0;
+      const isFullyClosed = !row || row.is_closed || used >= row.cap;
       const isDense = remaining <= DENSE_THRESHOLD;
 
       const el = document.createElement('div');
@@ -631,7 +588,7 @@
       if (isPast) {
         el.classList.add('past', 'disabled');
         statusText = '';
-      } else if (isTue || isHol || isFullyClosed) {
+      } else if (isFullyClosed) {
         statusClass = 'status-full';
         el.classList.add('disabled');
         statusText = 'ปิดรับคิว';
@@ -647,7 +604,7 @@
       if (isToday) el.classList.add('today');
 
       // คลิกวันที่ว่าง → เด้งไปหน้าจอง
-      if (!isPast && !isTue && !isHol && !isFullyClosed) {
+      if (!isPast && row && !row.is_closed && !isFullyClosed) {
         el.classList.add('clickable');
         el.addEventListener('click', function() {
           window.location.href = 'booking.html?date=' + dateStr;
@@ -669,7 +626,7 @@
         el.appendChild(statusEl);
 
         // Dot
-        if (!isPast && !isTue && !isHol) {
+        if (!isPast && row && !row.is_closed) {
           const dot = document.createElement('div');
           dot.className = 'day-dot';
           el.appendChild(dot);
@@ -701,6 +658,7 @@
       if (currentMonth > 11) { currentMonth = 0; currentYear++; }
       if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
       bookingData = {};
+      loadFailed = false;
       
       container.classList.remove('fade-out');
       container.innerHTML = '<div class="loading"><div class="spinner"></div>กำลังโหลด...</div>';
@@ -709,11 +667,7 @@
   }
 
   // ===== เริ่มต้น =====
-  async function init() {
-    await loadHolidays();
-    loadBookings();
-  }
-  init();
+  loadBookings();
 </script>
 
 </body>
