@@ -1,3 +1,5 @@
+> ⚠️ **ล้าสมัย (2026-11-14):** แผนนี้ถูกแทนที่ด้วย `CATALOG_SUPABASE.md` ใน repo `kmorackbarcustom/kmo-landing-page` (หน้าร้านอ่านจาก `wc_products` ที่มีอยู่แล้ว ไม่สร้างตาราง `products`) · ไฟล์ `supabase-hr/products_*.sql` และ `admin-products.html` ตามแผนนี้ **อย่ารัน/อย่า deploy** · remote landing repo ย้ายเป็น `kmorackbarcustom/kmo-landing-page` และ `ALLOWED_ORIGIN` ในแผนนี้ผิดแล้ว
+
 # Task: ย้าย product catalog จาก CSV → Supabase table + หน้าแอดมินกรอกสินค้า
 
 > เขียน 2026-07-15 โดย Claude (Commander) — สั่งงานให้ Codex ทำ แล้ว Claude ตรวจ diff เองก่อน push
